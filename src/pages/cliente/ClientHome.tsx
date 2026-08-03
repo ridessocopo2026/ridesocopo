@@ -67,6 +67,10 @@ export function ClientHome() {
   const [loading, setLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [showFareSheet, setShowFareSheet] = useState(false)
+  // Estado del bottom sheet de destino (una sola interacción)
+  const [showDestSheet, setShowDestSheet] = useState(false)
+  const [sheetBarrioId, setSheetBarrioId] = useState('')
+  const [sheetAddress, setSheetAddress] = useState('')
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -447,43 +451,34 @@ export function ClientHome() {
         {/* Título principal */}
         <h2 className="text-center text-2xl font-bold text-surface-800 pt-2">Iniciar un viaje</h2>
 
-        {/* ¿A dónde te diriges? */}
+        {/* ¿A dónde te diriges? — una sola interacción */}
         <div className="card space-y-3">
           <h2 className="font-semibold text-surface-800 text-lg">¿A dónde te diriges?</h2>
 
-          <div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-600" />
-              <select
-                className="input pl-10 pr-10 appearance-none"
-                value={destBarrioId}
-                onChange={(e) => setDestBarrioId(e.target.value)}
-              >
-                <option value="">Selecciona el sitio de llegada</option>
-                {barrios.map((barrio) => (
-                  <option key={barrio.id} value={barrio.id}>
-                    {barrio.name} ({barrio.surcharge_usd.toFixed(2)}$)
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Campo de dirección exacta — solo aparece tras seleccionar barrio/sector */}
-          {destBarrioId && (
-            <div className="animate-slide-up">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                <input
-                  type="text"
-                  className="input pl-10"
-                  placeholder="Escribe tu dirección exacta..."
-                  value={destAddress}
-                  onChange={(e) => setDestAddress(e.target.value)}
-                />
+          {destBarrioId && destAddress ? (
+            <button
+              onClick={() => { setSheetBarrioId(destBarrioId); setSheetAddress(destAddress); setShowDestSheet(true) }}
+              className="w-full text-left card-hover flex items-center gap-3"
+            >
+              <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
+                <MapPin className="w-5 h-5" />
               </div>
-            </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-surface-800">
+                  {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'} ({barrios.find((b) => b.id === destBarrioId)?.surcharge_usd.toFixed(2)}$)
+                </p>
+                <p className="text-xs text-surface-500 truncate">{destAddress}</p>
+              </div>
+              <span className="text-xs font-medium text-primary-600">Cambiar</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => { setSheetBarrioId(''); setSheetAddress(''); setShowDestSheet(true) }}
+              className="btn-outline w-full"
+            >
+              <MapPin className="w-4 h-4" />
+              Seleccionar destino
+            </button>
           )}
         </div>
 
@@ -597,6 +592,68 @@ export function ClientHome() {
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continuar'}
         </button>
       </div>
+
+      {/* Bottom sheet de destino — UNA sola interacción: sector + dirección integrados */}
+      {showDestSheet && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setShowDestSheet(false)}>
+          <div className="bottom-sheet max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="bottom-sheet-handle" />
+            <h2 className="text-xl font-bold text-surface-800 mb-4">¿A dónde te diriges?</h2>
+
+            {/* Lista de sectores */}
+            <div className="space-y-2 mb-4 max-h-[35vh] overflow-y-auto">
+              {barrios.map((barrio) => (
+                <button
+                  key={barrio.id}
+                  onClick={() => setSheetBarrioId(barrio.id)}
+                  className={`w-full p-3.5 rounded-xl border-2 text-left transition-all ${
+                    sheetBarrioId === barrio.id
+                      ? 'border-primary-600 bg-primary-50 shadow-soft'
+                      : 'border-surface-200 bg-white hover:border-surface-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-medium ${sheetBarrioId === barrio.id ? 'text-primary-700' : 'text-surface-700'}`}>
+                      {barrio.name}
+                    </span>
+                    <span className="text-sm font-bold text-primary-600">
+                      {barrio.surcharge_usd.toFixed(2)}$
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Campo de dirección — aparece en el mismo panel al seleccionar sector */}
+            {sheetBarrioId && (
+              <div className="animate-slide-up mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                  <input
+                    type="text"
+                    className="input pl-10"
+                    placeholder="Escribe tu dirección exacta..."
+                    value={sheetAddress}
+                    onChange={(e) => setSheetAddress(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setDestBarrioId(sheetBarrioId)
+                setDestAddress(sheetAddress)
+                setShowDestSheet(false)
+              }}
+              className="btn-primary w-full"
+              disabled={!sheetBarrioId || !sheetAddress.trim()}
+            >
+              Confirmar destino
+            </button>
+          </div>
+        </div>
+      )}
 
       {showFareSheet && fare && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setShowFareSheet(false)}>
