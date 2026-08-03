@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Download, X } from 'lucide-react'
-import { isIOS, isStandalone, getBrowserName } from '@/lib/pwaUtils'
+import { isIOS, isStandalone } from '@/lib/pwaUtils'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -11,9 +11,9 @@ export function InstallAppButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
   const [installed, setInstalled] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   const isiOS = isIOS()
-  const browser = getBrowserName()
 
   useEffect(() => {
     if (isStandalone()) {
@@ -47,33 +47,65 @@ export function InstallAppButton() {
       const choice = await deferredPrompt.userChoice
       if (choice.outcome === 'accepted') setInstalled(true)
       setDeferredPrompt(null)
+      setDismissed(true)
     } else if (isiOS) {
       // iOS: solo instrucciones de "Añadir a pantalla de inicio"
       setShowIOSInstructions(true)
     }
   }
 
-  // Si ya está instalada, no mostrar nada
-  if (installed) return null
+  // Si ya está instalada o el usuario cerró el aviso, no mostrar nada
+  if (installed || dismissed) return null
 
-  // Mostrar botón si:
-  // 1. beforeinstallprompt disponible (Android/Windows Chrome/Edge) → instalación nativa
-  // 2. Es realmente iOS (Safari/Chrome iOS) → instrucciones de "Añadir a inicio"
-  const showButton = deferredPrompt !== null || isiOS
-  if (!showButton) return null
+  // Mostrar aviso si:
+  // 1. beforeinstallprompt disponible (Windows/Android Chrome/Edge) → instalación nativa
+  // 2. Es iOS real → instrucciones de "Añadir a inicio"
+  const showBanner = deferredPrompt !== null || isiOS
+  if (!showBanner) return null
 
   return (
     <>
-      {/* Botón flotante de instalación */}
-      <button
-        onClick={handleInstall}
-        className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-primary-600 text-white px-5 py-3 rounded-full shadow-lg shadow-primary-600/30 hover:bg-primary-700 active:scale-95 transition-all animate-slide-up"
-      >
-        <Download className="w-5 h-5" />
-        <span className="text-sm font-semibold">
-          {isiOS ? 'Añadir a inicio' : 'Instalar App'}
-        </span>
-      </button>
+      {/* Banner de aviso para instalar la app */}
+      <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto animate-slide-up">
+        <div className="bg-white rounded-2xl shadow-lg shadow-primary-600/20 border border-surface-100 p-4 flex items-center gap-3">
+          {/* Icono de la app */}
+          <img
+            src="/icons/icon-192x192.png"
+            alt="RideSocopó"
+            className="w-12 h-12 rounded-xl shadow-sm flex-shrink-0"
+          />
+
+          {/* Texto */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-surface-800">
+              {isiOS ? 'Añade RideSocopó a tu inicio' : 'Instala RideSocopó'}
+            </p>
+            <p className="text-xs text-surface-500 leading-tight mt-0.5">
+              {isiOS
+                ? 'Agrega un acceso rápido a tu pantalla de inicio'
+                : 'Acceso rápido desde tu dispositivo, como una app nativa'}
+            </p>
+          </div>
+
+          {/* Botón instalar */}
+          <button
+            onClick={handleInstall}
+            className="flex-shrink-0 flex items-center gap-1.5 bg-primary-600 text-white px-3.5 py-2 rounded-xl text-sm font-semibold hover:bg-primary-700 active:scale-95 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            {isiOS ? 'Añadir' : 'Instalar'}
+          </button>
+
+          {/* Cerrar */}
+          <button
+            onClick={() => setDismissed(true)}
+            className="flex-shrink-0 p-1.5 text-surface-400 hover:text-surface-600 transition-colors"
+            aria-label="Cerrar aviso"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
       {/* Modal de instrucciones iOS */}
       {showIOSInstructions && isiOS && (
