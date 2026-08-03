@@ -13,9 +13,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const FUNCTION_SECRET = Deno.env.get("PUSH_FUNCTION_SECRET")!;
-const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
-const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
+const FUNCTION_SECRET = Deno.env.get("PUSH_FUNCTION_SECRET") || "";
+const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:ridessocopo@gmail.com";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -43,10 +43,20 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Validar secreto compartido
+  // Validar secreto compartido.
+  // Se lee de la BD (push_settings.function_secret) para que SIEMPRE
+  // coincida con el que el trigger envía — sin depender de deno.env.
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (token !== FUNCTION_SECRET) {
+
+  const { data: settings, error: settingsErr } = await supabase
+    .from("push_settings")
+    .select("function_secret")
+    .limit(1);
+
+  const validSecret = settings?.[0]?.function_secret || FUNCTION_SECRET;
+
+  if (token !== validSecret) {
     return new Response(JSON.stringify({ error: "No autorizado" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
