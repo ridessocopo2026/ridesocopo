@@ -54,7 +54,21 @@ export function DriverDashboard() {
   useEffect(() => {
     loadWallet()
     checkActiveRide()
-  }, [])
+    // Cargar el estado REAL de disponibilidad del perfil para que
+    // se mantenga al entrar/navegar (no se pierde al recargar)
+    const loadOnlineState = async () => {
+      if (!user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_online')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (data) {
+        setIsOnline(data.is_online)
+      }
+    }
+    loadOnlineState()
+  }, [user?.id])
 
   useEffect(() => {
     if (isOnline) {

@@ -94,7 +94,7 @@ export function ClientActiveRide() {
           .from('profiles')
           .select('full_name, avatar_url')
           .eq('id', data.driver_id)
-          .single()
+          .maybeSingle()
 
         if (driverData) {
           setDriverName(driverData.full_name)
@@ -105,7 +105,7 @@ export function ClientActiveRide() {
             .from('vehicles')
             .select('*')
             .eq('id', data.vehicle_id)
-            .single()
+            .maybeSingle()
 
           if (vehicleData) {
             setVehicle(vehicleData as Vehicle)
