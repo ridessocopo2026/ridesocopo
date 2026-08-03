@@ -8,6 +8,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registrar el SW automáticamente al cargar la app (necesario para beforeinstallprompt)
+      injectRegister: 'auto',
       // Usar nuestro Service Worker personalizado (para push notifications)
       strategies: 'injectManifest',
       srcDir: 'public',

@@ -12,6 +12,7 @@ export function InstallAppButton() {
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
   const [promptAvailable, setPromptAvailable] = useState(false)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
+  const [showBrowserInstructions, setShowBrowserInstructions] = useState(false)
   const [installed, setInstalled] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
@@ -80,10 +81,11 @@ export function InstallAppButton() {
         return
       }
 
-      // Timeout: navegador sin soporte PWA → cerrar silenciosamente.
+      // Timeout: el navegador no soporta instalación PWA o ya la descartó.
+      // Mostrar instrucciones breves para no dejar al usuario sin respuesta.
       if (Date.now() - startTime >= timeoutMs) {
         clearInterval(checkPrompt)
-        setDismissed(true)
+        setShowBrowserInstructions(true)
       }
     }, 200)
   }
@@ -136,7 +138,7 @@ export function InstallAppButton() {
         </div>
       </div>
 
-      {/* Modal de instrucciones — SOLO para iOS */}
+      {/* Modal de instrucciones SOLO para iOS */}
       {showIOSInstructions && isiOS && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowIOSInstructions(false)}>
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -168,6 +170,42 @@ export function InstallAppButton() {
             </div>
 
             <button onClick={() => setShowIOSInstructions(false)} className="btn-primary w-full mt-4">
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de instrucciones para navegadores sin soporte PWA (Firefox, etc.) */}
+      {showBrowserInstructions && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowBrowserInstructions(false)}>
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-surface-800">Instala RideSocopó</h2>
+              <button onClick={() => setShowBrowserInstructions(false)} className="p-2 text-surface-400 hover:text-surface-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-xs text-amber-700">
+                  Este navegador no permite instalación automática de apps.
+                </p>
+              </div>
+              <div className="bg-surface-50 rounded-xl p-4">
+                <p className="text-sm text-surface-700">
+                  <strong>Recomendado:</strong> usa <strong>Chrome</strong> o <strong>Edge</strong> para instalar RideSocopó como app en tu dispositivo.
+                </p>
+              </div>
+              <div className="bg-surface-50 rounded-xl p-4">
+                <p className="text-sm text-surface-700">
+                  <strong>Alternativa:</strong> Abre el menú del navegador → <strong>"Añadir a pantalla de inicio"</strong> (Android) o <strong>"Instalar página como aplicación"</strong> (Edge).
+                </p>
+              </div>
+            </div>
+
+            <button onClick={() => setShowBrowserInstructions(false)} className="btn-primary w-full mt-4">
               Entendido
             </button>
           </div>
