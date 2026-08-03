@@ -14,24 +14,24 @@ export default defineConfig({
       filename: 'sw.js',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
+        id: '/',
         name: 'RideSocopó',
         short_name: 'RideSocopó',
         description: 'Transporte de pasajeros en Socopó, Barinas, Venezuela',
+        lang: 'es',
         theme_color: '#7c3aed',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
+        scope: '/',
         start_url: '/',
+        categories: ['transportation', 'travel'],
         icons: [
           {
             src: '/icons/icon-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: '/icons/icon-512x512.png',
@@ -48,7 +48,8 @@ export default defineConfig({
           {
             src: '/icons/apple-touch-icon.png',
             sizes: '180x180',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           }
         ]
       },

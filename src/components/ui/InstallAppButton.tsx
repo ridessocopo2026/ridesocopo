@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Download, X } from 'lucide-react'
 import { isIOS, isStandalone } from '@/lib/pwaUtils'
 
@@ -8,7 +8,9 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallAppButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  // Ref para poder acceder al prompt desde el timeout sin closures estancadas
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
+  const [promptAvailable, setPromptAvailable] = useState(false)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
   const [installed, setInstalled] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -23,12 +25,14 @@ export function InstallAppButton() {
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
-      setDeferredPrompt(e as BeforeInstallPromptEvent)
+      deferredPromptRef.current = e as BeforeInstallPromptEvent
+      setPromptAvailable(true)
     }
 
     const handleAppInstalled = () => {
       setInstalled(true)
-      setDeferredPrompt(null)
+      deferredPromptRef.current = null
+      setPromptAvailable(false)
     }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
@@ -41,24 +45,47 @@ export function InstallAppButton() {
   }, [])
 
   const handleInstall = async () => {
-    if (deferredPrompt) {
-      // Chrome/Edge (Windows/Android): abre DIRECTAMENTE el diálogo de instalación del navegador.
-      // Sin avisos ni modales intermedios.
-      await deferredPrompt.prompt()
-      const choice = await deferredPrompt.userChoice
+    // 1. Si el navegador YA disparó beforeinstallprompt → abrir diálogo nativo INMEDIATO.
+    if (deferredPromptRef.current) {
+      await deferredPromptRef.current.prompt()
+      const choice = await deferredPromptRef.current.userChoice
       if (choice.outcome === 'accepted') setInstalled(true)
-      setDeferredPrompt(null)
+      deferredPromptRef.current = null
+      setPromptAvailable(false)
       setDismissed(true)
-    } else if (isiOS) {
-      // iOS no permite instalación programática — SOLO aquí se muestran instrucciones.
-      setShowIOSInstructions(true)
-    } else {
-      // Sin soporte de instalación nativa: intentar igualmente o cerrar.
-      // En navegadores sin beforeinstallprompt, no hay API para instalar; se abre igual
-      // el modal de iOS solo aplica para iOS, para el resto simplemente se oculta el aviso
-      // para no bloquear, ya que la instalación depende del navegador.
-      setDismissed(true)
+      return
     }
+
+    // 2. iOS no permite instalación programática — SOLO instrucciones.
+    if (isiOS) {
+      setShowIOSInstructions(true)
+      return
+    }
+
+    // 3. El SW puede tardar ~1-2s en registrarse y emitir beforeinstallprompt.
+    //    Esperar hasta 3s por si el navegador lo va a disparar tras el clic.
+    const timeoutMs = 3000
+    const startTime = Date.now()
+
+    const checkPrompt = setInterval(async () => {
+      if (deferredPromptRef.current) {
+        clearInterval(checkPrompt)
+        const prompt = deferredPromptRef.current
+        await prompt.prompt()
+        const choice = await prompt.userChoice
+        if (choice.outcome === 'accepted') setInstalled(true)
+        deferredPromptRef.current = null
+        setPromptAvailable(false)
+        setDismissed(true)
+        return
+      }
+
+      // Timeout: navegador sin soporte PWA → cerrar silenciosamente.
+      if (Date.now() - startTime >= timeoutMs) {
+        clearInterval(checkPrompt)
+        setDismissed(true)
+      }
+    }, 200)
   }
 
   // Si ya está instalada o el usuario cerró el aviso, no mostrar nada
