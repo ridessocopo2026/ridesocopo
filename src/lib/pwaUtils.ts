@@ -35,6 +35,27 @@ export function isStandalone(): boolean {
   )
 }
 
+// Marca en localStorage para recordar que la PWA fue instalada.
+// Así no mostramos el aviso "Instalar" aunque abras desde el navegador.
+const PWA_INSTALLED_KEY = 'rs_pwa_installed'
+
+export function markPwaInstalled(): void {
+  try {
+    localStorage.setItem(PWA_INSTALLED_KEY, '1')
+  } catch (_) {
+    // localStorage no disponible
+  }
+}
+
+export function isPwaInstalled(): boolean {
+  if (isStandalone()) return true
+  try {
+    return localStorage.getItem(PWA_INSTALLED_KEY) === '1'
+  } catch (_) {
+    return false
+  }
+}
+
 export type BrowserName = 'chrome' | 'edge' | 'firefox' | 'safari' | 'other'
 
 export function getBrowserName(): BrowserName {

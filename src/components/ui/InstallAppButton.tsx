@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Download, X } from 'lucide-react'
-import { isIOS, isStandalone } from '@/lib/pwaUtils'
+import { isIOS, isStandalone, isPwaInstalled, markPwaInstalled } from '@/lib/pwaUtils'
 
 // El prompt se captura GLOBALMENTE en main.tsx (antes de que React monte)
 // porque Chrome lo dispara muy temprano. Lo accedemos vía window.
@@ -24,7 +24,8 @@ export function InstallAppButton() {
   }
 
   useEffect(() => {
-    if (isStandalone()) {
+    // Si la app ya está instalada (modo standalone o localStorage), ocultar el aviso
+    if (isPwaInstalled() || isStandalone()) {
       setInstalled(true)
       return
     }
@@ -42,10 +43,11 @@ export function InstallAppButton() {
     }
   }, [])
 
-  const handleAppInstalled = () => {
-    setInstalled(true)
-    ;(window as any).__clearDeferredPrompt?.()
-  }
+    const handleAppInstalled = () => {
+      setInstalled(true)
+      markPwaInstalled()
+      ;(window as any).__clearDeferredPrompt?.()
+    }
 
   const handleInstall = async () => {
     // 1. Obtener el prompt global capturado en main.tsx
@@ -57,7 +59,10 @@ export function InstallAppButton() {
     if (deferredPrompt) {
       await deferredPrompt.prompt()
       const choice = await deferredPrompt.userChoice
-      if (choice.outcome === 'accepted') setInstalled(true)
+      if (choice.outcome === 'accepted') {
+        setInstalled(true)
+        markPwaInstalled()
+      }
       ;(window as any).__clearDeferredPrompt?.()
       setDismissed(true)
       return
