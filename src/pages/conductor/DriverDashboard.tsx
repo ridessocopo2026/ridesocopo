@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Hexagon, Map as MapIcon, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
+import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Switch } from '@/components/ui/Switch'
@@ -11,6 +12,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { useAvailableRidesPolling } from '@/lib/rideRealtime'
 import type { Ride, Wallet as WalletType } from '@/types/database'
 
 const clientIcon = L.divIcon({
@@ -94,6 +96,9 @@ export function DriverDashboard() {
     }
   }
 
+  // Polling ligero cada 6s de viajes disponibles (tiempo real barato)
+  useAvailableRidesPolling(isOnline, loadAvailableRides)
+
   const startLocationTracking = () => {
     if (!navigator.geolocation) return
 
@@ -157,6 +162,11 @@ export function DriverDashboard() {
       } else if (data?.error === 'SALDO_INSUFICIENTE' || data?.error === 'DEUDA_EXCEDIDA') {
         setError(data.message)
         setShowRideAlert(false)
+      } else if (!data?.success) {
+        // El viaje ya no está disponible: otro conductor lo tomó
+        setAvailableRides((prev) => prev.filter((r) => r.id !== rideId))
+        setError('⚠️ Otro conductor ya tomó este viaje. Buscando otros disponibles...')
+        setShowRideAlert(false)
       }
     } catch (err: any) {
       setError(err.message)
@@ -178,6 +188,7 @@ export function DriverDashboard() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
+      <NotificationBanner />
       {/* Header */}
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between">

@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
+import { NotificationBanner } from '@/components/ui/NotificationBanner'
+import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import type { Ride, Vehicle } from '@/types/database'
 
 const vehicleIcon = L.divIcon({
@@ -58,27 +60,24 @@ export function ClientActiveRide() {
   useEffect(() => {
     if (rideId) {
       loadRide()
-      const subscription = supabase
-        .channel(`client-ride-${rideId}`)
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'rides',
-          filter: `id=eq.${rideId}`
-        }, (payload) => {
-          const newRide = payload.new as Ride
-          setRide(newRide)
-          if (newRide.status === 'completada') {
-            setShowSaveFavorite(true)
-          }
-        })
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(subscription)
-      }
     }
   }, [rideId])
+
+  // Tiempo real optimizado: Realtime + polling de respaldo cada 6s
+  useRideRealtime(
+    rideId,
+    (newRide) => {
+      const ride = newRide as Ride
+      setRide(ride)
+      if (ride.status === 'completada') {
+        setShowSaveFavorite(true)
+      }
+    },
+    async () => {
+      if (!rideId) return null
+      return fetchRideById(rideId)
+    }
+  )
 
   const loadRide = async () => {
     const { data, error } = await supabase
@@ -221,6 +220,7 @@ export function ClientActiveRide() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
+      <NotificationBanner />
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
