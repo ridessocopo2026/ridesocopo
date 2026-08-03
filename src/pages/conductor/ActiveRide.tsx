@@ -1,0 +1,407 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
+import L from 'leaflet'
+import { Navigation, XCircle, Loader2, Hexagon, CheckCircle, AlertCircle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
+import { ErrorMessage } from '@/components/ui/ErrorMessage'
+import { RatingCard } from '@/components/ui/RatingCard'
+import type { Ride } from '@/types/database'
+
+// Iconos personalizados
+const vehicleIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div class="w-10 h-10 bg-primary-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
+    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+    </svg>
+  </div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
+})
+
+const clientIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div class="w-8 h-8 bg-accent-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
+    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+    </svg>
+  </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32]
+})
+
+const destIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div class="w-8 h-8 bg-red-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
+    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+  </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32]
+})
+
+export function ActiveRide() {
+  const { rideId } = useParams()
+  const [ride, setRide] = useState<Ride | null>(null)
+  const [clientName, setClientName] = useState('')
+  const [vehiclePos, setVehiclePos] = useState<[number, number] | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (rideId) {
+      loadRide()
+      // Suscribirse a cambios en tiempo real
+      const subscription = supabase
+        .channel(`ride-${rideId}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rides',
+          filter: `id=eq.${rideId}`
+        }, (payload) => {
+          setRide(payload.new as Ride)
+        })
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(subscription)
+      }
+    }
+  }, [rideId])
+
+  const loadRide = async () => {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('*')
+      .eq('id', rideId)
+      .single()
+
+    if (!error && data) {
+      setRide(data as Ride)
+      // Obtener nombre del cliente (solo visible durante viaje activo)
+      const { data: clientData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', data.client_id)
+        .single()
+
+      if (clientData) {
+        setClientName(clientData.full_name)
+      }
+    }
+  }
+
+  // Iniciar seguimiento GPS del vehículo
+  useEffect(() => {
+    if (!ride || ride.status === 'completada' || ride.status === 'cancelada') return
+
+    if (!navigator.geolocation) return
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const pos: [number, number] = [position.coords.latitude, position.coords.longitude]
+        setVehiclePos(pos)
+
+        // Enviar ubicación al servidor con throttling (solo en viaje activo)
+        supabase.rpc('update_driver_location', {
+          p_ride_id: rideId,
+          p_lat: position.coords.latitude,
+          p_lng: position.coords.longitude
+        })
+      },
+      (err) => console.error('Error de geolocalización:', err),
+      { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 }
+    )
+
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [ride?.status, rideId])
+
+  const handleConfirmStart = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabase.rpc('confirm_ride_start', {
+        p_ride_id: rideId
+      })
+
+      if (error) throw error
+
+      // Actualizar el estado local INMEDIATAMENTE
+      setRide(prev => prev ? {
+        ...prev,
+        driver_start_confirmed: true,
+        status: data?.both_confirmed ? 'en_ruta' : prev.status,
+        client_start_confirmed: data?.client_confirmed ?? prev.client_start_confirmed
+      } : prev)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRateClient = async (rating: number, review: string) => {
+    const { error } = await supabase.rpc('rate_client', {
+      p_ride_id: rideId,
+      p_rating: rating,
+      p_review: review || null
+    })
+    if (error) throw error
+  }
+
+  const handleCompleteRide = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.rpc('complete_ride', {
+        p_ride_id: rideId
+      })
+
+      if (error) throw error
+
+      navigate('/conductor')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancelRide = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.rpc('cancel_ride', {
+        p_ride_id: rideId,
+        p_reason: 'Cancelado por el conductor'
+      })
+
+      if (error) throw error
+
+      navigate('/conductor')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!ride) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    )
+  }
+
+  const origin: [number, number] = [ride.origin_lat, ride.origin_lng]
+  const destination: [number, number] = [ride.destination_lat, ride.destination_lng]
+  const driverPos: [number, number] | null = vehiclePos || (ride.driver_location_lat && ride.driver_location_lng
+    ? [ride.driver_location_lat, ride.driver_location_lng]
+    : null)
+
+  const driverConfirmed = ride.driver_start_confirmed
+  const clientConfirmed = ride.client_start_confirmed
+  const bothConfirmed = driverConfirmed && clientConfirmed
+
+  const statusLabels = {
+    buscando: 'Buscando conductor...',
+    aceptada: 'Dirígete al cliente',
+    en_ruta: 'En ruta al destino',
+    completada: 'Viaje completado',
+    cancelada: 'Viaje cancelado'
+  }
+
+  return (
+    <div className="min-h-screen bg-surface-50 pb-24">
+      <div className="bg-white border-b border-surface-100 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+              <Hexagon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-surface-800">Viaje en curso</h1>
+              <p className="text-xs text-surface-500">{statusLabels[ride.status]}</p>
+            </div>
+          </div>
+          <span className={`badge ${
+            ride.status === 'aceptada' ? 'badge-warning' : 'badge-success'
+          }`}>
+            {ride.status.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      {error && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <ErrorMessage message={error} onDismiss={() => setError('')} />
+        </div>
+      )}
+
+      {/* Mapa */}
+      <div className="h-[45vh] relative">
+        <MapContainer
+          center={origin}
+          zoom={15}
+          className="h-full w-full"
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          />
+          {/* Vehículo del conductor */}
+          {driverPos && (
+            <Marker position={driverPos} icon={vehicleIcon}>
+              <Popup>Tu vehículo</Popup>
+            </Marker>
+          )}
+          {/* Ubicación del cliente */}
+          <Marker position={origin} icon={clientIcon}>
+            <Popup>Cliente</Popup>
+          </Marker>
+          <Marker position={destination} icon={destIcon}>
+            <Popup>Destino: {ride.destination_barrio_name || ''}</Popup>
+          </Marker>
+          <Polyline
+            positions={[origin, destination]}
+            pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+          />
+        </MapContainer>
+      </div>
+
+      {/* Detalles del viaje */}
+      <div className="max-w-md mx-auto px-4 py-6 space-y-4">
+        {/* Confirmación mutua */}
+        {ride.status === 'aceptada' && (
+          <div className="card border-2 border-primary-100 bg-primary-50">
+            <h2 className="font-semibold text-surface-800 mb-3 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-primary-600" />
+              Confirmación de inicio
+            </h2>
+            <p className="text-sm text-surface-600 mb-4">
+              Cuando recojas al cliente, **ambos** deben confirmar que el viaje inicia.
+            </p>
+
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-surface-600">Tu confirmación (Conductor)</span>
+                {driverConfirmed ? (
+                  <span className="badge-success flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Confirmado
+                  </span>
+                ) : (
+                  <span className="badge-warning">Pendiente</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-surface-600">Confirmación del cliente</span>
+                {clientConfirmed ? (
+                  <span className="badge-success flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Confirmado
+                  </span>
+                ) : (
+                  <span className="badge-warning">Pendiente</span>
+                )}
+              </div>
+            </div>
+
+            {!driverConfirmed ? (
+              <button onClick={handleConfirmStart} className="btn-success w-full" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Confirmar que recogí al cliente</>}
+              </button>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                <p className="text-sm text-emerald-700">
+                  {bothConfirmed ? '✅ Viaje iniciado. ¡Buen viaje!' : '⏳ Esperando que el cliente confirme...'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Info cliente */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-surface-800">Cliente</h2>
+              <p className="text-sm text-surface-500">{clientName || 'Cargando...'}</p>
+            </div>
+            <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center">
+              <Navigation className="w-6 h-6 text-accent-600" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-2 h-2 bg-accent-600 rounded-full mt-1.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-surface-400">Origen</p>
+                <p className="text-sm text-surface-700">{ride.origin_address || 'Ubicación actual'}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-2 h-2 bg-primary-600 rounded-full mt-1.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-surface-400">Destino</p>
+                <p className="text-sm text-surface-700">{ride.destination_address || 'Destino'}</p>
+                {ride.destination_barrio_name && (
+                  <span className="badge-primary mt-1">{ride.destination_barrio_name}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tarifa */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-surface-500">Tarifa del viaje</span>
+            <span className="text-2xl font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-surface-500">Comisión de la app</span>
+            <span className="text-surface-600">${ride.commission_usd.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Calificar al cliente al completar */}
+        {ride.status === 'completada' && (
+          <RatingCard
+            title="Califica al cliente"
+            subtitle="Tu opinión ayuda a la comunidad"
+            onSubmit={handleRateClient}
+            alreadyRated={ride.client_rating}
+            alreadyReviewed={ride.client_review}
+          />
+        )}
+
+        {/* Acciones */}
+        <div className="space-y-3">
+          {ride.status === 'en_ruta' && (
+            <button onClick={handleCompleteRide} className="btn-success w-full" disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Completar viaje'}
+            </button>
+          )}
+
+          {ride.status !== 'completada' && (
+            <button onClick={handleCancelRide} className="btn-danger w-full" disabled={loading}>
+              <XCircle className="w-4 h-4" />
+              Cancelar viaje
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

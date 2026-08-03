@@ -1,0 +1,11 @@
+name = "ridesocopo"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+[env.production]
+vars = { }
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
