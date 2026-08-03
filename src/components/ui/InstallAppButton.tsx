@@ -2,21 +2,26 @@ import { useState, useEffect, useRef } from 'react'
 import { Download, X } from 'lucide-react'
 import { isIOS, isStandalone } from '@/lib/pwaUtils'
 
-interface BeforeInstallPromptEvent extends Event {
+// El prompt se captura GLOBALMENTE en main.tsx (antes de que React monte)
+// porque Chrome lo dispara muy temprano. Lo accedemos vía window.
+interface BeforeInstallPromptEvent {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
 }
 
 export function InstallAppButton() {
-  // Ref para poder acceder al prompt desde el timeout sin closures estancadas
-  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
-  const [promptAvailable, setPromptAvailable] = useState(false)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
-  const [showBrowserInstructions, setShowBrowserInstructions] = useState(false)
   const [installed, setInstalled] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [promptAvailable, setPromptAvailable] = useState(false)
 
   const isiOS = isIOS()
+
+  // Comprobar si ya hay un prompt capturado globalmente
+  const updatePromptState = () => {
+    const hasPrompt = !!(window as any).__getDeferredPrompt?.()
+    setPromptAvailable(hasPrompt)
+  }
 
   useEffect(() => {
     if (isStandalone()) {
@@ -24,70 +29,50 @@ export function InstallAppButton() {
       return
     }
 
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault()
-      deferredPromptRef.current = e as BeforeInstallPromptEvent
-      setPromptAvailable(true)
-    }
+    // Estado inicial: puede que Chrome ya haya disparado el prompt antes de montar
+    updatePromptState()
 
-    const handleAppInstalled = () => {
-      setInstalled(true)
-      deferredPromptRef.current = null
-      setPromptAvailable(false)
-    }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    // Escuchar cuando main.tsx captura el prompt
+    window.addEventListener('app-install-prompt-ready', updatePromptState)
     window.addEventListener('appinstalled', handleAppInstalled)
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('app-install-prompt-ready', updatePromptState)
       window.removeEventListener('appinstalled', handleAppInstalled)
     }
   }, [])
 
+  const handleAppInstalled = () => {
+    setInstalled(true)
+    ;(window as any).__clearDeferredPrompt?.()
+  }
+
   const handleInstall = async () => {
-    // 1. Si el navegador YA disparó beforeinstallprompt → abrir diálogo nativo INMEDIATO.
-    if (deferredPromptRef.current) {
-      await deferredPromptRef.current.prompt()
-      const choice = await deferredPromptRef.current.userChoice
+    // 1. Obtener el prompt global capturado en main.tsx
+    const deferredPrompt: BeforeInstallPromptEvent | null =
+      (window as any).__getDeferredPrompt?.() || null
+
+    // 2. Si hay prompt → ABRIR EL DIÁLOGO NATIVO INMEDIATAMENTE
+    //    Este es el único camino para mostrar el aviso de Chrome/Edge
+    if (deferredPrompt) {
+      await deferredPrompt.prompt()
+      const choice = await deferredPrompt.userChoice
       if (choice.outcome === 'accepted') setInstalled(true)
-      deferredPromptRef.current = null
-      setPromptAvailable(false)
+      ;(window as any).__clearDeferredPrompt?.()
       setDismissed(true)
       return
     }
 
-    // 2. iOS no permite instalación programática — SOLO instrucciones.
+    // 3. iOS no permite instalación programática — SOLO instrucciones
     if (isiOS) {
       setShowIOSInstructions(true)
       return
     }
 
-    // 3. El SW puede tardar ~1-2s en registrarse y emitir beforeinstallprompt.
-    //    Esperar hasta 3s por si el navegador lo va a disparar tras el clic.
-    const timeoutMs = 3000
-    const startTime = Date.now()
-
-    const checkPrompt = setInterval(async () => {
-      if (deferredPromptRef.current) {
-        clearInterval(checkPrompt)
-        const prompt = deferredPromptRef.current
-        await prompt.prompt()
-        const choice = await prompt.userChoice
-        if (choice.outcome === 'accepted') setInstalled(true)
-        deferredPromptRef.current = null
-        setPromptAvailable(false)
-        setDismissed(true)
-        return
-      }
-
-      // Timeout: el navegador no soporta instalación PWA o ya la descartó.
-      // Mostrar instrucciones breves para no dejar al usuario sin respuesta.
-      if (Date.now() - startTime >= timeoutMs) {
-        clearInterval(checkPrompt)
-        setShowBrowserInstructions(true)
-      }
-    }, 200)
+    // 4. Sin prompt aún (Chrome puede tardar en dar el permisos de nuevo).
+    //    NO mostramos ningún modal falso. El banner sigue visible y
+    //    el usuario puede tocar de nuevo en unos segundos.
+    //    Nota: Chrome solo permite pedir instalación 1 vez por visita.
   }
 
   // Si ya está instalada o el usuario cerró el aviso, no mostrar nada
@@ -138,7 +123,7 @@ export function InstallAppButton() {
         </div>
       </div>
 
-      {/* Modal de instrucciones SOLO para iOS */}
+      {/* Modal de instrucciones — SOLO para iOS */}
       {showIOSInstructions && isiOS && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowIOSInstructions(false)}>
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -170,42 +155,6 @@ export function InstallAppButton() {
             </div>
 
             <button onClick={() => setShowIOSInstructions(false)} className="btn-primary w-full mt-4">
-              Entendido
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de instrucciones para navegadores sin soporte PWA (Firefox, etc.) */}
-      {showBrowserInstructions && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowBrowserInstructions(false)}>
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-surface-800">Instala RideSocopó</h2>
-              <button onClick={() => setShowBrowserInstructions(false)} className="p-2 text-surface-400 hover:text-surface-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <p className="text-xs text-amber-700">
-                  Este navegador no permite instalación automática de apps.
-                </p>
-              </div>
-              <div className="bg-surface-50 rounded-xl p-4">
-                <p className="text-sm text-surface-700">
-                  <strong>Recomendado:</strong> usa <strong>Chrome</strong> o <strong>Edge</strong> para instalar RideSocopó como app en tu dispositivo.
-                </p>
-              </div>
-              <div className="bg-surface-50 rounded-xl p-4">
-                <p className="text-sm text-surface-700">
-                  <strong>Alternativa:</strong> Abre el menú del navegador → <strong>"Añadir a pantalla de inicio"</strong> (Android) o <strong>"Instalar página como aplicación"</strong> (Edge).
-                </p>
-              </div>
-            </div>
-
-            <button onClick={() => setShowBrowserInstructions(false)} className="btn-primary w-full mt-4">
               Entendido
             </button>
           </div>
