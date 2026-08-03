@@ -66,7 +66,7 @@ export function InstallAppButton() {
   return (
     <>
       {/* Banner de aviso para instalar la app */}
-      <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto animate-slide-up">
+      <div className="fixed bottom-20 left-4 right-4 z-[9999] max-w-md mx-auto animate-slide-up">
         <div className="bg-white rounded-2xl shadow-lg shadow-primary-600/20 border border-surface-100 p-4 flex items-center gap-3">
           {/* Icono de la app */}
           <img
@@ -83,7 +83,7 @@ export function InstallAppButton() {
             <p className="text-xs text-surface-500 leading-tight mt-0.5">
               {isiOS
                 ? 'Agrega un acceso rápido a tu pantalla de inicio'
-                : 'Acceso rápido desde tu dispositivo, como una app nativa'}
+                : 'Acceso rápido y directo desde tu dispositivo'}
             </p>
           </div>
 

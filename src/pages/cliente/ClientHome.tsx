@@ -452,7 +452,6 @@ export function ClientHome() {
           <h2 className="font-semibold text-surface-800 text-lg">¿A dónde te diriges?</h2>
 
           <div>
-            <label className="label">Sitio de llegada *</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-600" />
               <select
@@ -471,19 +470,21 @@ export function ClientHome() {
             </div>
           </div>
 
-          <div>
-            <label className="label">Escribir dirección de a dónde vas *</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-              <input
-                type="text"
-                className="input pl-10"
-                placeholder="Ej: Calle 3, casa amarilla, frente a la bodega"
-                value={destAddress}
-                onChange={(e) => setDestAddress(e.target.value)}
-              />
+          {/* Campo de dirección exacta — solo aparece tras seleccionar barrio/sector */}
+          {destBarrioId && (
+            <div className="animate-slide-up">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                <input
+                  type="text"
+                  className="input pl-10"
+                  placeholder="Escribe tu dirección exacta..."
+                  value={destAddress}
+                  onChange={(e) => setDestAddress(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ¿Dónde estás? */}
@@ -593,7 +594,7 @@ export function ClientHome() {
           className="btn-primary w-full"
           disabled={loading || !origin || !inCoverage || !destBarrioId || !destAddress || !selectedCategory}
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Calcular tarifa'}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continuar'}
         </button>
       </div>
 
