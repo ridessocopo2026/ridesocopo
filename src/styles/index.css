@@ -150,6 +150,23 @@
     z-index: 0;
   }
 
+  /* Leaflet usa z-index 400/1000 en sus panes internos — anular
+     para que los modales/bottom-sheets queden siempre por encima */
+  .leaflet-container .leaflet-pane,
+  .leaflet-container .leaflet-top,
+  .leaflet-container .leaflet-bottom,
+  .leaflet-container .leaflet-control {
+    z-index: 0 !important;
+  }
+
+  /* Modales y bottom sheets SIEMPRE por encima del mapa */
+  .fixed.inset-0,
+  .bottom-sheet,
+  .fixed.bottom-20,
+  .fixed.bottom-24 {
+    z-index: 9999 !important;
+  }
+
   .leaflet-control-zoom {
     @apply shadow-soft rounded-lg overflow-hidden border border-surface-100 !important;
   }

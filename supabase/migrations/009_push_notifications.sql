@@ -365,6 +365,7 @@ AS $$
 DECLARE
   v_settings RECORD;
   v_has_subs BOOLEAN;
+  v_pg_net_available BOOLEAN;
 BEGIN
   -- Solo encolar si el usuario tiene suscripciones push (ahorra llamadas)
   SELECT EXISTS (
@@ -382,8 +383,19 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Llamar a la Edge Function asíncronamente
-  PERFORM pg_net.http_post(
+  -- Verificar que pg_net esté disponible ANTES de usarlo.
+  -- Así el trigger NUNCA rompe el flujo de negocio si pg_net no estuviera instalado.
+  SELECT EXISTS (
+    SELECT 1 FROM pg_extension WHERE extname = 'pg_net'
+  ) INTO v_pg_net_available;
+
+  IF NOT v_pg_net_available THEN
+    RETURN NEW;
+  END IF;
+
+  -- Llamar a la Edge Function asíncronamente.
+  -- NOTA: en Supabase, pg_net se instala en schema "net" (no "pg_net").
+  PERFORM net.http_post(
     url := v_settings.function_url,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
@@ -392,6 +404,10 @@ BEGIN
     body := jsonb_build_object('notification_id', NEW.id)
   );
 
+  RETURN NEW;
+
+EXCEPTION WHEN OTHERS THEN
+  -- NUNCA romper el flujo de negocio aunque pg_net falle
   RETURN NEW;
 END;
 $$;
