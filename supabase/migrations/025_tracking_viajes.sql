@@ -257,7 +257,7 @@ BEGIN
   LEFT JOIN profiles dr ON dr.id = r.driver_id
   WHERE r.created_at >= p_fecha_inicio
     AND r.created_at <= p_fecha_fin
-    AND (p_status IS NULL OR r.status = p_status)
+    AND (p_status IS NULL OR r.status::text = p_status)
     AND (
       p_search IS NULL
       OR UPPER(r.tracking_code) LIKE UPPER('%' || p_search || '%')
@@ -273,7 +273,7 @@ BEGIN
     SELECT
       r.id AS ride_id,
       r.tracking_code,
-      r.status,
+      r.status::text AS status,
       r.payment_method,
       r.final_fare_usd,
       r.commission_usd,
@@ -294,7 +294,7 @@ BEGIN
     LEFT JOIN driver_earnings de ON de.ride_id = r.id
     WHERE r.created_at >= p_fecha_inicio
       AND r.created_at <= p_fecha_fin
-      AND (p_status IS NULL OR r.status = p_status)
+      AND (p_status IS NULL OR r.status::text = p_status)
       AND (
         p_search IS NULL
         OR UPPER(r.tracking_code) LIKE UPPER('%' || p_search || '%')
