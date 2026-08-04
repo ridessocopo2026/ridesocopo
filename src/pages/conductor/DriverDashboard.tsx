@@ -13,7 +13,7 @@ import { SkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { useAvailableRidesPolling } from '@/lib/rideRealtime'
-import type { Ride, Wallet as WalletType } from '@/types/database'
+import type { Ride, Wallet as WalletType, Vehicle } from '@/types/database'
 
 const clientIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -51,11 +51,19 @@ export function DriverDashboard() {
   const navigate = useNavigate()
   const watchIdRef = useRef<number | null>(null)
 
+  const [activeVehicle, setActiveVehicle] = useState<Vehicle | null>(null)
+
   useEffect(() => {
     loadWallet()
     checkActiveRide()
-    // Cargar el estado REAL de disponibilidad del perfil para que
-    // se mantenga al entrar/navegar (no se pierde al recargar)
+    // Vehículo activo para mostrar en Disponibilidad
+    const loadVehicle = async () => {
+      if (!user) return
+      const { data } = await supabase.rpc('get_driver_vehicles')
+      const veh = Array.isArray(data) ? data.find((x: Vehicle) => x.is_active_vehicle) : null
+      if (veh) setActiveVehicle(veh as Vehicle)
+    }
+    // Cargar el estado REAL de disponibilidad del perfil
     const loadOnlineState = async () => {
       if (!user) return
       const { data } = await supabase
@@ -63,10 +71,9 @@ export function DriverDashboard() {
         .select('is_online')
         .eq('id', user.id)
         .maybeSingle()
-      if (data) {
-        setIsOnline(data.is_online)
-      }
+      if (data) setIsOnline(data.is_online)
     }
+    loadVehicle()
     loadOnlineState()
   }, [user?.id])
 
@@ -249,6 +256,14 @@ export function DriverDashboard() {
               <p className="text-xs text-amber-700">
                 Tu cuenta está en revisión. El switch estará disponible cuando un administrador te apruebe.
               </p>
+            </div>
+          )}
+          {activeVehicle && (
+            <div className="mt-4 bg-surface-50 rounded-lg p-3 flex items-center gap-2">
+              <Car className="w-4 h-4 text-primary-600" />
+              <span className="text-xs text-surface-600">
+                <strong>Vehículo activo:</strong> {activeVehicle.brand} {activeVehicle.model} ({activeVehicle.category}) • {activeVehicle.plate}
+              </span>
             </div>
           )}
         </div>
