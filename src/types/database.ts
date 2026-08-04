@@ -165,6 +165,7 @@ export interface Ride {
   commission_rate: number
   payment_method: PaymentMethod
   status: RideStatus
+  tracking_code?: string
   proof_url?: string
   proof_status?: string
   driver_location_lat?: number

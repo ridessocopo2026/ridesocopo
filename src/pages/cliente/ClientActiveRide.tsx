@@ -309,15 +309,22 @@ export function ClientActiveRide() {
               <p className="text-xs text-surface-500">{statusLabels[ride.status]}</p>
             </div>
           </div>
-          <span className={`badge ${
-            ride.status === 'buscando' ? 'badge-warning' :
-            ride.status === 'aceptada' ? 'badge-info' :
-            ride.status === 'en_ruta' ? 'badge-primary' :
-            ride.status === 'completada' ? 'badge-success' :
-            ride.status === 'incidente' ? 'badge-danger' : 'badge-danger'
-          }`}>
-            {ride.status.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            {ride.tracking_code && (
+              <span className="font-mono text-xs font-bold text-primary-600 bg-primary-50 rounded-lg px-2 py-1">
+                {ride.tracking_code}
+              </span>
+            )}
+            <span className={`badge ${
+              ride.status === 'buscando' ? 'badge-warning' :
+              ride.status === 'aceptada' ? 'badge-info' :
+              ride.status === 'en_ruta' ? 'badge-primary' :
+              ride.status === 'completada' ? 'badge-success' :
+              ride.status === 'incidente' ? 'badge-danger' : 'badge-danger'
+            }`}>
+              {ride.status.toUpperCase()}
+            </span>
+          </div>
         </div>
       </div>
 
