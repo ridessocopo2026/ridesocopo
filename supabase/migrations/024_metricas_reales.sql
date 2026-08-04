@@ -376,7 +376,7 @@ BEGIN
       t.user_id AS usuario_id,
       t.type::text AS tipo,
       t.amount_usd AS monto,
-      t.status AS estado,
+      t.status::text AS estado,
       t.description AS descripcion,
       t.reference AS referencia,
       t.ride_id AS viaje_id,
