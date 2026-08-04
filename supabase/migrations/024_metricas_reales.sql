@@ -14,8 +14,13 @@
 --      − compensaciones a conductores (incidentes + retiros)
 --      − pagos plataforma→conductor confirmados
 --
+--    🔴 IMPORTANTE: Las comisiones solo se suman de viajes COMPLETADOS.
+--       Los viajes cancelados/incidente NO generan comisión real.
+--
 -- 2. Nueva RPC get_admin_transactions: listado paginado de TODAS
 --    las transacciones con filtros (tipo, fecha, rol, usuario).
+--    🔴 IMPORTANTE: tipos enum se comparan con ::text para evitar
+--       "operator does not exist: transaction_type = text".
 -- ============================================================
 
 -- ============================================================
@@ -65,9 +70,10 @@ BEGIN
 
   -- ============================================================
   -- RESUMEN DE VIAJES (con filtros)
+  -- 🔴 comisiones SOLO de completados
   -- ============================================================
   SELECT
-    COALESCE(SUM(r.commission_usd), 0),
+    COALESCE(SUM(r.commission_usd) FILTER (WHERE r.status = 'completada'), 0),
     COUNT(*),
     COUNT(*) FILTER (WHERE r.status = 'completada'),
     COUNT(*) FILTER (WHERE r.status = 'cancelada'),
@@ -185,6 +191,7 @@ BEGIN
 
   -- ============================================================
   -- DESGLOSE POR MÉTODO DE PAGO
+  -- 🔴 comisiones SOLO de completados
   -- ============================================================
   SELECT COALESCE(jsonb_agg(t), '[]'::jsonb)
   INTO v_por_metodo
@@ -194,7 +201,7 @@ BEGIN
       COUNT(*) AS viajes,
       COUNT(*) FILTER (WHERE r.status = 'completada') AS completados,
       COALESCE(SUM(r.final_fare_usd), 0) AS tarifa_total,
-      COALESCE(SUM(r.commission_usd), 0) AS comision_total
+      COALESCE(SUM(r.commission_usd) FILTER (WHERE r.status = 'completada'), 0) AS comision_total
     FROM rides r
     WHERE r.created_at >= p_fecha_inicio
       AND r.created_at <= p_fecha_fin
@@ -207,6 +214,7 @@ BEGIN
 
   -- ============================================================
   -- RANKING POR CONDUCTOR
+  -- 🔴 comisiones SOLO de completados
   -- ============================================================
   SELECT COALESCE(jsonb_agg(t), '[]'::jsonb)
   INTO v_por_conductor
@@ -217,7 +225,7 @@ BEGIN
       COUNT(*) FILTER (WHERE r.status = 'completada') AS completados,
       COALESCE(SUM(de.cash_received_usd), 0) AS ganado_efectivo,
       COALESCE(SUM(de.app_credit_usd), 0) AS ganado_app,
-      COALESCE(SUM(r.commission_usd), 0) AS comisiones
+      COALESCE(SUM(r.commission_usd) FILTER (WHERE r.status = 'completada'), 0) AS comisiones
     FROM rides r
     LEFT JOIN profiles pr ON pr.id = r.driver_id
     LEFT JOIN driver_earnings de ON de.ride_id = r.id
@@ -290,7 +298,7 @@ GRANT EXECUTE ON FUNCTION public.get_admin_metrics TO service_role;
 
 -- ============================================================
 -- 2. NUEVA RPC: GET_ADMIN_TRANSACTIONS
---    Listado paginado de TODAS las transacciones con detalle
+--    🔴 tipos enum comparados con ::text (evita error operator)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_admin_transactions(
   p_fecha_inicio TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days',
@@ -323,33 +331,36 @@ BEGIN
   -- Contar total (para paginación)
   SELECT COUNT(*) INTO v_total
   FROM (
-    SELECT t.id
-    FROM transactions t
-    LEFT JOIN profiles pr ON pr.id = t.user_id
-    WHERE t.created_at >= p_fecha_inicio
-      AND t.created_at <= p_fecha_fin
-      AND (p_tipo IS NULL OR t.type = p_tipo)
-      AND (p_usuario_id IS NULL OR t.user_id = p_usuario_id)
-      AND (
-        p_rol IS NULL
-        OR (p_rol = 'cliente' AND pr.role = 'cliente')
-        OR (p_rol = 'conductor' AND pr.role = 'conductor')
-        OR (p_rol = 'admin' AND pr.role IN ('super_admin', 'encargado'))
-      )
-    UNION ALL
-    SELECT po.id
-    FROM payouts po
-    LEFT JOIN profiles pr ON pr.id = po.driver_id
-    WHERE po.created_at >= p_fecha_inicio
-      AND po.created_at <= p_fecha_fin
-      AND (p_tipo IS NULL OR po.type = p_tipo)
-      AND (p_usuario_id IS NULL OR po.driver_id = p_usuario_id)
-      AND (
-        p_rol IS NULL
-        OR (p_rol = 'conductor' AND pr.role = 'conductor')
-        OR (p_rol = 'admin' AND pr.role IN ('super_admin', 'encargado'))
-      )
-  ) sub;
+    SELECT id
+    FROM (
+      SELECT t.id AS id
+      FROM transactions t
+      LEFT JOIN profiles pr ON pr.id = t.user_id
+      WHERE t.created_at >= p_fecha_inicio
+        AND t.created_at <= p_fecha_fin
+        AND (p_tipo IS NULL OR t.type::text = p_tipo)
+        AND (p_usuario_id IS NULL OR t.user_id = p_usuario_id)
+        AND (
+          p_rol IS NULL
+          OR (p_rol = 'cliente' AND pr.role = 'cliente')
+          OR (p_rol = 'conductor' AND pr.role = 'conductor')
+          OR (p_rol = 'admin' AND pr.role IN ('super_admin', 'encargado'))
+        )
+      UNION ALL
+      SELECT po.id AS id
+      FROM payouts po
+      LEFT JOIN profiles pr ON pr.id = po.driver_id
+      WHERE po.created_at >= p_fecha_inicio
+        AND po.created_at <= p_fecha_fin
+        AND (p_tipo IS NULL OR po.type::text = p_tipo)
+        AND (p_usuario_id IS NULL OR po.driver_id = p_usuario_id)
+        AND (
+          p_rol IS NULL
+          OR (p_rol = 'conductor' AND pr.role = 'conductor')
+          OR (p_rol = 'admin' AND pr.role IN ('super_admin', 'encargado'))
+        )
+    ) sub
+  ) sub2;
 
   -- Obtener items paginados
   SELECT COALESCE(jsonb_agg(t ORDER BY t.fecha DESC), '[]'::jsonb)
@@ -363,7 +374,7 @@ BEGIN
       pr.full_name AS usuario,
       pr.role AS rol,
       t.user_id AS usuario_id,
-      t.type AS tipo,
+      t.type::text AS tipo,
       t.amount_usd AS monto,
       t.status AS estado,
       t.description AS descripcion,
@@ -375,7 +386,7 @@ BEGIN
     LEFT JOIN profiles pr ON pr.id = t.user_id
     WHERE t.created_at >= p_fecha_inicio
       AND t.created_at <= p_fecha_fin
-      AND (p_tipo IS NULL OR t.type = p_tipo)
+      AND (p_tipo IS NULL OR t.type::text = p_tipo)
       AND (p_usuario_id IS NULL OR t.user_id = p_usuario_id)
       AND (
         p_rol IS NULL
@@ -406,7 +417,7 @@ BEGIN
     LEFT JOIN profiles pr ON pr.id = po.driver_id
     WHERE po.created_at >= p_fecha_inicio
       AND po.created_at <= p_fecha_fin
-      AND (p_tipo IS NULL OR po.type = p_tipo)
+      AND (p_tipo IS NULL OR po.type::text = p_tipo)
       AND (p_usuario_id IS NULL OR po.driver_id = p_usuario_id)
       AND (
         p_rol IS NULL
@@ -429,4 +440,4 @@ GRANT EXECUTE ON FUNCTION public.get_admin_transactions TO service_role;
 -- ============================================================
 -- VERIFICACIÓN
 -- ============================================================
-SELECT '✅ Métricas reales y detalle de transacciones aplicado' AS estado;
+SELECT '✅ Métricas reales y detalle de transacciones (fix enum ::text) aplicado' AS estado;
