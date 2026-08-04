@@ -36,6 +36,7 @@ import { AdminNotifications } from '@/pages/admin/AdminNotifications'
 import { AdminIncidents } from '@/pages/admin/AdminIncidents'
 import { AdminMetrics } from '@/pages/admin/AdminMetrics'
 import { AdminTransactions } from '@/pages/admin/AdminTransactions'
+import { AdminRides } from '@/pages/admin/AdminRides'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -274,6 +275,11 @@ export default function App() {
           <Route path="/admin/transacciones" element={
             <RoleRoute role="super_admin">
               <AdminTransactions />
+            </RoleRoute>
+          } />
+          <Route path="/admin/viajes" element={
+            <RoleRoute role="super_admin">
+              <AdminRides />
             </RoleRoute>
           } />
 

@@ -71,6 +71,8 @@ export function AdminDashboard() {
     { to: '/admin/cupones', icon: <Ticket className="w-6 h-6" />, title: 'Cupones', desc: 'Códigos de descuento' },
     { to: '/admin/config', icon: <Settings className="w-6 h-6" />, title: 'Configuración', desc: 'Comisiones y límites' },
     { to: '/admin/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Accidentes y reportes de viajes' },
+    { to: '/admin/transacciones', icon: <Banknote className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero detallados' },
+    { to: '/admin/viajes', icon: <Car className="w-6 h-6" />, title: 'Viajes', desc: 'Buscar por tracking y ver detalle' },
     { to: '/admin/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Métricas', desc: 'Finanzas, filtros y estadísticas' }
   ]
 
