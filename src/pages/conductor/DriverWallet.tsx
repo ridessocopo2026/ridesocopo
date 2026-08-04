@@ -87,9 +87,8 @@ export function DriverWallet() {
         .upload(`${user.id}/payments/${Date.now()}-${payProof.name}`, payProof, { upsert: true })
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('payments')
-        .getPublicUrl(uploadData.path)
+      // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
+      const publicUrl = uploadData.path
 
       const { error } = await supabase.rpc('driver_pay_to_platform', {
         p_amount_usd: parseFloat(payAmount),

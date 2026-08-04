@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
+import { resolveProofUrl } from '@/lib/storageUtils'
 import type { Ride } from '@/types/database'
 
 const clientIcon = L.divIcon({
@@ -22,10 +23,22 @@ const clientIcon = L.divIcon({
 
 export function AdminProofs() {
   const [proofs, setProofs] = useState<Ride[]>([])
+  const [proofUrls, setProofUrls] = useState<Record<string, string | null>>({})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const { user } = useAuth()
+
+  // Resolver URLs firmadas de comprobantes (bucket payments es privado)
+  const resolveProofs = async (rides: Ride[]) => {
+    const urls: Record<string, string | null> = {}
+    for (const ride of rides) {
+      if (ride.proof_url) {
+        urls[ride.id] = await resolveProofUrl(ride.proof_url)
+      }
+    }
+    setProofUrls(urls)
+  }
 
   useEffect(() => {
     loadProofs()
@@ -35,6 +48,7 @@ export function AdminProofs() {
     const { data, error } = await supabase.rpc('get_pending_proofs')
     if (!error && data) {
       setProofs(data as Ride[])
+      resolveProofs(data as Ride[])
     }
     setLoading(false)
   }
@@ -133,9 +147,9 @@ export function AdminProofs() {
                   </div>
                 </div>
 
-                {ride.proof_url && (
+                {proofUrls[ride.id] && (
                   <a
-                    href={ride.proof_url}
+                    href={proofUrls[ride.id]!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary-600 text-sm mb-3 hover:underline"

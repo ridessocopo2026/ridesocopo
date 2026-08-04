@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
+import { resolveProofUrl } from '@/lib/storageUtils'
 import type { Payout, Profile, Wallet as WalletType } from '@/types/database'
 
 interface DriverWithWallet {
@@ -15,6 +16,7 @@ interface DriverWithWallet {
 
 export function AdminPayouts() {
   const [payouts, setPayouts] = useState<Payout[]>([])
+  const [proofUrls, setProofUrls] = useState<Record<string, string | null>>({})
   const [drivers, setDrivers] = useState<DriverWithWallet[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -26,6 +28,17 @@ export function AdminPayouts() {
   const [saving, setSaving] = useState(false)
   const { user } = useAuth()
 
+  // Resolver URLs firmadas de comprobantes (bucket payments es privado)
+  const resolveProofs = async (items: Payout[]) => {
+    const urls: Record<string, string | null> = {}
+    for (const p of items) {
+      if (p.proof_url) {
+        urls[p.id] = await resolveProofUrl(p.proof_url)
+      }
+    }
+    setProofUrls(urls)
+  }
+
   useEffect(() => {
     loadAll()
   }, [])
@@ -36,6 +49,7 @@ export function AdminPayouts() {
     const { data: payoutData, error } = await supabase.rpc('get_payouts')
     if (!error && payoutData) {
       setPayouts(payoutData as Payout[])
+      resolveProofs(payoutData as Payout[])
     }
 
     // Cargar conductores con saldo
@@ -251,9 +265,9 @@ export function AdminPayouts() {
                   {new Date(p.created_at).toLocaleString('es-VE')}
                 </p>
 
-                {p.proof_url && (
+                {proofUrls[p.id] && (
                   <a
-                    href={p.proof_url}
+                    href={proofUrls[p.id]!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary-600 text-sm mb-3 hover:underline"

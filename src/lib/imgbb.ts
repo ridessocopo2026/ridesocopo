@@ -1,36 +1,44 @@
-const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY
+import { supabase } from '@/lib/supabase'
 
-interface ImgBBResponse {
-  data?: {
-    url?: string
-    display_url?: string
-    delete_url?: string
-  }
-  success?: boolean
-  error?: {
-    message?: string
-  }
+interface UploadResponse {
+  ok?: boolean
+  url?: string
+  display_url?: string
+  error?: string
 }
 
+/**
+ * Sube una imagen a ImgBB via la Edge Function `upload-image`.
+ * La API key de ImgBB NUNCA viaja al navegador — vive solo en el servidor.
+ */
 export async function uploadToImgBB(file: File): Promise<string> {
-  if (!IMGBB_API_KEY) {
-    throw new Error('Falta la API key de ImgBB en .env.local (VITE_IMGBB_API_KEY)')
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    throw new Error('Debes iniciar sesión para subir imágenes')
   }
 
   const formData = new FormData()
   formData.append('image', file)
-  formData.append('key', IMGBB_API_KEY)
 
-  const response = await fetch('https://api.imgbb.com/1/upload', {
-    method: 'POST',
-    body: formData
-  })
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: formData,
+    }
+  )
 
-  const data: ImgBBResponse = await response.json()
+  const data: UploadResponse = await response.json()
 
-  if (!data.success || !data.data?.url) {
-    throw new Error(data.error?.message || 'Error al subir imagen a ImgBB')
+  if (!response.ok || !data.ok || !data.url) {
+    throw new Error(data.error || 'Error al subir imagen. Intenta de nuevo.')
   }
 
-  return data.data.url
+  return data.url
 }

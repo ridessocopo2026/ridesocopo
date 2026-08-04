@@ -239,11 +239,10 @@ export function ActiveRide() {
           .upload(`${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`, incidentPhoto, { upsert: true })
         if (uploadError) throw uploadError
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('payments')
-          .getPublicUrl(uploadData.path)
+        // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
+        const storagePath = uploadData.path
 
-        photoUrls = [publicUrl]
+        photoUrls = [storagePath]
       }
 
       const { data, error } = await supabase.rpc('report_ride_incident', {

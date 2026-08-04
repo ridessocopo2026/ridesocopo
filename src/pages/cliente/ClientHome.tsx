@@ -368,9 +368,8 @@ export function ClientHome() {
           .upload(`${user.id}/proofs/${Date.now()}-${proofFile.name}`, proofFile, { upsert: true })
         if (uploadError) throw uploadError
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('payments')
-          .getPublicUrl(uploadData.path)
+        // Guardar la ruta del archivo (el bucket es privado; se resuelve con URL firmada al visualizar)
+        const publicUrl = uploadData.path
 
         const { data, error } = await supabase.rpc('request_ride_with_proof', {
           p_origin_lat: origin.lat,

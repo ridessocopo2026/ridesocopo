@@ -41,11 +41,9 @@ export function DriverOnboarding() {
 
     if (error) throw error
 
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(data.path)
-
-    return publicUrl
+    // Los buckets documents/avatars/vehicles son privados (o controlados por RLS).
+    // Guardamos la ruta del storage; se resuelve con URL firmada al visualizar.
+    return data.path
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

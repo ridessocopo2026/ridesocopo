@@ -80,9 +80,8 @@ export function ClientWallet() {
 
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('payments')
-        .getPublicUrl(uploadData.path)
+      // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
+      const publicUrl = uploadData.path
 
       // Solicitar recarga
       const { data, error: rpcError } = await supabase.rpc('request_wallet_recharge', {
