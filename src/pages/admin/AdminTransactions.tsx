@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Receipt, Loader2, Search, Calendar, Filter, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, HandCoins, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt, todayVE, daysAgoVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -59,12 +60,8 @@ export function AdminTransactions() {
   const [error, setError] = useState('')
   const [page, setPage] = useState(0)
   const [pageSize] = useState(25)
-  const [fechaInicio, setFechaInicio] = useState<string>(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return d.toISOString().split('T')[0]
-  })
-  const [fechaFin, setFechaFin] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [fechaInicio, setFechaInicio] = useState<string>(() => daysAgoVE(30))
+  const [fechaFin, setFechaFin] = useState<string>(() => todayVE())
   const [tipo, setTipo] = useState('')
   const [rol, setRol] = useState('')
   const [applying, setApplying] = useState(false)
@@ -105,7 +102,6 @@ export function AdminTransactions() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const fmt = (n: number) => `$${Number(n || 0).toFixed(2)}`
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">

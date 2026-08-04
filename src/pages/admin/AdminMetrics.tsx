@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt, todayVE, daysAgoVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import type { Profile } from '@/types/database'
@@ -68,12 +69,8 @@ export function AdminMetrics() {
   const [clientes, setClientes] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [fechaInicio, setFechaInicio] = useState<string>(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return d.toISOString().split('T')[0]
-  })
-  const [fechaFin, setFechaFin] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [fechaInicio, setFechaInicio] = useState<string>(() => daysAgoVE(30))
+  const [fechaFin, setFechaFin] = useState<string>(() => todayVE())
   const [conductorId, setConductorId] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [metodo, setMetodo] = useState('')
@@ -132,7 +129,6 @@ export function AdminMetrics() {
     setApplying(false)
   }
 
-  const fmt = (n: number) => `$${Number(n || 0).toFixed(2)}`
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -223,7 +219,7 @@ export function AdminMetrics() {
                       <DollarSign className="w-4 h-4 text-white/80" />
                       <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
                     </div>
-                    <p className="text-lg font-bold">${(walletOverview.total_banco || 0).toFixed(2)}</p>
+                    <p className="text-lg font-bold">{fmt(walletOverview.total_banco)}</p>
                   </div>
 
                   {/* Deuda a wallets */}
@@ -232,7 +228,7 @@ export function AdminMetrics() {
                       <ArrowDownUp className="w-4 h-4 text-white/80" />
                       <span className="text-xs text-white/80">Debe a clientes y conductores</span>
                     </div>
-                    <p className="text-lg font-bold">${(walletOverview.deuda_wallets || 0).toFixed(2)}</p>
+                    <p className="text-lg font-bold">{fmt(walletOverview.deuda_wallets)}</p>
                   </div>
 
                   {/* Patrimonio */}
@@ -241,7 +237,7 @@ export function AdminMetrics() {
                       <PiggyBank className="w-5 h-5 text-yellow-300" />
                       <span className="text-sm font-semibold text-yellow-200">Le pertenece a la app</span>
                     </div>
-                    <p className="text-2xl font-bold text-yellow-300">${(walletOverview.patrimonio_app || 0).toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-yellow-300">{fmt(walletOverview.patrimonio_app)}</p>
                   </div>
 
                   {/* Desglose detallado */}
@@ -250,25 +246,25 @@ export function AdminMetrics() {
                       {(walletOverview.detalle.recargas_clientes || 0) > 0 && (
                         <div className="bg-white/5 rounded px-2 py-1">
                           <p className="text-[10px] text-white/60">Recargas clientes</p>
-                          <p className="text-sm font-semibold">+${(walletOverview.detalle.recargas_clientes || 0).toFixed(2)}</p>
+                          <p className="text-sm font-semibold">+{fmt(walletOverview.detalle.recargas_clientes)}</p>
                         </div>
                       )}
                       {(walletOverview.detalle.pagos_pago_movil_viajes || 0) > 0 && (
                         <div className="bg-white/5 rounded px-2 py-1">
                           <p className="text-[10px] text-white/60">Pago Móvil viajes</p>
-                          <p className="text-sm font-semibold">+${(walletOverview.detalle.pagos_pago_movil_viajes || 0).toFixed(2)}</p>
+                          <p className="text-sm font-semibold">+{fmt(walletOverview.detalle.pagos_pago_movil_viajes)}</p>
                         </div>
                       )}
                       {(walletOverview.detalle.pagos_conductores_plataforma || 0) > 0 && (
                         <div className="bg-white/5 rounded px-2 py-1">
                           <p className="text-[10px] text-white/60">Conductores → plataforma</p>
-                          <p className="text-sm font-semibold">+${(walletOverview.detalle.pagos_conductores_plataforma || 0).toFixed(2)}</p>
+                          <p className="text-sm font-semibold">+{fmt(walletOverview.detalle.pagos_conductores_plataforma)}</p>
                         </div>
                       )}
                       {(walletOverview.detalle.pagos_plataforma_conductores || 0) > 0 && (
                         <div className="bg-white/5 rounded px-2 py-1">
                           <p className="text-[10px] text-white/60">Plataforma → conductores</p>
-                          <p className="text-sm font-semibold">−${(walletOverview.detalle.pagos_plataforma_conductores || 0).toFixed(2)}</p>
+                          <p className="text-sm font-semibold">−{fmt(walletOverview.detalle.pagos_plataforma_conductores)}</p>
                         </div>
                       )}
                     </div>

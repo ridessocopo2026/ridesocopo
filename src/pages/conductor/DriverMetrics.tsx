@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, Car, TrendingUp, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt, todayVE, daysAgoVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/ui/Pagination'
@@ -44,12 +45,8 @@ export function DriverMetrics() {
   const [data, setData] = useState<DriverMetricsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [fechaInicio, setFechaInicio] = useState<string>(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return d.toISOString().split('T')[0]
-  })
-  const [fechaFin, setFechaFin] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [fechaInicio, setFechaInicio] = useState<string>(() => daysAgoVE(30))
+  const [fechaFin, setFechaFin] = useState<string>(() => todayVE())
   const [metodo, setMetodo] = useState('')
   const [applying, setApplying] = useState(false)
   const [page, setPage] = useState(1)
@@ -82,8 +79,6 @@ export function DriverMetrics() {
     await loadMetrics()
     setApplying(false)
   }
-
-  const fmt = (n: number) => `$${Number(n || 0).toFixed(2)}`
 
   const totalPages = data ? Math.max(1, Math.ceil((data.detalle_viajes?.length || 0) / PAGE_SIZE)) : 1
   const pageItems = data?.detalle_viajes?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) || []

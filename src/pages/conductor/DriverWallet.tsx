@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -177,7 +178,7 @@ export function DriverWallet() {
     .filter(e => e.payment_method?.toLowerCase() === 'efectivo')
     .reduce((sum, e) => sum + (e.commission_usd || 0), 0)
   const isOwed = (wallet?.balance_usd ?? 0) < 0
-  const oweText = isOwed ? `Debes $${Math.abs(wallet?.balance_usd ?? 0).toFixed(2)} a la plataforma` : `La app te debe $${(wallet?.balance_usd ?? 0).toFixed(2)}`
+  const oweText = isOwed ? `Debes ${fmt(Math.abs(wallet?.balance_usd ?? 0))} a la plataforma` : `La app te debe ${fmt(wallet?.balance_usd ?? 0)}`
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -202,7 +203,7 @@ export function DriverWallet() {
             <Wallet className="w-5 h-5" />
             <span className="text-sm font-medium">Saldo en la app (solo digital)</span>
           </div>
-          <p className="text-3xl font-bold">${wallet?.balance_usd?.toFixed(2) || '0.00'}</p>
+          <p className="text-3xl font-bold">{fmt(wallet?.balance_usd)}</p>
           <p className="text-sm text-white/70 mt-1">
             Créditos por Billetera y Pago Móvil. El dinero en efectivo que ya cobraste NO está aquí.
           </p>
@@ -215,14 +216,14 @@ export function DriverWallet() {
               <p className="text-[10px] uppercase tracking-wide text-amber-700 flex items-center gap-1 font-semibold">
                 <HandCoins className="w-3 h-3" /> Efectivo recibido
               </p>
-              <p className="text-xl font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
+              <p className="text-xl font-bold text-amber-600 mt-1">{fmt(totalCash)}</p>
               <p className="text-[10px] text-amber-500">Ya lo tienes del cliente, no es saldo app</p>
             </div>
             <div className="card p-3 bg-orange-50 border-orange-200">
               <p className="text-[10px] uppercase tracking-wide text-orange-700 flex items-center gap-1 font-semibold">
                 <CreditCard className="w-3 h-3" /> Comisiones efectivo
               </p>
-              <p className="text-xl font-bold text-orange-600 mt-1">${cashCommission.toFixed(2)}</p>
+              <p className="text-xl font-bold text-orange-600 mt-1">{fmt(cashCommission)}</p>
               <p className="text-[10px] text-orange-500">Úsalas para pagar a la plataforma</p>
             </div>
           </div>
@@ -267,7 +268,7 @@ export function DriverWallet() {
             onClick={() => setShowWithdrawForm(!showWithdrawForm)}
             className="btn-outline w-full"
           >
-            {showWithdrawForm ? 'Cancelar' : `Solicitar retiro (disponible $${wallet.balance_usd.toFixed(2)})`}
+            {showWithdrawForm ? 'Cancelar' : `Solicitar retiro (disponible ${fmt(wallet.balance_usd)})`}
           </button>
         )}
 

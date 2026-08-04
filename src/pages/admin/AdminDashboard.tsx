@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Car, DollarSign, TrendingUp, Hexagon, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -159,7 +160,7 @@ export function AdminDashboard() {
                 <DollarSign className="w-4 h-4 text-white/80" />
                 <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
               </div>
-              <p className="text-lg font-bold">${(walletOverview.total_banco || 0).toFixed(2)}</p>
+              <p className="text-lg font-bold">{fmt(walletOverview.total_banco)}</p>
             </div>
 
             {/* Deuda a wallets */}
@@ -168,7 +169,7 @@ export function AdminDashboard() {
                 <ArrowDownUp className="w-4 h-4 text-white/80" />
                 <span className="text-xs text-white/80">Debe a clientes y conductores</span>
               </div>
-              <p className="text-lg font-bold">${(walletOverview.deuda_wallets || 0).toFixed(2)}</p>
+              <p className="text-lg font-bold">{fmt(walletOverview.deuda_wallets)}</p>
             </div>
 
             {/* Patrimonio de la app */}
@@ -177,7 +178,7 @@ export function AdminDashboard() {
                 <PiggyBank className="w-5 h-5 text-yellow-300" />
                 <span className="text-sm font-semibold">Le pertenece a la app</span>
               </div>
-              <p className="text-2xl font-bold text-yellow-300">${(walletOverview.patrimonio_app || 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-yellow-300">{fmt(walletOverview.patrimonio_app)}</p>
             </div>
 
             <p className="text-[10px] text-white/60 mt-2">

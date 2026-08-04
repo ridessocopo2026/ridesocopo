@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt, todayVE, daysAgoVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -68,8 +69,8 @@ export function AdminRides() {
     try {
       const { data, error } = await supabase.rpc('get_admin_rides', {
         p_search: search || null,
-        p_fecha_inicio: `${new Date(new Date().setDate(new Date().getDate() - 90)).toISOString().split('T')[0]}T00:00:00`,
-        p_fecha_fin: `${new Date().toISOString().split('T')[0]}T23:59:59`,
+        p_fecha_inicio: `${daysAgoVE(90)}T00:00:00`,
+        p_fecha_fin: `${todayVE()}T23:59:59`,
         p_status: null,
         p_limit: pageSize,
         p_offset: page * pageSize
@@ -118,7 +119,6 @@ export function AdminRides() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const fmt = (n: number) => `$${Number(n || 0).toFixed(2)}`
 
   const copyTracking = (code: string) => {
     navigator.clipboard.writeText(code)

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Hexagon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -134,7 +135,7 @@ export function ClientWallet() {
             <Wallet className="w-5 h-5" />
             <span className="text-sm font-medium">Saldo disponible</span>
           </div>
-          <p className="text-4xl font-bold">${wallet?.balance_usd?.toFixed(2) || '0.00'}</p>
+          <p className="text-4xl font-bold">{fmt(wallet?.balance_usd)}</p>
           <button
             onClick={() => setShowRecharge(!showRecharge)}
             className="mt-4 bg-white/20 hover:bg-white/30 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
@@ -249,7 +250,7 @@ export function ClientWallet() {
                     <p className={`font-semibold ${
                       txn.type === 'recarga' ? 'text-emerald-600' : 'text-red-500'
                     }`}>
-                      {txn.type === 'recarga' ? '+' : '-'}${txn.amount_usd.toFixed(2)}
+                      {txn.type === 'recarga' ? '+' : '-'}{fmt(txn.amount_usd)}
                     </p>
                     {statusBadge[txn.status]}
                   </div>
