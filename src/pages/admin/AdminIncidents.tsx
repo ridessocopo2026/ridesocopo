@@ -59,32 +59,56 @@ export function AdminIncidents() {
   const [selectedIncident, setSelectedIncident] = useState<RideIncident | null>(null)
   const [resolution, setResolution] = useState('')
   const [atFault, setAtFault] = useState<'cliente' | 'conductor' | 'accidente'>('accidente')
-  const [refundPercent, setRefundPercent] = useState(100)
-  const [compensateDriver, setCompensateDriver] = useState(true)
+  // Montos explícitos en $ que el admin decide (sin porcentajes ambiguos)
+  const [refundClientAmount, setRefundClientAmount] = useState(0)
+  const [penalizeAmount, setPenalizeAmount] = useState(0)
+  const [compensateDriverAmount, setCompensateDriverAmount] = useState(0)
   const [cancelRide, setCancelRide] = useState(true)
   const { user } = useAuth()
 
-  // Cálculos en vivo del incidente seleccionado para mostrar al admin
   const selectedRide = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
   const fare = selectedRide?.final_fare_usd ?? 0
   const commission = selectedRide?.commission_usd ?? 0
   const paymentMethod = selectedRide?.payment_method?.toLowerCase() ?? ''
 
-  // Reembolso al cliente: solo si pagó digital (no efectivo directo)
-  const refundAmount = Math.max(0, fare * (refundPercent / 100))
-
-  // Compensación al conductor: comisión devuelta + 10% extra si el cliente es culpable
-  let compensationAmount = compensateDriver && atFault !== 'conductor' ? commission : 0
-  if (compensateDriver && atFault === 'cliente') {
-    compensationAmount = commission + Math.max(0, fare * 0.10)
+  // Al abrir el modal, pre-cargar montos sugeridos según el culpable
+  const openIncident = (incident: RideIncident) => {
+    setSelectedIncident(incident)
+    setAtFault('accidente')
+    const ride = ridesMap[incident.ride_id]
+    const f = ride?.final_fare_usd ?? 0
+    const c = ride?.commission_usd ?? 0
+    // Accidente por defecto: 100% reembolso + comisión devuelta
+    setRefundClientAmount(f)
+    setPenalizeAmount(0)
+    setCompensateDriverAmount(c)
   }
 
-  // Penalización al culpable automática:
-  // - Cliente culpable: 50% del reembolso
-  // - Conductor culpable: 20% de la tarifa
-  let penaltyAmount = 0
-  if (atFault === 'cliente') penaltyAmount = Math.max(0, refundAmount * 0.5)
-  if (atFault === 'conductor') penaltyAmount = Math.max(0, fare * 0.20)
+  // Al cambiar el culpable, actualizar montos sugeridos
+  const handleAtFaultChange = (fault: 'cliente' | 'conductor' | 'accidente') => {
+    setAtFault(fault)
+    const ride = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
+    const f = ride?.final_fare_usd ?? 0
+    const c = ride?.commission_usd ?? 0
+
+    if (fault === 'cliente') {
+      // Cliente culpable: reembolso 20%, penaliza 50% de lo reembolsado, NO compensa conductor
+      const r = Math.round(f * 0.20 * 100) / 100
+      setRefundClientAmount(Math.min(r, f))
+      setPenalizeAmount(Math.round(r * 0.50 * 100) / 100)
+      setCompensateDriverAmount(0)
+    } else if (fault === 'conductor') {
+      // Conductor culpable: reembolso 100%, penaliza 20% de la tarifa, NO compensa
+      setRefundClientAmount(f)
+      setPenalizeAmount(Math.round(f * 0.20 * 100) / 100)
+      setCompensateDriverAmount(0)
+    } else {
+      // Accidente: reembolso 100%, sin penalización, devuelve comisión
+      setRefundClientAmount(f)
+      setPenalizeAmount(0)
+      setCompensateDriverAmount(c)
+    }
+  }
 
   useEffect(() => {
     loadIncidents()
@@ -132,8 +156,9 @@ export function AdminIncidents() {
         p_incident_id: incidentId,
         p_resolution: resolution,
         p_at_fault: atFault,
-        p_refund_percent: refundPercent,
-        p_compensate_driver: compensateDriver,
+        p_refund_client: refundClientAmount,
+        p_penalize_culpable: penalizeAmount,
+        p_compensate_driver: compensateDriverAmount,
         p_cancel_ride: cancelRide
       })
 
@@ -290,11 +315,17 @@ export function AdminIncidents() {
                           {resolutionDetails.at_fault && (
                             <p>Culpable: <span className="font-medium">{resolutionDetails.at_fault}</span></p>
                           )}
-                          {resolutionDetails.refund_amount !== undefined && (
-                            <p>Reembolso: <span className="font-medium">${Number(resolutionDetails.refund_amount).toFixed(2)}</span></p>
+                          {resolutionDetails.refund_client !== undefined && Number(resolutionDetails.refund_client) > 0 && (
+                            <p>Reembolso al cliente: <span className="font-medium">${Number(resolutionDetails.refund_client).toFixed(2)}</span></p>
                           )}
-                          {resolutionDetails.compensated_driver !== undefined && (
-                            <p>Conductor compensado: <span className="font-medium">{resolutionDetails.compensated_driver ? 'Sí' : 'No'}</span></p>
+                          {resolutionDetails.penalty !== undefined && Number(resolutionDetails.penalty) > 0 && (
+                            <p className="text-red-600">Penalización al {resolutionDetails.at_fault}: <span className="font-medium">${Number(resolutionDetails.penalty).toFixed(2)}</span></p>
+                          )}
+                          {resolutionDetails.compensate_driver !== undefined && Number(resolutionDetails.compensate_driver) > 0 && (
+                            <p>Compensación al conductor: <span className="font-medium">${Number(resolutionDetails.compensate_driver).toFixed(2)}</span></p>
+                          )}
+                          {resolutionDetails.ride_cancelled !== undefined && (
+                            <p>Viaje cancelado: <span className="font-medium">{resolutionDetails.ride_cancelled ? 'Sí' : 'No'}</span></p>
                           )}
                         </div>
                       )}
@@ -303,7 +334,7 @@ export function AdminIncidents() {
 
                   {(incident.status === 'abierto' || incident.status === 'en_revision') && (
                     <button
-                      onClick={() => setSelectedIncident(incident)}
+                      onClick={() => openIncident(incident)}
                       className="btn-primary w-full mt-4"
                     >
                       Resolver incidente
@@ -356,7 +387,7 @@ export function AdminIncidents() {
                     <button
                       key={f}
                       type="button"
-                      onClick={() => setAtFault(f)}
+                      onClick={() => handleAtFaultChange(f)}
                       className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         atFault === f
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -385,16 +416,16 @@ export function AdminIncidents() {
                   </div>
                   <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
                     <span className="text-emerald-600 font-medium">→ Reembolso al cliente</span>
-                    <span className="font-bold text-emerald-600">${refundAmount.toFixed(2)}</span>
+                    <span className="font-bold text-emerald-600">${refundClientAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
-                    <span className="font-bold text-blue-600">${compensationAmount.toFixed(2)}</span>
+                    <span className="font-bold text-blue-600">${compensateDriverAmount.toFixed(2)}</span>
                   </div>
-                  {penaltyAmount > 0 && (
+                  {penalizeAmount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-red-600 font-medium">→ Penalización ({atFault})</span>
-                      <span className="font-bold text-red-600">-${penaltyAmount.toFixed(2)}</span>
+                      <span className="font-bold text-red-600">-${penalizeAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <p className="text-[10px] text-surface-400 mt-2">
@@ -407,28 +438,47 @@ export function AdminIncidents() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
-                  <label className="label">Reembolso %</label>
+                  <label className="label">Reembolso al cliente ($)</label>
                   <input
                     type="number"
                     min={0}
-                    max={100}
+                    step="0.01"
                     className="input"
-                    value={refundPercent}
-                    onChange={(e) => setRefundPercent(Number(e.target.value))}
+                    max={fare}
+                    value={refundClientAmount}
+                    onChange={(e) => setRefundClientAmount(Math.max(0, Number(e.target.value)))}
                   />
+                  <p className="text-xs text-surface-400 mt-1">Máximo ${fare.toFixed(2)} (tarifa pagada)</p>
                 </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 cursor-pointer pb-2">
-                    <input
-                      type="checkbox"
-                      checked={compensateDriver}
-                      onChange={(e) => setCompensateDriver(e.target.checked)}
-                      className="w-4 h-4 accent-primary-600"
-                    />
-                    <span className="text-sm text-surface-600">Compensar conductor (devolver comisión)</span>
+                <div>
+                  <label className="label">
+                    Penalización al {atFault === 'cliente' ? 'cliente' : atFault === 'conductor' ? 'conductor' : '— no aplica'} ($)
                   </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="input"
+                    value={penalizeAmount}
+                    onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
+                  />
+                  <p className="text-xs text-surface-400 mt-1">
+                    {atFault === 'accidente' ? 'No se puede penalizar en un accidente' : 'Se descuenta de la billetera del culpable'}
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Compensación al conductor ($)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="input"
+                    value={compensateDriverAmount}
+                    onChange={(e) => setCompensateDriverAmount(Math.max(0, Number(e.target.value)))}
+                  />
+                  <p className="text-xs text-surface-400 mt-1">Se suma a la billetera del conductor</p>
                 </div>
               </div>
 
