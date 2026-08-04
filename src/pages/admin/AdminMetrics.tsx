@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -8,10 +8,15 @@ import type { Profile } from '@/types/database'
 interface AdminMetricsData {
   resumen: {
     ingresos_plataforma: number
+    comisiones_pendientes: number
     deuda_con_conductores: number
     deuda_conductores: number
     efectivo_conductores: number
     total_recargas: number
+    tarifas_digitales: number
+    penalizaciones: number
+    reembolsos_clientes: number
+    compensaciones_conductores: number
     pagos_conductores_plataforma: number
     pagos_plataforma_conductores: number
     total_viajes: number
@@ -183,12 +188,23 @@ export function AdminMetrics() {
           <>
             {/* Tarjetas de resumen financiero */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="card p-4 bg-emerald-50 border-emerald-200">
+              <div className="card p-4 bg-emerald-50 border-emerald-200 col-span-2 md:col-span-2">
                 <p className="text-xs text-emerald-700 flex items-center gap-1 font-semibold">
-                  <TrendingUp className="w-4 h-4" /> Ingresos plataforma
+                  <TrendingUp className="w-4 h-4" /> Ingresos REALES de la plataforma
                 </p>
                 <p className="text-2xl font-bold text-emerald-700 mt-1">{fmt(data.resumen.ingresos_plataforma)}</p>
-                <p className="text-[10px] text-emerald-600">Comisiones de viajes</p>
+                <p className="text-[10px] text-emerald-600">
+                  Entradas: +{fmt(data.resumen.tarifas_digitales)} tarifas + {fmt(data.resumen.penalizaciones)} penalizaciones + {fmt(data.resumen.total_recargas)} recargas
+                </p>
+                <p className="text-[10px] text-emerald-600">
+                  Salidas: −{fmt(data.resumen.reembolsos_clientes)} reembolsos − {fmt(data.resumen.compensaciones_conductores)} compensaciones − {fmt(data.resumen.pagos_plataforma_conductores)} pagos a conductores
+                </p>
+                <a
+                  href="/admin/transacciones"
+                  className="inline-flex items-center gap-1 text-xs text-emerald-700 underline mt-1 hover:text-emerald-800"
+                >
+                  <Receipt className="w-3 h-3" /> Ver detalle de transacciones
+                </a>
               </div>
               <div className="card p-4 bg-blue-50 border-blue-200">
                 <p className="text-xs text-blue-700 flex items-center gap-1 font-semibold">
