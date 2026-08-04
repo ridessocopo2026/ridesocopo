@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -19,6 +20,7 @@ export function DriverWallet() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
     loadWallet()
@@ -215,6 +217,20 @@ export function DriverWallet() {
             )}
           </div>
         )}
+
+        {/* Acceso a mis métricas */}
+        <button
+          onClick={() => navigate('/conductor/metricas')}
+          className="card card-hover w-full flex items-center gap-4"
+        >
+          <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+            <BarChart3 className="w-6 h-6" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-medium text-surface-700">Mis métricas</p>
+            <p className="text-xs text-surface-400">Viajes, ganancias y comisiones con filtros de fecha</p>
+          </div>
+        </button>
 
         {showPayForm && (
           <div className="card space-y-3 animate-fade-in">

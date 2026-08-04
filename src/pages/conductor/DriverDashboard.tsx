@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Hexagon, Map as MapIcon, X, BarChart3 } from 'lucide-react'
+import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Hexagon, Map as MapIcon, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { supabase } from '@/lib/supabase'
@@ -282,20 +282,6 @@ export function DriverDashboard() {
             {wallet && wallet.balance_usd < 0 ? 'Debes esta cantidad a la plataforma' : 'Tu comisión se descuenta de la carrera'}
           </p>
         </div>
-
-        {/* Acceso rápido a métricas */}
-        <button
-          onClick={() => navigate('/conductor/metricas')}
-          className="card card-hover w-full flex items-center gap-4"
-        >
-          <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-            <BarChart3 className="w-6 h-6" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="font-medium text-surface-700">Mis métricas</p>
-            <p className="text-xs text-surface-400">Viajes, ganancias y comisiones con filtros de fecha</p>
-          </div>
-        </button>
 
         {/* Viajes disponibles */}
         <div>
