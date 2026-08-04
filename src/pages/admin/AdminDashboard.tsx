@@ -1,20 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Car, DollarSign, TrendingUp, Hexagon, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3 } from 'lucide-react'
+import { Users, Car, DollarSign, TrendingUp, Hexagon, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 
+interface WalletOverview {
+  total_banco: number
+  deuda_wallets: number
+  patrimonio_app: number
+  detalle?: {
+    recargas_clientes: number
+    pagos_pago_movil_viajes: number
+    pagos_conductores_plataforma: number
+    pagos_plataforma_conductores: number
+  }
+}
+
 export function AdminDashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalDrivers: 0,
     pendingDrivers: 0,
-    totalRides: 0,
-    totalRevenue: 0
+    totalRides: 0
   })
+  const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -25,26 +37,24 @@ export function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      const [usersRes, driversRes, pendingRes, ridesRes, walletsRes] = await Promise.all([
+      const [usersRes, driversRes, pendingRes, ridesRes, walletRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'conductor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('driver_status', 'pendiente'),
         supabase.from('rides').select('*'),
-        supabase.from('wallets').select('balance_usd')
+        supabase.rpc('get_wallet_overview')
       ])
-
-      // Saldo total de la app = suma de TODAS las billeteras (clientes + conductores)
-      // Positivo = la app le debe ese dinero a los usuarios
-      // Negativo = los usuarios le deben a la app
-      const totalWalletBalance = walletsRes.data?.reduce((sum: number, w: any) => sum + (w.balance_usd || 0), 0) || 0
 
       setStats({
         totalUsers: usersRes.count || 0,
         totalDrivers: driversRes.count || 0,
         pendingDrivers: pendingRes.count || 0,
-        totalRides: ridesRes.data?.length || 0,
-        totalRevenue: totalWalletBalance
+        totalRides: ridesRes.data?.length || 0
       })
+
+      if (walletRes.data) {
+        setWalletOverview(walletRes.data as WalletOverview)
+      }
     } catch (err) {
       console.error('Error cargando stats:', err)
     } finally {
@@ -135,19 +145,54 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {/* Saldo total de la app */}
-        <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-5 h-5" />
-            <span className="text-sm font-medium">Saldo total de la app</span>
+        {/* Saldo total de la app - Vista de patrimonios */}
+        {walletOverview ? (
+          <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark className="w-5 h-5" />
+              <span className="text-sm font-medium">Saldo total de la app</span>
+            </div>
+
+            {/* Total en banco */}
+            <div className="flex items-center justify-between py-1.5 border-b border-white/15">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-white/80" />
+                <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
+              </div>
+              <p className="text-lg font-bold">${(walletOverview.total_banco || 0).toFixed(2)}</p>
+            </div>
+
+            {/* Deuda a wallets */}
+            <div className="flex items-center justify-between py-1.5 border-b border-white/15">
+              <div className="flex items-center gap-2">
+                <ArrowDownUp className="w-4 h-4 text-white/80" />
+                <span className="text-xs text-white/80">Debe a clientes y conductores</span>
+              </div>
+              <p className="text-lg font-bold">${(walletOverview.deuda_wallets || 0).toFixed(2)}</p>
+            </div>
+
+            {/* Patrimonio de la app */}
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center gap-2">
+                <PiggyBank className="w-5 h-5 text-yellow-300" />
+                <span className="text-sm font-semibold">Le pertenece a la app</span>
+              </div>
+              <p className="text-2xl font-bold text-yellow-300">${(walletOverview.patrimonio_app || 0).toFixed(2)}</p>
+            </div>
+
+            <p className="text-[10px] text-white/60 mt-2">
+              Cuando conductores/clientes soliciten retiro, estos valores se ajustan automáticamente.
+            </p>
           </div>
-          <p className="text-3xl font-bold">${stats.totalRevenue.toFixed(2)}</p>
-          <p className="text-[11px] text-white/70 mt-1">
-            {stats.totalRevenue >= 0
-              ? 'Dinero que la app debe a clientes y conductores'
-              : 'Dinero que los usuarios deben a la plataforma'}
-          </p>
-        </div>
+        ) : (
+          <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="w-5 h-5" />
+              <span className="text-sm font-medium">Saldo total de la app</span>
+            </div>
+            <p className="text-3xl font-bold">$0.00</p>
+          </div>
+        )}
 
         {/* Menú de gestión */}
         <div>

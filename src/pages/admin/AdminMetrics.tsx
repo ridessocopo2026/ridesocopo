@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import type { Profile } from '@/types/database'
+
+interface WalletOverview {
+  total_banco: number
+  deuda_wallets: number
+  patrimonio_app: number
+  detalle?: {
+    recargas_clientes: number
+    pagos_pago_movil_viajes: number
+    pagos_conductores_plataforma: number
+    pagos_plataforma_conductores: number
+  }
+}
 
 interface AdminMetricsData {
   resumen: {
@@ -50,6 +62,7 @@ interface AdminMetricsData {
 
 export function AdminMetrics() {
   const [data, setData] = useState<AdminMetricsData | null>(null)
+  const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null)
   const [conductores, setConductores] = useState<Profile[]>([])
   const [clientes, setClientes] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,7 +81,13 @@ export function AdminMetrics() {
   useEffect(() => {
     loadProfiles()
     loadMetrics()
+    loadWalletOverview()
   }, [])
+
+  const loadWalletOverview = async () => {
+    const { data } = await supabase.rpc('get_wallet_overview')
+    if (data) setWalletOverview(data as WalletOverview)
+  }
 
   const loadProfiles = async () => {
     const { data: driversData } = await supabase
@@ -186,6 +205,81 @@ export function AdminMetrics() {
           <div className="text-center py-10 text-surface-400">Sin datos para mostrar</div>
         ) : (
           <>
+            {/* 💰 Dinero en banco / patrimonio de la app */}
+            {walletOverview && (
+              <div className="card p-4 bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <Landmark className="w-5 h-5" />
+                  <h2 className="font-semibold text-white flex items-center gap-2">
+                    Dinero en banco / Patrimonio
+                  </h2>
+                </div>
+
+                <div className="space-y-2">
+                  {/* Total en banco */}
+                  <div className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-white/80" />
+                      <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
+                    </div>
+                    <p className="text-lg font-bold">${(walletOverview.total_banco || 0).toFixed(2)}</p>
+                  </div>
+
+                  {/* Deuda a wallets */}
+                  <div className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <ArrowDownUp className="w-4 h-4 text-white/80" />
+                      <span className="text-xs text-white/80">Debe a clientes y conductores</span>
+                    </div>
+                    <p className="text-lg font-bold">${(walletOverview.deuda_wallets || 0).toFixed(2)}</p>
+                  </div>
+
+                  {/* Patrimonio */}
+                  <div className="flex items-center justify-between bg-yellow-400/20 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <PiggyBank className="w-5 h-5 text-yellow-300" />
+                      <span className="text-sm font-semibold text-yellow-200">Le pertenece a la app</span>
+                    </div>
+                    <p className="text-2xl font-bold text-yellow-300">${(walletOverview.patrimonio_app || 0).toFixed(2)}</p>
+                  </div>
+
+                  {/* Desglose detallado */}
+                  {walletOverview.detalle && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {(walletOverview.detalle.recargas_clientes || 0) > 0 && (
+                        <div className="bg-white/5 rounded px-2 py-1">
+                          <p className="text-[10px] text-white/60">Recargas clientes</p>
+                          <p className="text-sm font-semibold">+${(walletOverview.detalle.recargas_clientes || 0).toFixed(2)}</p>
+                        </div>
+                      )}
+                      {(walletOverview.detalle.pagos_pago_movil_viajes || 0) > 0 && (
+                        <div className="bg-white/5 rounded px-2 py-1">
+                          <p className="text-[10px] text-white/60">Pago Móvil viajes</p>
+                          <p className="text-sm font-semibold">+${(walletOverview.detalle.pagos_pago_movil_viajes || 0).toFixed(2)}</p>
+                        </div>
+                      )}
+                      {(walletOverview.detalle.pagos_conductores_plataforma || 0) > 0 && (
+                        <div className="bg-white/5 rounded px-2 py-1">
+                          <p className="text-[10px] text-white/60">Conductores → plataforma</p>
+                          <p className="text-sm font-semibold">+${(walletOverview.detalle.pagos_conductores_plataforma || 0).toFixed(2)}</p>
+                        </div>
+                      )}
+                      {(walletOverview.detalle.pagos_plataforma_conductores || 0) > 0 && (
+                        <div className="bg-white/5 rounded px-2 py-1">
+                          <p className="text-[10px] text-white/60">Plataforma → conductores</p>
+                          <p className="text-sm font-semibold">−${(walletOverview.detalle.pagos_plataforma_conductores || 0).toFixed(2)}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-white/60 pt-1">
+                    Los retiros de conductores/clientes ajustan estos valores automáticamente.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Tarjetas de resumen financiero */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="card p-4 bg-emerald-50 border-emerald-200 col-span-2 md:col-span-2">
