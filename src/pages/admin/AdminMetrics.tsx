@@ -21,6 +21,7 @@ interface AdminMetricsData {
   resumen: {
     ingresos_plataforma: number
     comisiones_pendientes: number
+    comisiones_efectivo: number
     deuda_con_conductores: number
     deuda_conductores: number
     efectivo_conductores: number
@@ -288,7 +289,7 @@ export function AdminMetrics() {
                 </p>
                 <p className="text-2xl font-bold text-emerald-700 mt-1">{fmt(data.resumen.ingresos_plataforma)}</p>
                 <p className="text-[10px] text-emerald-600">
-                  Entradas: +{fmt(data.resumen.tarifas_digitales)} tarifas + {fmt(data.resumen.penalizaciones)} penalizaciones + {fmt(data.resumen.total_recargas)} recargas
+                  Entradas: +{fmt(data.resumen.tarifas_digitales)} tarifas + {fmt(data.resumen.comisiones_efectivo)} comisiones efectivo + {fmt(data.resumen.penalizaciones)} penalizaciones + {fmt(data.resumen.total_recargas)} recargas
                 </p>
                 <p className="text-[10px] text-emerald-600">
                   Salidas: −{fmt(data.resumen.reembolsos_clientes)} reembolsos − {fmt(data.resumen.compensaciones_conductores)} compensaciones − {fmt(data.resumen.pagos_plataforma_conductores)} pagos a conductores
