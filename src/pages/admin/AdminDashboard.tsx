@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Car, DollarSign, TrendingUp, Hexagon, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert } from 'lucide-react'
+import { Users, Car, DollarSign, TrendingUp, Hexagon, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -64,7 +64,8 @@ export function AdminDashboard() {
     { to: '/admin/banners', icon: <Image className="w-6 h-6" />, title: 'Banners', desc: 'Publicidad y promociones' },
     { to: '/admin/cupones', icon: <Ticket className="w-6 h-6" />, title: 'Cupones', desc: 'Códigos de descuento' },
     { to: '/admin/config', icon: <Settings className="w-6 h-6" />, title: 'Configuración', desc: 'Comisiones y límites' },
-    { to: '/admin/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Accidentes y reportes de viajes' }
+    { to: '/admin/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Accidentes y reportes de viajes' },
+    { to: '/admin/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Métricas', desc: 'Finanzas, filtros y estadísticas' }
   ]
 
   return (
