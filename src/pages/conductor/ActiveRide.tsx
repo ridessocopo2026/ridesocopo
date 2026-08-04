@@ -324,16 +324,22 @@ export function ActiveRide() {
 
       {/* Banner de incidente */}
       {ride.status === 'incidente' && (
-        <div className="max-w-md mx-auto px-4 mt-4">
+        <div className="max-w-md mx-auto px-4 mt-4 space-y-3">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <ShieldAlert className="w-6 h-6 text-red-600 flex-shrink-0" />
             <div>
               <h3 className="font-semibold text-red-700">Incidente reportado</h3>
               <p className="text-sm text-red-600 mt-1">
-                El incidente está siendo revisado por la plataforma. Espera la resolución.
+                El incidente está siendo revisado por la plataforma. Puedes seguir recibiendo viajes mientras tanto.
               </p>
             </div>
           </div>
+          <button
+            onClick={() => navigate('/conductor')}
+            className="btn-outline w-full"
+          >
+            Volver al panel de viajes
+          </button>
         </div>
       )}
 

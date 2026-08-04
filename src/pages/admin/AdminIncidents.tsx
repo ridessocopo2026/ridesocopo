@@ -22,6 +22,33 @@ const statusLabels: Record<IncidentStatus, { label: string; className: string }>
   cerrado: { label: 'Cerrado', className: 'badge-danger' }
 }
 
+// @ts-ignore - Supabase devuelve JSONB como string o array según la versión
+// Esta función sanitiza photo_urls para que SIEMPRE sea un array de strings
+const parsePhotoUrls = (photoUrls: any): string[] => {
+  if (!photoUrls) return []
+  if (Array.isArray(photoUrls)) {
+    return photoUrls.filter((u): u is string => typeof u === 'string')
+  }
+  if (typeof photoUrls === 'string') {
+    try {
+      const parsed = JSON.parse(photoUrls)
+      return Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : []
+    } catch {
+      return photoUrls.trim() ? [photoUrls.trim()] : []
+    }
+  }
+  return []
+}
+
+// @ts-ignore - resolution_details viene de JSONB y puede ser string u objeto
+const parseResolutionDetails = (details: any): any => {
+  if (!details) return null
+  if (typeof details === 'string') {
+    try { return JSON.parse(details) } catch { return null }
+  }
+  return details
+}
+
 export function AdminIncidents() {
   const [incidents, setIncidents] = useState<(RideIncident & { ride?: Ride })[]>([])
   const [ridesMap, setRidesMap] = useState<Record<string, Ride>>({})
@@ -154,6 +181,8 @@ export function AdminIncidents() {
             {incidentList.map((incident) => {
               const ride = ridesMap[incident.ride_id]
               const status = statusLabels[incident.status]
+              const photos = parsePhotoUrls((incident as any).photo_urls)
+              const resolutionDetails = parseResolutionDetails((incident as any).resolution_details)
 
               return (
                 <div key={incident.id} className="card">
@@ -214,9 +243,9 @@ export function AdminIncidents() {
                     </div>
                   )}
 
-                  {incident.photo_urls && incident.photo_urls.length > 0 && (
+                  {photos.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">
-                      {incident.photo_urls.map((url, idx) => (
+                      {photos.map((url, idx) => (
                         <a
                           key={idx}
                           href={url}
@@ -234,16 +263,16 @@ export function AdminIncidents() {
                     <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                       <p className="text-xs font-semibold text-emerald-700 mb-1">Resolución:</p>
                       <p className="text-sm text-emerald-800">{incident.resolution}</p>
-                      {incident.resolution_details && (
+                      {resolutionDetails && (
                         <div className="text-xs text-emerald-600 mt-2 space-y-0.5">
-                          {incident.resolution_details.at_fault && (
-                            <p>Culpable: <span className="font-medium">{incident.resolution_details.at_fault}</span></p>
+                          {resolutionDetails.at_fault && (
+                            <p>Culpable: <span className="font-medium">{resolutionDetails.at_fault}</span></p>
                           )}
-                          {incident.resolution_details.refund_amount !== undefined && (
-                            <p>Reembolso: <span className="font-medium">${Number(incident.resolution_details.refund_amount).toFixed(2)}</span></p>
+                          {resolutionDetails.refund_amount !== undefined && (
+                            <p>Reembolso: <span className="font-medium">${Number(resolutionDetails.refund_amount).toFixed(2)}</span></p>
                           )}
-                          {incident.resolution_details.compensated_driver !== undefined && (
-                            <p>Conductor compensado: <span className="font-medium">{incident.resolution_details.compensated_driver ? 'Sí' : 'No'}</span></p>
+                          {resolutionDetails.compensated_driver !== undefined && (
+                            <p>Conductor compensado: <span className="font-medium">{resolutionDetails.compensated_driver ? 'Sí' : 'No'}</span></p>
                           )}
                         </div>
                       )}

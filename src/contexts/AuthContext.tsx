@@ -66,17 +66,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchProfile(session.user.id)
         setLoading(false)
       } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setLoading(false)
+        // ⚠️ Solo limpiar si NO hay sesión persistida (evita logout fantasma
+        // cuando el refresh token expira estando la pestaña en segundo plano).
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (!currentSession) {
+          setUser(null)
+          setLoading(false)
+        }
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         // Solo refrescar el perfil si no hay uno cargado
         await fetchProfile(session.user.id)
       }
     })
 
+    // 3. Al volver a la pestaña (app PWA en segundo plano), refrescar la sesión
+    //    si hay una activa. Esto NO gasta recursos porque solo se ejecuta
+    //    cuando el usuario regresa a la app, no periódicamente.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        // Refrescar el access token silenciosamente
+        await supabase.auth.refreshSession()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       mounted = false
       subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [fetchProfile])
 
