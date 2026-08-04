@@ -139,18 +139,14 @@ export function DriverWallet() {
     return <Smartphone className="w-4 h-4 text-blue-600" />
   }
 
-  // Totales calculados
+  // Totales informativos (NO son saldo — el saldo real es wallet.balance_usd)
   const totalCash = earnings.reduce((sum, e) => sum + (e.cash_received_usd || 0), 0)
-  const totalAppCredit = earnings.reduce((sum, e) => sum + (e.app_credit_usd || 0), 0)
-  const totalCommission = earnings.reduce((sum, e) => sum + (e.commission_usd || 0), 0)
   // Comisiones de viajes en efectivo — se pagan aparte, no descuentan del saldo app
   const cashCommission = earnings
     .filter(e => e.payment_method?.toLowerCase() === 'efectivo')
     .reduce((sum, e) => sum + (e.commission_usd || 0), 0)
-  const netAppBalance = totalAppCredit - totalCommission + cashCommission
-  // netAppBalance = solo créditos digitales − comisiones de viajes digitales
-  // (las comisiones de efectivo no tocan la wallet virtual)
-  const digitalCommission = totalCommission - cashCommission
+  const isOwed = (wallet?.balance_usd ?? 0) < 0
+  const oweText = isOwed ? `Debes $${Math.abs(wallet?.balance_usd ?? 0).toFixed(2)} a la plataforma` : `La app te debe $${(wallet?.balance_usd ?? 0).toFixed(2)}`
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -181,54 +177,43 @@ export function DriverWallet() {
           </p>
         </div>
 
-        {/* Cuentas claras */}
+        {/* Bloque informativo: Efectivo + Comisiones pendientes (NO es saldo) */}
         {earnings.length > 0 && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="card p-3 bg-amber-50 border-amber-200">
-                <p className="text-[10px] uppercase tracking-wide text-amber-700 flex items-center gap-1 font-semibold">
-                  <HandCoins className="w-3 h-3" /> Efectivo (ya lo tienes)
-                </p>
-                <p className="text-xl font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
-                <p className="text-[10px] text-amber-500">Recibiste del cliente, no es saldo app</p>
-              </div>
-              <div className="card p-3 bg-emerald-50 border-emerald-200">
-                <p className="text-[10px] uppercase tracking-wide text-emerald-700 flex items-center gap-1 font-semibold">
-                  <Wallet className="w-3 h-3" /> App te acredita
-                </p>
-                <p className="text-xl font-bold text-emerald-600 mt-1">${totalAppCredit.toFixed(2)}</p>
-                <p className="text-[10px] text-emerald-500">Sumado a tu saldo virtual</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="card p-3 bg-red-50 border-red-200">
-                <p className="text-[10px] uppercase tracking-wide text-red-700 flex items-center gap-1 font-semibold">
-                  <CreditCard className="w-3 h-3" /> Comisiones digitales
-                </p>
-                <p className="text-xl font-bold text-red-600 mt-1">${digitalCommission.toFixed(2)}</p>
-                <p className="text-[10px] text-red-500">Descontadas de tu saldo app</p>
-              </div>
-              <div className="card p-3 bg-orange-50 border-orange-200">
-                <p className="text-[10px] uppercase tracking-wide text-orange-700 flex items-center gap-1 font-semibold">
-                  <CreditCard className="w-3 h-3" /> Comisiones efectivo
-                </p>
-                <p className="text-xl font-bold text-orange-600 mt-1">${cashCommission.toFixed(2)}</p>
-                <p className="text-[10px] text-orange-500">Debes pagarlas aparte, no están en la app</p>
-              </div>
-            </div>
-
-            <div className={`card p-4 ${netAppBalance >= 0 ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'}`}>
-              <p className="text-xs font-semibold text-surface-600 mb-1">Resumen neto</p>
-              <p className={`text-lg font-bold ${netAppBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {netAppBalance >= 0 ? `La app te debe $${netAppBalance.toFixed(2)}` : `Debes $${Math.abs(netAppBalance).toFixed(2)} a la app`}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="card p-3 bg-amber-50 border-amber-200">
+              <p className="text-[10px] uppercase tracking-wide text-amber-700 flex items-center gap-1 font-semibold">
+                <HandCoins className="w-3 h-3" /> Efectivo recibido
               </p>
-              <p className="text-xs text-surface-500 mt-1">
-                = Créditos digitales (${totalAppCredit.toFixed(2)}) − Comisiones digitales (${digitalCommission.toFixed(2)})
-                {cashCommission > 0 && ` + Comisiones efectivo ($${cashCommission.toFixed(2)}) pendientes de pago aparte`}
-              </p>
+              <p className="text-xl font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
+              <p className="text-[10px] text-amber-500">Ya lo tienes del cliente, no es saldo app</p>
             </div>
-          </>
+            <div className="card p-3 bg-orange-50 border-orange-200">
+              <p className="text-[10px] uppercase tracking-wide text-orange-700 flex items-center gap-1 font-semibold">
+                <CreditCard className="w-3 h-3" /> Comisiones efectivo
+              </p>
+              <p className="text-xl font-bold text-orange-600 mt-1">${cashCommission.toFixed(2)}</p>
+              <p className="text-[10px] text-orange-500">Úsalas para pagar a la plataforma</p>
+            </div>
+          </div>
+        )}
+
+        {/* Estado real: la app te debe o le debes */}
+        {wallet && (
+          <div className={`card p-4 ${isOwed ? 'bg-red-50 border-red-300' : 'bg-emerald-50 border-emerald-300'}`}>
+            <p className="text-xs font-semibold text-surface-600 mb-1">Estado de tu cuenta con la plataforma</p>
+            <p className={`text-lg font-bold ${isOwed ? 'text-red-600' : 'text-emerald-600'}`}>{oweText}</p>
+            {!isOwed && wallet.balance_usd > 0 && (
+              <p className="text-xs text-surface-500 mt-1">Este es el dinero que la app te adeuda por viajes pagados digitalmente.</p>
+            )}
+            {isOwed && (
+              <button
+                onClick={() => setShowPayForm(!showPayForm)}
+                className="mt-3 btn-primary w-full"
+              >
+                {showPayForm ? 'Cerrar' : 'Pagar a la plataforma'}
+              </button>
+            )}
+          </div>
         )}
 
         {showPayForm && (
