@@ -137,6 +137,29 @@ export function AdminDrivers() {
     }
   }
 
+  const handleVehicleReview = async (vehicleId: string, approve: boolean) => {
+    setError('')
+    setActionLoading(true)
+
+    try {
+      const { error } = await supabase.rpc('approve_vehicle', {
+        p_vehicle_id: vehicleId,
+        p_approve: approve
+      })
+
+      if (error) throw error
+
+      // Recargar los vehículos del conductor seleccionado
+      if (selectedDriver) {
+        loadDriverDetails(selectedDriver)
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const statusBadge = {
     pendiente: <span className="badge-warning">Pendiente</span>,
     aprobado: <span className="badge-success">Aprobado</span>,
@@ -304,10 +327,21 @@ export function AdminDrivers() {
                             <span className="text-xs text-surface-400">Sin foto</span>
                           )}
                         </div>
-                        <div className="text-sm text-surface-600">
+                <div className="text-sm text-surface-600">
                           <p><strong>{v.brand} {v.model}</strong> ({v.year})</p>
                           <p>Color: {v.color} • Placa: {v.plate}</p>
                           <p>Categoría: {v.category}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`badge ${v.is_active_vehicle ? 'badge-success' : v.is_approved ? 'badge-info' : 'badge-warning'}`}>
+                              {v.is_active_vehicle ? 'Activo' : v.is_approved ? 'Aprobado' : 'Pendiente'}
+                            </span>
+                            {!v.is_approved && (
+                              <>
+                                <button onClick={() => handleVehicleReview(v.id, true)} className="btn-success px-2 py-1 text-xs">Aprobar</button>
+                                <button onClick={() => handleVehicleReview(v.id, false)} className="btn-danger px-2 py-1 text-xs">Rechazar</button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
