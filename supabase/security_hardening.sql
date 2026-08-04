@@ -21,14 +21,24 @@
 -- ============================================================
 
 -- Tablas financieras: SOLO service_role/postgres
+-- Truco importante: REVOKE ALL también quita SELECT.
+-- Las políticas RLS filtran filas, pero el GRANT SELECT es el permiso BASE.
+-- Por eso re-ganteamos SELECT para authenticated.
 REVOKE ALL ON public.wallets FROM anon;
 REVOKE ALL ON public.wallets FROM authenticated;
+GRANT SELECT ON public.wallets TO authenticated;
+
 REVOKE ALL ON public.transactions FROM anon;
 REVOKE ALL ON public.transactions FROM authenticated;
+GRANT SELECT ON public.transactions TO authenticated;
+
 REVOKE ALL ON public.payouts FROM anon;
 REVOKE ALL ON public.payouts FROM authenticated;
+GRANT SELECT ON public.payouts TO authenticated;
+
 REVOKE ALL ON public.driver_earnings FROM anon;
 REVOKE ALL ON public.driver_earnings FROM authenticated;
+GRANT SELECT ON public.driver_earnings TO authenticated;
 
 -- Tablas de perfiles: SOLO lectura controlada via RLS
 REVOKE ALL ON public.profiles FROM anon;
