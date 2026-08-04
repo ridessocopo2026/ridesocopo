@@ -6,32 +6,52 @@ import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { Pagination } from '@/components/ui/Pagination'
 import type { Ride } from '@/types/database'
+
+const PAGE_SIZE = 10
 
 export function ClientHistory() {
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
   const { user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    loadRides()
-  }, [])
+    if (user) {
+      setLoading(true)
+      loadRides()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, page])
 
   const loadRides = async () => {
     if (!user) return
+
+    // Contar total para paginación
+    const { count } = await supabase
+      .from('rides')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', user.id)
+
+    // Cargar página actual
     const { data, error } = await supabase
       .from('rides')
       .select('*')
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
     if (!error && data) {
       setRides(data as Ride[])
+      setTotalItems(count || 0)
     }
     setLoading(false)
   }
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
 
   const statusBadge = {
     buscando: <span className="badge-warning">Buscando</span>,
@@ -68,46 +88,56 @@ export function ClientHistory() {
             description="Cuando realices tu primer viaje, aparecerá aquí"
           />
         ) : (
-          <div className="space-y-3">
-            {rides.map((ride) => (
-              <div key={ride.id} className="card card-hover cursor-pointer" onClick={() => navigate(`/cliente/viaje/${ride.id}`)}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="badge-primary">{ride.category}</span>
-                  {statusBadge[ride.status]}
-                </div>
-
-                <div className="space-y-2 mb-3">
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-accent-600 rounded-full mt-1.5 flex-shrink-0" />
-                    <p className="text-sm text-surface-600 truncate">{ride.origin_address || 'Origen'}</p>
+          <>
+            <div className="space-y-3">
+              {rides.map((ride) => (
+                <div key={ride.id} className="card card-hover cursor-pointer" onClick={() => navigate(`/cliente/viaje/${ride.id}`)}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="badge-primary">{ride.category}</span>
+                    {statusBadge[ride.status]}
                   </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-primary-600 rounded-full mt-1.5 flex-shrink-0" />
-                    <p className="text-sm text-surface-600 truncate">{ride.destination_address || 'Destino'}</p>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-surface-100">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-surface-400">
-                      {new Date(ride.created_at).toLocaleDateString('es-VE', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </span>
-                    {ride.rating && (
-                      <span className="flex items-center gap-1 text-sm text-amber-500">
-                        <Star className="w-3 h-3 fill-current" />
-                        {ride.rating}
+                  <div className="space-y-2 mb-3">
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 bg-accent-600 rounded-full mt-1.5 flex-shrink-0" />
+                      <p className="text-sm text-surface-600 truncate">{ride.origin_address || 'Origen'}</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 bg-primary-600 rounded-full mt-1.5 flex-shrink-0" />
+                      <p className="text-sm text-surface-600 truncate">{ride.destination_address || 'Destino'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-surface-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-surface-400">
+                        {new Date(ride.created_at).toLocaleDateString('es-VE', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
                       </span>
-                    )}
+                      {ride.rating && (
+                        <span className="flex items-center gap-1 text-sm text-amber-500">
+                          <Star className="w-3 h-3 fill-current" />
+                          {ride.rating}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
                   </div>
-                  <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          </>
         )}
       </div>
     </div>

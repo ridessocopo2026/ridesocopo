@@ -14,6 +14,7 @@ import { DriverWallet } from '@/pages/conductor/DriverWallet'
 import { DriverHistory } from '@/pages/conductor/DriverHistory'
 import { DriverProfile } from '@/pages/conductor/DriverProfile'
 import { ActiveRide as DriverActiveRide } from '@/pages/conductor/ActiveRide'
+import { DriverMetrics } from '@/pages/conductor/DriverMetrics'
 import { ClientHome } from '@/pages/cliente/ClientHome'
 import { ClientActiveRide } from '@/pages/cliente/ClientActiveRide'
 import { ClientWallet } from '@/pages/cliente/ClientWallet'
@@ -181,6 +182,11 @@ export default function App() {
           <Route path="/conductor/historial" element={
             <RoleRoute role="conductor">
               <DriverHistory />
+            </RoleRoute>
+          } />
+          <Route path="/conductor/metricas" element={
+            <RoleRoute role="conductor">
+              <DriverMetrics />
             </RoleRoute>
           } />
           <Route path="/conductor/perfil" element={
