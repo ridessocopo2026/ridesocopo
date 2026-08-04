@@ -64,6 +64,28 @@ export function AdminIncidents() {
   const [cancelRide, setCancelRide] = useState(true)
   const { user } = useAuth()
 
+  // Cálculos en vivo del incidente seleccionado para mostrar al admin
+  const selectedRide = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
+  const fare = selectedRide?.final_fare_usd ?? 0
+  const commission = selectedRide?.commission_usd ?? 0
+  const paymentMethod = selectedRide?.payment_method?.toLowerCase() ?? ''
+
+  // Reembolso al cliente: solo si pagó digital (no efectivo directo)
+  const refundAmount = Math.max(0, fare * (refundPercent / 100))
+
+  // Compensación al conductor: comisión devuelta + 10% extra si el cliente es culpable
+  let compensationAmount = compensateDriver && atFault !== 'conductor' ? commission : 0
+  if (compensateDriver && atFault === 'cliente') {
+    compensationAmount = commission + Math.max(0, fare * 0.10)
+  }
+
+  // Penalización al culpable automática:
+  // - Cliente culpable: 50% del reembolso
+  // - Conductor culpable: 20% de la tarifa
+  let penaltyAmount = 0
+  if (atFault === 'cliente') penaltyAmount = Math.max(0, refundAmount * 0.5)
+  if (atFault === 'conductor') penaltyAmount = Math.max(0, fare * 0.20)
+
   useEffect(() => {
     loadIncidents()
   }, [filter])
@@ -346,6 +368,44 @@ export function AdminIncidents() {
                   ))}
                 </div>
               </div>
+
+              {/* Vista previa de cálculos en vivo */}
+              {selectedRide && (
+                <div className="bg-surface-50 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wide mb-2">
+                    Vista previa de resolución
+                  </p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-surface-500">Tarifa del viaje</span>
+                    <span className="font-medium">${fare.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-surface-500">Método de pago</span>
+                    <span className="font-medium">{selectedRide.payment_method}</span>
+                  </div>
+                  <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
+                    <span className="text-emerald-600 font-medium">→ Reembolso al cliente</span>
+                    <span className="font-bold text-emerald-600">${refundAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
+                    <span className="font-bold text-blue-600">${compensationAmount.toFixed(2)}</span>
+                  </div>
+                  {penaltyAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-red-600 font-medium">→ Penalización ({atFault})</span>
+                      <span className="font-bold text-red-600">-${penaltyAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-surface-400 mt-2">
+                    {atFault === 'cliente'
+                      ? 'El cliente es culpable: recibe menos reembolso, el conductor es compensado.'
+                      : atFault === 'conductor'
+                        ? 'El conductor es culpable: no recibe compensación y paga penalización.'
+                        : 'Accidente: ambos inocentes, se reembolsa y se devuelve comisión.'}
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
