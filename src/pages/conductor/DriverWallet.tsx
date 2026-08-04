@@ -143,6 +143,14 @@ export function DriverWallet() {
   const totalCash = earnings.reduce((sum, e) => sum + (e.cash_received_usd || 0), 0)
   const totalAppCredit = earnings.reduce((sum, e) => sum + (e.app_credit_usd || 0), 0)
   const totalCommission = earnings.reduce((sum, e) => sum + (e.commission_usd || 0), 0)
+  // Comisiones de viajes en efectivo — se pagan aparte, no descuentan del saldo app
+  const cashCommission = earnings
+    .filter(e => e.payment_method?.toLowerCase() === 'efectivo')
+    .reduce((sum, e) => sum + (e.commission_usd || 0), 0)
+  const netAppBalance = totalAppCredit - totalCommission + cashCommission
+  // netAppBalance = solo créditos digitales − comisiones de viajes digitales
+  // (las comisiones de efectivo no tocan la wallet virtual)
+  const digitalCommission = totalCommission - cashCommission
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -161,54 +169,66 @@ export function DriverWallet() {
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-        {/* Saldo principal de la app */}
-        <div className={`card ${wallet && wallet.balance_usd < 0 ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-primary-600 to-primary-800'} text-white border-0`}>
+        {/* Saldo principal de la app (solo digital) */}
+        <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
           <div className="flex items-center gap-2 mb-2">
             <Wallet className="w-5 h-5" />
-            <span className="text-sm font-medium">{wallet && wallet.balance_usd < 0 ? 'Deuda con la plataforma' : 'Saldo en la app (por cobrar)'}</span>
+            <span className="text-sm font-medium">Saldo en la app (solo digital)</span>
           </div>
           <p className="text-3xl font-bold">${wallet?.balance_usd?.toFixed(2) || '0.00'}</p>
           <p className="text-sm text-white/70 mt-1">
-            {wallet && wallet.balance_usd < 0
-              ? `Debes ${Math.abs(wallet.balance_usd).toFixed(2)}$ a la plataforma • Límite: ${wallet.debt_limit_usd.toFixed(2)}$`
-              : 'Solo dinero que la app te debe (viajes pagados por Billetera/Pago Móvil). El efectivo NO está aquí.'
-            }
+            Créditos por Billetera y Pago Móvil. El dinero en efectivo que ya cobraste NO está aquí.
           </p>
-          {wallet && wallet.balance_usd < 0 && (
-            <button
-              onClick={() => setShowPayForm(!showPayForm)}
-              className="mt-3 bg-white/20 hover:bg-white/30 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
-            >
-              Pagar a la plataforma
-            </button>
-          )}
         </div>
 
-        {/* Resumen financiero total */}
+        {/* Cuentas claras */}
         {earnings.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="card p-3">
-              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
-                <HandCoins className="w-3 h-3 text-amber-600" /> Efectivo
-              </p>
-              <p className="text-lg font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
-              <p className="text-[10px] text-surface-400">Ya lo recibiste</p>
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="card p-3 bg-amber-50 border-amber-200">
+                <p className="text-[10px] uppercase tracking-wide text-amber-700 flex items-center gap-1 font-semibold">
+                  <HandCoins className="w-3 h-3" /> Efectivo (ya lo tienes)
+                </p>
+                <p className="text-xl font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
+                <p className="text-[10px] text-amber-500">Recibiste del cliente, no es saldo app</p>
+              </div>
+              <div className="card p-3 bg-emerald-50 border-emerald-200">
+                <p className="text-[10px] uppercase tracking-wide text-emerald-700 flex items-center gap-1 font-semibold">
+                  <Wallet className="w-3 h-3" /> App te acredita
+                </p>
+                <p className="text-xl font-bold text-emerald-600 mt-1">${totalAppCredit.toFixed(2)}</p>
+                <p className="text-[10px] text-emerald-500">Sumado a tu saldo virtual</p>
+              </div>
             </div>
-            <div className="card p-3">
-              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
-                <Wallet className="w-3 h-3 text-emerald-600" /> App te debe
-              </p>
-              <p className="text-lg font-bold text-emerald-600 mt-1">${totalAppCredit.toFixed(2)}</p>
-              <p className="text-[10px] text-surface-400">En tu saldo virtual</p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="card p-3 bg-red-50 border-red-200">
+                <p className="text-[10px] uppercase tracking-wide text-red-700 flex items-center gap-1 font-semibold">
+                  <CreditCard className="w-3 h-3" /> Comisiones digitales
+                </p>
+                <p className="text-xl font-bold text-red-600 mt-1">${digitalCommission.toFixed(2)}</p>
+                <p className="text-[10px] text-red-500">Descontadas de tu saldo app</p>
+              </div>
+              <div className="card p-3 bg-orange-50 border-orange-200">
+                <p className="text-[10px] uppercase tracking-wide text-orange-700 flex items-center gap-1 font-semibold">
+                  <CreditCard className="w-3 h-3" /> Comisiones efectivo
+                </p>
+                <p className="text-xl font-bold text-orange-600 mt-1">${cashCommission.toFixed(2)}</p>
+                <p className="text-[10px] text-orange-500">Debes pagarlas aparte, no están en la app</p>
+              </div>
             </div>
-            <div className="card p-3">
-              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
-                <CreditCard className="w-3 h-3 text-red-500" /> Comisiones
+
+            <div className={`card p-4 ${netAppBalance >= 0 ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'}`}>
+              <p className="text-xs font-semibold text-surface-600 mb-1">Resumen neto</p>
+              <p className={`text-lg font-bold ${netAppBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {netAppBalance >= 0 ? `La app te debe $${netAppBalance.toFixed(2)}` : `Debes $${Math.abs(netAppBalance).toFixed(2)} a la app`}
               </p>
-              <p className="text-lg font-bold text-red-500 mt-1">${totalCommission.toFixed(2)}</p>
-              <p className="text-[10px] text-surface-400">Pagadas a la app</p>
+              <p className="text-xs text-surface-500 mt-1">
+                = Créditos digitales (${totalAppCredit.toFixed(2)}) − Comisiones digitales (${digitalCommission.toFixed(2)})
+                {cashCommission > 0 && ` + Comisiones efectivo ($${cashCommission.toFixed(2)}) pendientes de pago aparte`}
+              </p>
             </div>
-          </div>
+          </>
         )}
 
         {showPayForm && (
