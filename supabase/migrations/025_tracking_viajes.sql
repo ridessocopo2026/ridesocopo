@@ -33,28 +33,16 @@ SET search_path = public
 AS $$
 DECLARE
   v_num INTEGER;
-  v_code TEXT;
 BEGIN
   IF NEW.tracking_code IS NOT NULL THEN
     RETURN NEW;
   END IF;
 
-  -- Generar número secuencial y codificar a base36 (0-9, A-Z)
+  -- Generar número secuencial simple (sin operaciones de potenciación
+  -- que PostgreSQL interpreta como double precision y rompen el %).
   SELECT nextval('public.tracking_code_seq') INTO v_num;
 
-  -- Convertir a string base36 de 6 caracteres
-  v_code := UPPER(LPAD(SUBSTRING((
-    SELECT string_agg(chr(65 + (v % 26)), '') FROM (
-      SELECT v_num, (v_num / (26^x)) % 26 AS v FROM generate_series(0, 5) AS x
-    ) t
-  ), 1, 6), 6, '0'));
-
-  -- Fallback: si la codificación falla, usar el número directo
-  IF v_code IS NULL OR LENGTH(v_code) < 6 THEN
-    v_code := UPPER(LPAD(v_num::text, 6, '0'));
-  END IF;
-
-  NEW.tracking_code := 'RS-' || v_code;
+  NEW.tracking_code := 'RS-' || UPPER(LPAD(v_num::text, 6, '0'));
   RETURN NEW;
 END;
 $$;
