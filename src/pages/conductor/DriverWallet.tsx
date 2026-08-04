@@ -19,6 +19,9 @@ export function DriverWallet() {
   const [payProof, setPayProof] = useState<File | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showWithdrawForm, setShowWithdrawForm] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawDesc, setWithdrawDesc] = useState('')
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -109,10 +112,37 @@ export function DriverWallet() {
     setError('')
     setSaving(true)
     try {
-      const { error } = await supabase.rpc('driver_confirm_payout', {
+      const { data, error } = await supabase.rpc('driver_confirm_payout', {
         p_payout_id: payoutId
       })
       if (error) throw error
+      loadWallet()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRequestPayout = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+      setError('Ingresa un monto válido')
+      return
+    }
+
+    setError('')
+    setSaving(true)
+
+    try {
+      const { data, error } = await supabase.rpc('driver_request_payout', {
+        p_amount_usd: parseFloat(withdrawAmount),
+        p_description: withdrawDesc || null
+      })
+      if (error) throw error
+
+      setShowWithdrawForm(false)
+      setWithdrawAmount('')
+      setWithdrawDesc('')
       loadWallet()
     } catch (err: any) {
       setError(err.message)
@@ -232,6 +262,51 @@ export function DriverWallet() {
           </div>
         </button>
 
+        {/* Solicitar retiro (solo si saldo > 0) */}
+        {wallet && wallet.balance_usd > 0 && (
+          <button
+            onClick={() => setShowWithdrawForm(!showWithdrawForm)}
+            className="btn-outline w-full"
+          >
+            {showWithdrawForm ? 'Cancelar' : `Solicitar retiro (disponible $${wallet.balance_usd.toFixed(2)})`}
+          </button>
+        )}
+
+        {showWithdrawForm && wallet && (
+          <div className="card space-y-3 animate-fade-in">
+            <h2 className="font-semibold text-surface-800">Solicitar retiro</h2>
+            <p className="text-xs text-surface-500">
+              El Admin aprobará tu solicitud y luego confirmarás que recibiste el dinero.
+            </p>
+            <div>
+              <label className="label">Monto ($)</label>
+              <input
+                type="number"
+                className="input"
+                step="0.01"
+                min="0.01"
+                max={wallet.balance_usd}
+                placeholder={`0.00 (máx $${wallet.balance_usd.toFixed(2)})`}
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Observación (opcional)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Ej: Pago a mi Pago Móvil 0412..."
+                value={withdrawDesc}
+                onChange={(e) => setWithdrawDesc(e.target.value)}
+              />
+            </div>
+            <button onClick={handleRequestPayout} className="btn-primary w-full" disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Solicitar retiro'}
+            </button>
+          </div>
+        )}
+
         {showPayForm && (
           <div className="card space-y-3 animate-fade-in">
             <h2 className="font-semibold text-surface-800">Pagar a la plataforma</h2>
@@ -301,14 +376,17 @@ export function DriverWallet() {
                   <div className="text-right">
                     <p className="font-semibold text-surface-800">{p.amount_usd.toFixed(2)}$</p>
                     {statusBadge[p.status]}
-                    {p.status === 'pendiente' && p.type === 'platform_pay_driver' && (
+                    {p.status === 'aprobado' && p.type === 'platform_pay_driver' && (
                       <button
                         onClick={() => handleConfirmPayout(p.id)}
                         className="btn-success mt-1 text-xs px-2 py-1"
                         disabled={saving}
                       >
-                        Confirmar
+                        ✅ Confirmar recibo
                       </button>
+                    )}
+                    {p.status === 'pendiente' && p.type === 'platform_pay_driver' && (
+                      <p className="text-[10px] text-amber-600 mt-1">Esperando aprobación del admin</p>
                     )}
                   </div>
                 </div>
