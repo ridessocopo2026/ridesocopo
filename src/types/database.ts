@@ -227,6 +227,30 @@ export interface CancellationEstimate {
   note?: string
 }
 
+export interface DriverEarning {
+  id: string
+  ride_id: string
+  driver_id: string
+  fare_usd: number
+  commission_usd: number
+  cash_received_usd: number
+  app_credit_usd: number
+  payment_method: string
+  status: 'completado' | 'cancelado' | 'ajustado'
+  created_at: string
+}
+
+export interface DriverEarningSummary {
+  ride_id: string
+  fare_usd: number
+  commission_usd: number
+  cash_received_usd: number
+  app_credit_usd: number
+  payment_method: string
+  destination: string | null
+  created_at: string
+}
+
 export interface Coupon {
   id: string
   code: string

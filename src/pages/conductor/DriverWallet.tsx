@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
-import type { Wallet as WalletType, Transaction, Payout } from '@/types/database'
+import type { Wallet as WalletType, Transaction, Payout, DriverEarningSummary } from '@/types/database'
 
 export function DriverWallet() {
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [payouts, setPayouts] = useState<Payout[]>([])
+  const [earnings, setEarnings] = useState<DriverEarningSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [showPayForm, setShowPayForm] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -51,6 +52,12 @@ export function DriverWallet() {
       setPayouts(payoutData as Payout[])
     }
 
+    // Historial exacto de ganancias por viaje
+    const { data: earningData } = await supabase.rpc('get_driver_earnings')
+    if (earningData) {
+      setEarnings(earningData as DriverEarningSummary[])
+    }
+
     setLoading(false)
   }
 
@@ -70,7 +77,6 @@ export function DriverWallet() {
     try {
       if (!user) throw new Error('Debes iniciar sesión')
 
-      // Subir comprobante a payments
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('payments')
         .upload(`${user.id}/payments/${Date.now()}-${payProof.name}`, payProof, { upsert: true })
@@ -127,6 +133,17 @@ export function DriverWallet() {
     completado: <span className="badge-info">Completado</span>
   }
 
+  const paymentIcon = (method: string) => {
+    if (method === 'Efectivo') return <HandCoins className="w-4 h-4 text-amber-600" />
+    if (method === 'Billetera') return <Wallet className="w-4 h-4 text-emerald-600" />
+    return <Smartphone className="w-4 h-4 text-blue-600" />
+  }
+
+  // Totales calculados
+  const totalCash = earnings.reduce((sum, e) => sum + (e.cash_received_usd || 0), 0)
+  const totalAppCredit = earnings.reduce((sum, e) => sum + (e.app_credit_usd || 0), 0)
+  const totalCommission = earnings.reduce((sum, e) => sum + (e.commission_usd || 0), 0)
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -144,16 +161,17 @@ export function DriverWallet() {
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
+        {/* Saldo principal de la app */}
         <div className={`card ${wallet && wallet.balance_usd < 0 ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-primary-600 to-primary-800'} text-white border-0`}>
           <div className="flex items-center gap-2 mb-2">
             <Wallet className="w-5 h-5" />
-            <span className="text-sm font-medium">{wallet && wallet.balance_usd < 0 ? 'Deuda con la plataforma' : 'Saldo pendiente por cobrar'}</span>
+            <span className="text-sm font-medium">{wallet && wallet.balance_usd < 0 ? 'Deuda con la plataforma' : 'Saldo en la app (por cobrar)'}</span>
           </div>
           <p className="text-3xl font-bold">${wallet?.balance_usd?.toFixed(2) || '0.00'}</p>
           <p className="text-sm text-white/70 mt-1">
             {wallet && wallet.balance_usd < 0
-              ? `Debes ${Math.abs(wallet.balance_usd).toFixed(2)}$ • Límite: ${wallet.debt_limit_usd.toFixed(2)}$`
-              : 'Lo que la plataforma te debe o has pagado'
+              ? `Debes ${Math.abs(wallet.balance_usd).toFixed(2)}$ a la plataforma • Límite: ${wallet.debt_limit_usd.toFixed(2)}$`
+              : 'Solo dinero que la app te debe (viajes pagados por Billetera/Pago Móvil). El efectivo NO está aquí.'
             }
           </p>
           {wallet && wallet.balance_usd < 0 && (
@@ -165,6 +183,33 @@ export function DriverWallet() {
             </button>
           )}
         </div>
+
+        {/* Resumen financiero total */}
+        {earnings.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
+                <HandCoins className="w-3 h-3 text-amber-600" /> Efectivo
+              </p>
+              <p className="text-lg font-bold text-amber-600 mt-1">${totalCash.toFixed(2)}</p>
+              <p className="text-[10px] text-surface-400">Ya lo recibiste</p>
+            </div>
+            <div className="card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
+                <Wallet className="w-3 h-3 text-emerald-600" /> App te debe
+              </p>
+              <p className="text-lg font-bold text-emerald-600 mt-1">${totalAppCredit.toFixed(2)}</p>
+              <p className="text-[10px] text-surface-400">En tu saldo virtual</p>
+            </div>
+            <div className="card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-surface-400 flex items-center gap-1">
+                <CreditCard className="w-3 h-3 text-red-500" /> Comisiones
+              </p>
+              <p className="text-lg font-bold text-red-500 mt-1">${totalCommission.toFixed(2)}</p>
+              <p className="text-[10px] text-surface-400">Pagadas a la app</p>
+            </div>
+          </div>
+        )}
 
         {showPayForm && (
           <div className="card space-y-3 animate-fade-in">
@@ -251,15 +296,88 @@ export function DriverWallet() {
           </div>
         )}
 
+        {/* Historial de ganancias por viaje */}
         <div>
-          <h2 className="text-lg font-semibold text-surface-800 mb-3">Movimientos</h2>
+          <h2 className="text-lg font-semibold text-surface-800 mb-3 flex items-center gap-2">
+            <ReceiptText className="w-5 h-5 text-primary-600" />
+            Ganancias por viaje
+          </h2>
+          <p className="text-xs text-surface-400 mb-3">
+            Desglose exacto de lo que cobraste en efectivo, lo que la app te acredita y las comisiones.
+          </p>
+          {loading ? (
+            <SkeletonList count={3} />
+          ) : earnings.length === 0 ? (
+            <EmptyState
+              icon={<ReceiptText className="w-8 h-8" />}
+              title="Sin ganancias registradas"
+              description="Cuando completes viajes, aquí verás el desglose exacto de tus ganancias"
+            />
+          ) : (
+            <div className="space-y-2">
+              {earnings.map((e) => (
+                <div key={e.ride_id} className="card p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {paymentIcon(e.payment_method)}
+                      <span className="text-sm font-medium text-surface-700">{e.payment_method}</span>
+                    </div>
+                    <span className="text-sm font-bold text-surface-800">${e.fare_usd.toFixed(2)}</span>
+                  </div>
+
+                  <p className="text-xs text-surface-400 truncate mb-2">
+                    {e.destination || 'Viaje completado'}
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className={`rounded-lg p-2 ${e.cash_received_usd > 0 ? 'bg-amber-50' : 'bg-surface-50'}`}>
+                      <p className="text-surface-400 flex items-center gap-1">
+                        <HandCoins className="w-3 h-3" /> Efectivo
+                      </p>
+                      <p className="font-semibold text-amber-600 mt-0.5">
+                        {e.cash_received_usd > 0 ? `+$${e.cash_received_usd.toFixed(2)}` : '$0.00'}
+                      </p>
+                      {e.cash_received_usd > 0 && (
+                        <p className="text-[10px] text-amber-500">Ya lo recibiste del cliente</p>
+                      )}
+                    </div>
+                    <div className={`rounded-lg p-2 ${e.app_credit_usd > 0 ? 'bg-emerald-50' : 'bg-surface-50'}`}>
+                      <p className="text-surface-400 flex items-center gap-1">
+                        <Wallet className="w-3 h-3" /> App te acredita
+                      </p>
+                      <p className="font-semibold text-emerald-600 mt-0.5">
+                        {e.app_credit_usd > 0 ? `+$${e.app_credit_usd.toFixed(2)}` : '$0.00'}
+                      </p>
+                      {e.app_credit_usd > 0 && (
+                        <p className="text-[10px] text-emerald-500">Sumado a tu saldo app</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg p-2 bg-surface-50">
+                      <p className="text-surface-400 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3" /> Comisión app
+                      </p>
+                      <p className="font-semibold text-red-500 mt-0.5">
+                        -${e.commission_usd.toFixed(2)}
+                      </p>
+                      <p className="text-[10px] text-surface-400">Para la plataforma</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Movimientos (transacciones de wallet) */}
+        <div>
+          <h2 className="text-lg font-semibold text-surface-800 mb-3">Movimientos de saldo</h2>
           {loading ? (
             <SkeletonList count={3} />
           ) : transactions.length === 0 ? (
             <EmptyState
               icon={<Wallet className="w-8 h-8" />}
               title="Sin movimientos"
-              description="Tus comisiones, ajustes y ganancias aparecerán aquí"
+              description="Tus comisiones, ajustes y ganancias de la app aparecerán aquí"
             />
           ) : (
             <div className="space-y-2">
