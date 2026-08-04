@@ -89,6 +89,8 @@ export interface Vehicle {
   plate: string
   photo_url?: string
   is_active: boolean
+  is_approved?: boolean
+  is_active_vehicle?: boolean
   created_at: string
   updated_at: string
 }
