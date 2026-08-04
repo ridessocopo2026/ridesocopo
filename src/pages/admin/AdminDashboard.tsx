@@ -25,19 +25,25 @@ export function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      const [usersRes, driversRes, pendingRes, ridesRes] = await Promise.all([
+      const [usersRes, driversRes, pendingRes, ridesRes, walletsRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'conductor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('driver_status', 'pendiente'),
-        supabase.from('rides').select('*')
+        supabase.from('rides').select('*'),
+        supabase.from('wallets').select('balance_usd')
       ])
+
+      // Saldo total de la app = suma de TODAS las billeteras (clientes + conductores)
+      // Positivo = la app le debe ese dinero a los usuarios
+      // Negativo = los usuarios le deben a la app
+      const totalWalletBalance = walletsRes.data?.reduce((sum: number, w: any) => sum + (w.balance_usd || 0), 0) || 0
 
       setStats({
         totalUsers: usersRes.count || 0,
         totalDrivers: driversRes.count || 0,
         pendingDrivers: pendingRes.count || 0,
         totalRides: ridesRes.data?.length || 0,
-        totalRevenue: ridesRes.data?.reduce((sum: number, r: any) => sum + (r.commission_usd || 0), 0) || 0
+        totalRevenue: totalWalletBalance
       })
     } catch (err) {
       console.error('Error cargando stats:', err)
@@ -127,13 +133,18 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {/* Ingresos */}
+        {/* Saldo total de la app */}
         <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5" />
-            <span className="text-sm font-medium">Ingresos por comisiones</span>
+            <span className="text-sm font-medium">Saldo total de la app</span>
           </div>
           <p className="text-3xl font-bold">${stats.totalRevenue.toFixed(2)}</p>
+          <p className="text-[11px] text-white/70 mt-1">
+            {stats.totalRevenue >= 0
+              ? 'Dinero que la app debe a clientes y conductores'
+              : 'Dinero que los usuarios deben a la plataforma'}
+          </p>
         </div>
 
         {/* Menú de gestión */}
