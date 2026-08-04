@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, XCircle, Loader2, Hexagon, CheckCircle, AlertCircle } from 'lucide-react'
+import { Navigation, XCircle, Loader2, Hexagon, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
-import type { Ride } from '@/types/database'
+import type { Ride, CancellationEstimate, IncidentType } from '@/types/database'
 
 // Iconos personalizados
 const vehicleIcon = L.divIcon({
@@ -44,6 +44,14 @@ const destIcon = L.divIcon({
   iconAnchor: [16, 32]
 })
 
+const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
+  { value: 'accidente', label: 'Accidente de tránsito', emoji: '🚨' },
+  { value: 'falla_mecanica', label: 'Falla mecánica del vehículo', emoji: '🔧' },
+  { value: 'urgencia_medica', label: 'Emergencia médica', emoji: '🏥' },
+  { value: 'clima', label: 'Condiciones climáticas', emoji: '🌧️' },
+  { value: 'otro', label: 'Otro incidente', emoji: '❓' }
+]
+
 export function ActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -51,6 +59,12 @@ export function ActiveRide() {
   const [vehiclePos, setVehiclePos] = useState<[number, number] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [cancellationEstimate, setCancellationEstimate] = useState<CancellationEstimate | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [showIncidentModal, setShowIncidentModal] = useState(false)
+  const [incidentType, setIncidentType] = useState<IncidentType>('accidente')
+  const [incidentDesc, setIncidentDesc] = useState('')
+  const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -100,7 +114,7 @@ export function ActiveRide() {
 
   // Iniciar seguimiento GPS del vehículo
   useEffect(() => {
-    if (!ride || ride.status === 'completada' || ride.status === 'cancelada') return
+    if (!ride || ride.status === 'completada' || ride.status === 'cancelada' || ride.status === 'incidente') return
 
     if (!navigator.geolocation) return
 
@@ -176,6 +190,16 @@ export function ActiveRide() {
     }
   }
 
+  const handleCancelClick = async () => {
+    const { data } = await supabase.rpc('estimate_cancellation_fee', {
+      p_ride_id: rideId
+    })
+    if (data) {
+      setCancellationEstimate(data as CancellationEstimate)
+    }
+    setShowCancelConfirm(true)
+  }
+
   const handleCancelRide = async () => {
     setError('')
     setLoading(true)
@@ -183,12 +207,59 @@ export function ActiveRide() {
     try {
       const { error } = await supabase.rpc('cancel_ride', {
         p_ride_id: rideId,
-        p_reason: 'Cancelado por el conductor'
+        p_reason: 'Cancelado por el conductor',
+        p_at_fault: 'conductor'
       })
 
       if (error) throw error
 
+      setShowCancelConfirm(false)
       navigate('/conductor')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Reportar incidente
+  const handleReportIncident = async () => {
+    if (!rideId) return
+
+    setError('')
+    setLoading(true)
+
+    try {
+      let photoUrls: string[] = []
+
+      // Subir foto si hay una
+      if (incidentPhoto && user) {
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('payments')
+          .upload(`${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`, incidentPhoto, { upsert: true })
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('payments')
+          .getPublicUrl(uploadData.path)
+
+        photoUrls = [publicUrl]
+      }
+
+      const { data, error } = await supabase.rpc('report_ride_incident', {
+        p_ride_id: rideId,
+        p_incident_type: incidentType,
+        p_description: incidentDesc || null,
+        p_photo_urls: JSON.stringify(photoUrls)
+      })
+
+      if (error) throw error
+
+      setShowIncidentModal(false)
+      // El viaje pasa a estado 'incidente'
+      if (data?.status) {
+        setRide(prev => prev ? { ...prev, status: data.status, incident_id: data.incident_id } : prev)
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -219,7 +290,8 @@ export function ActiveRide() {
     aceptada: 'Dirígete al cliente',
     en_ruta: 'En ruta al destino',
     completada: 'Viaje completado',
-    cancelada: 'Viaje cancelado'
+    cancelada: 'Viaje cancelado',
+    incidente: 'Incidente en revisión'
   }
 
   return (
@@ -236,7 +308,9 @@ export function ActiveRide() {
             </div>
           </div>
           <span className={`badge ${
-            ride.status === 'aceptada' ? 'badge-warning' : 'badge-success'
+            ride.status === 'aceptada' ? 'badge-warning' :
+            ride.status === 'en_ruta' ? 'badge-primary' :
+            ride.status === 'incidente' ? 'badge-danger' : 'badge-success'
           }`}>
             {ride.status.toUpperCase()}
           </span>
@@ -246,6 +320,21 @@ export function ActiveRide() {
       {error && (
         <div className="max-w-md mx-auto px-4 mt-4">
           <ErrorMessage message={error} onDismiss={() => setError('')} />
+        </div>
+      )}
+
+      {/* Banner de incidente */}
+      {ride.status === 'incidente' && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <ShieldAlert className="w-6 h-6 text-red-600 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-700">Incidente reportado</h3>
+              <p className="text-sm text-red-600 mt-1">
+                El incidente está siendo revisado por la plataforma. Espera la resolución.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -394,14 +483,158 @@ export function ActiveRide() {
             </button>
           )}
 
-          {ride.status !== 'completada' && (
-            <button onClick={handleCancelRide} className="btn-danger w-full" disabled={loading}>
-              <XCircle className="w-4 h-4" />
-              Cancelar viaje
-            </button>
+          {(ride.status === 'aceptada' || ride.status === 'en_ruta') && (
+            <>
+              <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
+                <XCircle className="w-4 h-4" />
+                Cancelar viaje
+              </button>
+              <button
+                onClick={() => setShowIncidentModal(true)}
+                className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                Reportar incidente / accidente
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Modal de confirmación de cancelación */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-surface-800">¿Cancelar viaje?</h2>
+            </div>
+
+            {cancellationEstimate?.note ? (
+              <p className="text-sm text-surface-600 mb-4">{cancellationEstimate.note}</p>
+            ) : (
+              <p className="text-sm text-surface-600 mb-4">
+                ¿Estás seguro de que deseas cancelar este viaje? Al cancelar, puedes perder la comisión de la app.
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="btn-outline flex-1"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleCancelRide}
+                className="btn-danger flex-1"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, cancelar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de reporte de incidente */}
+      {showIncidentModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-surface-800">Reportar incidente</h2>
+                <p className="text-xs text-surface-500">La plataforma revisará tu reporte</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="label">Tipo de incidente *</label>
+                <div className="space-y-2">
+                  {incidentTypes.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setIncidentType(type.value)}
+                      className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                        incidentType === type.value
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-surface-200 hover:border-surface-300'
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-surface-700">
+                        {type.emoji} {type.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Descripción</label>
+                <textarea
+                  className="input min-h-[80px]"
+                  placeholder="Describe brevemente lo que ocurrió..."
+                  value={incidentDesc}
+                  onChange={(e) => setIncidentDesc(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="label">Foto (opcional)</label>
+                <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-red-300 transition-colors">
+                  {incidentPhoto ? (
+                    <div className="text-center">
+                      <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                      <span className="text-xs text-surface-600 truncate max-w-[220px] block">{incidentPhoto.name}</span>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1" />
+                      <span className="text-xs text-surface-500">Toca para subir una foto</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setIncidentPhoto(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-xs text-amber-700">
+                  Al reportar un incidente, el viaje se pausa y un administrador lo revisará.
+                  No se cancelará automáticamente.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowIncidentModal(false)}
+                className="btn-outline flex-1"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleReportIncident}
+                className="btn-danger flex-1"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reportar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

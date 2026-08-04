@@ -35,7 +35,8 @@ export function DriverHistory() {
     aceptada: <span className="badge-info">Aceptada</span>,
     en_ruta: <span className="badge-primary">En ruta</span>,
     completada: <span className="badge-success">Completada</span>,
-    cancelada: <span className="badge-danger">Cancelada</span>
+    cancelada: <span className="badge-danger">Cancelada</span>,
+    incidente: <span className="badge-danger">Incidente</span>
   }
 
   return (

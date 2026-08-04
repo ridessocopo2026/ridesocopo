@@ -1,7 +1,11 @@
 export type UserRole = 'cliente' | 'conductor' | 'encargado' | 'super_admin'
 export type DriverStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
 export type VehicleCategoryType = 'moto' | 'carro' | 'camioneta'
-export type RideStatus = 'buscando' | 'aceptada' | 'en_ruta' | 'completada' | 'cancelada'
+export type RideStatus = 'buscando' | 'aceptada' | 'en_ruta' | 'completada' | 'cancelada' | 'incidente'
+export type ReimbursementStatus = 'auto_completado' | 'pendiente_manual' | 'no_aplica'
+export type IncidentType = 'accidente' | 'falla_mecanica' | 'urgencia_medica' | 'clima' | 'otro'
+export type IncidentStatus = 'abierto' | 'en_revision' | 'resuelto' | 'cerrado'
+export type CancellationFault = 'cliente' | 'conductor' | 'accidente'
 export type PaymentMethod = string
 export type TransactionType = 'recarga' | 'comision' | 'debito' | 'credito' | 'ajuste'
 export type TransactionStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'completado'
@@ -172,12 +176,55 @@ export interface Ride {
   completed_at?: string
   cancelled_by?: string
   cancel_reason?: string
+  cancellation_fee_usd: number
+  driver_compensation_usd: number
+  incident_id?: string
+  reimbursement_status?: ReimbursementStatus
   rating?: number
   review?: string
   client_rating?: number
   client_review?: string
   created_at: string
   updated_at: string
+}
+
+export interface CancellationPolicy {
+  id: string
+  ride_status: 'buscando' | 'aceptada' | 'en_ruta'
+  at_fault: CancellationFault
+  fee_rate: number
+  min_fee: number
+  max_fee?: number
+  driver_compensation_rate: number
+  refunds_commission: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface RideIncident {
+  id: string
+  ride_id: string
+  reported_by: string
+  incident_type: IncidentType
+  description?: string
+  photo_urls: string[]
+  status: IncidentStatus
+  resolution?: string
+  resolution_details?: any
+  resolved_by?: string
+  resolved_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CancellationEstimate {
+  fee: number
+  compensation: number
+  refund: number
+  payment_method: string
+  commission_refunded: boolean
+  note?: string
 }
 
 export interface Coupon {
