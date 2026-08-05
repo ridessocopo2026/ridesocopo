@@ -646,19 +646,26 @@ export function ClientHome() {
             {sheetBarrioId && (
               <div className="animate-slide-up mb-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                  <input
-                    type="text"
-                    className="input pl-10"
+                  <Search className="absolute left-3 top-4 w-5 h-5 text-surface-400" />
+                  <textarea
+                    rows={3}
+                    className="input pl-10 min-h-[96px] resize-none leading-relaxed py-3"
                     placeholder="Escribe tu dirección exacta..."
                     value={sheetAddress}
                     onChange={(e) => setSheetAddress(e.target.value)}
+                    onFocus={() => {
+                      // Scroll suave al botón de confirmar mientras el teclado está abierto
+                      setTimeout(() => {
+                        document.getElementById('confirm-destino-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }, 300)
+                    }}
                   />
                 </div>
               </div>
             )}
 
             <button
+              id="confirm-destino-btn"
               onClick={() => {
                 setDestBarrioId(sheetBarrioId)
                 setDestAddress(sheetAddress)
