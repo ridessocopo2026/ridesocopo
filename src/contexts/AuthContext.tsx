@@ -38,6 +38,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data as Profile)
       } else if (error) {
         console.error('Error cargando perfil:', error)
+        // FALLBACK: crear perfil si el trigger no lo creó (común con OAuth)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          const au = session.user
+          const fullName = String(
+            au.user_metadata?.full_name || au.user_metadata?.name ||
+            au.user_metadata?.preferred_username || au.email?.split('@')[0] || 'Usuario'
+          )
+          const { data: upserted, error: upsertError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: au.id,
+              full_name: fullName,
+              email: au.email || '',
+              avatar_url: au.user_metadata?.avatar_url || au.user_metadata?.picture || null,
+            }, { onConflict: 'id' })
+            .select()
+            .single()
+          if (!upsertError && upserted) setUser(upserted as Profile)
+          else if (upsertError) console.error('Error creando perfil:', upsertError)
+        }
       }
     } finally {
       fetchingRef.current.userId = null
@@ -122,7 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: 'select_account'
+        }
       }
     })
     return { error: error?.message || null }
