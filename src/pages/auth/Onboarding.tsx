@@ -128,13 +128,12 @@ export function Onboarding() {
                 onChange={(e) => setSelectedZone(e.target.value)}
               >
                 <option value="">Selecciona tu zona</option>
-                {zones
-                  .filter((z) => z.zone_type === 'zona_especifica')
-                  .map((zone) => (
-                    <option key={zone.id} value={zone.id}>
-                      {zone.name}
-                    </option>
-                  ))}
+                {zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>
+                    {zone.name}
+                    {zone.zone_type === 'cobertura_general' ? ' (Toda Socopó)' : ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
