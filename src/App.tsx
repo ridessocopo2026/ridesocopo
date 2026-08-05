@@ -104,7 +104,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const location = useLocation()
 
-  const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding', '/cliente'].includes(location.pathname)
+  const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding'].includes(location.pathname)
 
   if (isPublicPage || !user) {
     return <>{children}</>

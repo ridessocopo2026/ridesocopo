@@ -59,6 +59,18 @@ export function Welcome() {
             </div>
           </Link>
         </div>
+
+        {/* Acceso a cuenta existente */}
+        <p className="text-white/90 text-sm mt-8 text-center">
+          ¿Ya tienes cuenta?{' '}
+          <Link to="/login" className="font-semibold underline underline-offset-4 hover:text-white transition-colors">
+            Inicia sesión
+          </Link>{' '}
+          o{' '}
+          <Link to="/registro" className="font-semibold underline underline-offset-4 hover:text-white transition-colors">
+            Regístrate
+          </Link>
+        </p>
       </div>
 
       {/* Features footer */}
