@@ -30,6 +30,9 @@ export interface Barrio {
   id: string
   name: string
   surcharge_usd: number
+  surcharge_moto_usd?: number
+  surcharge_carro_usd?: number
+  surcharge_camioneta_usd?: number
   lat?: number
   lng?: number
   description?: string

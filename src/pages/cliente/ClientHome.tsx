@@ -444,6 +444,17 @@ export function ClientHome() {
     camioneta: <Truck className="w-6 h-6" />
   }
 
+  // Devuelve el recargo del barrio según el tipo de vehículo seleccionado
+  const getBarrioSurcharge = (barrio: Barrio): number => {
+    if (!selectedCategory) return barrio.surcharge_usd || 0
+    switch (selectedCategory) {
+      case 'moto': return barrio.surcharge_moto_usd ?? barrio.surcharge_usd ?? 0
+      case 'carro': return barrio.surcharge_carro_usd ?? barrio.surcharge_usd ?? 0
+      case 'camioneta': return barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd ?? 0
+      default: return barrio.surcharge_usd ?? 0
+    }
+  }
+
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
     if (!origin) return '📌 Usa tu ubicación para continuar'
@@ -498,9 +509,9 @@ export function ClientHome() {
                 <MapPin className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-surface-800">
-                  {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'} ({barrios.find((b) => b.id === destBarrioId)?.surcharge_usd.toFixed(2)}$)
-                </p>
+                  <p className="text-sm font-semibold text-surface-800">
+                    {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'} ({barrios.find((b) => b.id === destBarrioId) ? getBarrioSurcharge(barrios.find((b) => b.id === destBarrioId)!).toFixed(2) : '0.00'}$)
+                  </p>
                 <p className="text-xs text-surface-500 truncate">{destAddress}</p>
               </div>
               <span className="text-xs font-medium text-primary-600">Cambiar</span>
@@ -654,7 +665,7 @@ export function ClientHome() {
                       {barrio.name}
                     </span>
                     <span className="text-sm font-bold text-primary-600">
-                      {barrio.surcharge_usd.toFixed(2)}$
+                      {getBarrioSurcharge(barrio).toFixed(2)}$
                     </span>
                   </div>
                 </button>

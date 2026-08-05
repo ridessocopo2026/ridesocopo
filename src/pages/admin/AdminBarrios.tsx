@@ -36,6 +36,9 @@ export function AdminBarrios() {
   const [editing, setEditing] = useState<Barrio | null>(null)
   const [name, setName] = useState('')
   const [surcharge, setSurcharge] = useState('')
+  const [surchargeMoto, setSurchargeMoto] = useState('')
+  const [surchargeCarro, setSurchargeCarro] = useState('')
+  const [surchargeCamioneta, setSurchargeCamioneta] = useState('')
   const [description, setDescription] = useState('')
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -64,6 +67,9 @@ export function AdminBarrios() {
     setEditing(null)
     setName('')
     setSurcharge('')
+    setSurchargeMoto('')
+    setSurchargeCarro('')
+    setSurchargeCamioneta('')
     setDescription('')
     setLat(null)
     setLng(null)
@@ -72,7 +78,10 @@ export function AdminBarrios() {
   const handleEdit = (barrio: Barrio) => {
     setEditing(barrio)
     setName(barrio.name)
-    setSurcharge(barrio.surcharge_usd.toString())
+    setSurcharge(barrio.surcharge_usd?.toString() || '0')
+    setSurchargeMoto((barrio.surcharge_moto_usd ?? barrio.surcharge_usd)?.toString() || '')
+    setSurchargeCarro((barrio.surcharge_carro_usd ?? barrio.surcharge_usd)?.toString() || '')
+    setSurchargeCamioneta((barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd)?.toString() || '')
     setDescription(barrio.description || '')
     setLat(barrio.lat || null)
     setLng(barrio.lng || null)
@@ -93,6 +102,9 @@ export function AdminBarrios() {
       const { data, error } = await supabase.rpc('upsert_barrio', {
         p_name: name,
         p_surcharge_usd: parseFloat(surcharge),
+        p_surcharge_moto_usd: surchargeMoto ? parseFloat(surchargeMoto) : null,
+        p_surcharge_carro_usd: surchargeCarro ? parseFloat(surchargeCarro) : null,
+        p_surcharge_camioneta_usd: surchargeCamioneta ? parseFloat(surchargeCamioneta) : null,
         p_lat: lat,
         p_lng: lng,
         p_description: description || null,
@@ -145,9 +157,11 @@ export function AdminBarrios() {
               <div key={barrio.id} className="card flex items-center justify-between">
                 <div className="flex-1">
                   <p className="font-medium text-surface-700">{barrio.name}</p>
-                  <p className="text-xs text-surface-400">
-                    Precio: ${barrio.surcharge_usd.toFixed(2)}
-                    {barrio.lat && barrio.lng && ' • Ubicación asignada'}
+                  <p className="text-xs text-surface-400 space-x-2">
+                    <span>🛵 ${(barrio.surcharge_moto_usd ?? barrio.surcharge_usd).toFixed(2)}</span>
+                    <span>🚗 ${(barrio.surcharge_carro_usd ?? barrio.surcharge_usd).toFixed(2)}</span>
+                    <span>🚚 ${(barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd).toFixed(2)}</span>
+                    {barrio.lat && barrio.lng && ' • 📍'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -188,18 +202,50 @@ export function AdminBarrios() {
               />
             </div>
 
-            <div>
-              <label className="label">Precio del barrio en USD ($) *</label>
-              <input
-                type="number"
-                className="input"
-                step="0.50"
-                min="0"
-                placeholder="0.00"
-                value={surcharge}
-                onChange={(e) => setSurcharge(e.target.value)}
-                required
-              />
+            <div className="space-y-2">
+              <label className="label">Precios del barrio por vehículo (USD $) *</label>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-surface-500 block mb-1">🛵 Moto</label>
+                  <input
+                    type="number"
+                    className="input"
+                    step="0.50"
+                    min="0"
+                    placeholder="0.00"
+                    value={surchargeMoto || surcharge}
+                    onChange={(e) => { setSurchargeMoto(e.target.value); setSurcharge(e.target.value) }}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-surface-500 block mb-1">🚗 Carro</label>
+                  <input
+                    type="number"
+                    className="input"
+                    step="0.50"
+                    min="0"
+                    placeholder={surcharge || '0.00'}
+                    value={surchargeCarro}
+                    onChange={(e) => setSurchargeCarro(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-surface-500 block mb-1">🚚 Camioneta</label>
+                  <input
+                    type="number"
+                    className="input"
+                    step="0.50"
+                    min="0"
+                    placeholder={surcharge || '0.00'}
+                    value={surchargeCamioneta}
+                    onChange={(e) => setSurchargeCamioneta(e.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-surface-400">
+                Si carro o camioneta quedan vacíos, usarán el precio de moto.
+              </p>
             </div>
 
             <div>
