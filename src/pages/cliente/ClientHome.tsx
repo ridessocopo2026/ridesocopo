@@ -242,6 +242,12 @@ export function ClientHome() {
           setError('Tu ubicación está fuera del área de cobertura de Socopó. No puedes solicitar un viaje.')
         } else {
           setError('')
+          // Si ya eligió destino, scroll automático a vehículos
+          if (destBarrioId && destAddress) {
+            setTimeout(() => {
+              document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }, 500)
+          }
         }
       },
       () => {
