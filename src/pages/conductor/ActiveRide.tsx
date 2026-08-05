@@ -55,6 +55,11 @@ const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
 export function ActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
+  const trackingBadge = ride?.tracking_code ? (
+    <span className="font-mono text-xs font-bold text-primary-600 bg-primary-50 rounded-lg px-2 py-1">
+      {ride.tracking_code}
+    </span>
+  ) : null
   const [clientName, setClientName] = useState('')
   const [vehiclePos, setVehiclePos] = useState<[number, number] | null>(null)
   const [error, setError] = useState('')
@@ -460,7 +465,10 @@ export function ActiveRide() {
         {/* Tarifa */}
         <div className="card">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-surface-500">Tarifa del viaje</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-surface-500">Tarifa del viaje</span>
+              {trackingBadge}
+            </div>
             <span className="text-2xl font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">

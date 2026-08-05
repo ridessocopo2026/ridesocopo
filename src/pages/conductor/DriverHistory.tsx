@@ -87,8 +87,15 @@ export function DriverHistory() {
             <div className="space-y-3">
               {rides.map((ride) => (
                 <div key={ride.id} className="card">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="badge-primary">{ride.category}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="badge-primary">{ride.category}</span>
+                      {ride.tracking_code && (
+                        <span className="text-[10px] font-mono font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded">
+                          {ride.tracking_code}
+                        </span>
+                      )}
+                    </div>
                     {statusBadge[ride.status]}
                   </div>
                   <div className="space-y-2 mb-3">
