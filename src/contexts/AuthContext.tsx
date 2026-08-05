@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { unsubscribeUserFromPush } from '@/lib/pushNotifications'
 import type { Profile } from '@/types/database'
 import { Loader } from '@/components/ui/Loader'
 
@@ -128,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    // Desuscribir push ANTES de cerrar sesión (para no recibir notificaciones del usuario anterior)
+    await unsubscribeUserFromPush()
     await supabase.auth.signOut()
     setUser(null)
   }
