@@ -53,6 +53,12 @@ const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
   { value: 'otro', label: 'Otro incidente', emoji: '❓' }
 ]
 
+const disputeTypes: { value: IncidentType; label: string; emoji: string }[] = [
+  { value: 'viaje_no_realizado', label: 'No se realizó el viaje', emoji: '🚫' },
+  { value: 'disputa_cobro', label: 'El cobro no corresponde', emoji: '💸' },
+  { value: 'otro', label: 'Otro problema', emoji: '❓' }
+]
+
 export function ClientActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -285,6 +291,10 @@ export function ClientActiveRide() {
   const driverConfirmed = ride.driver_start_confirmed
   const clientConfirmed = ride.client_start_confirmed
   const bothConfirmed = driverConfirmed && clientConfirmed
+
+  // Si el viaje ya fue completado, el reporte es una DISPUTA post-viaje
+  const isDispute = ride.status === 'completada'
+  const reportTypes = isDispute ? disputeTypes : incidentTypes
 
   const statusLabels = {
     buscando: 'Buscando conductor...',
@@ -529,6 +539,34 @@ export function ClientActiveRide() {
           />
         )}
 
+        {/* Disputa de viaje completado: en revisión */}
+        {ride.status === 'completada' && ride.incident_id && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-amber-700">Disputa en revisión</h3>
+              <p className="text-sm text-amber-600 mt-1">
+                Reportaste un problema con este viaje. La plataforma lo está revisando
+                y se te notificará la resolución.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Disputa de viaje completado: reportar problema */}
+        {ride.status === 'completada' && !ride.incident_id && (
+          <button
+            onClick={() => {
+              setIncidentType('viaje_no_realizado')
+              setShowIncidentModal(true)
+            }}
+            className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
+          >
+            <AlertCircle className="w-4 h-4" />
+            Reportar un problema con el viaje
+          </button>
+        )}
+
         {/* Guardar favorito al completar */}
         {showSaveFavorite && (
           <div className="card bg-primary-50 border-primary-200">
@@ -621,7 +659,7 @@ export function ClientActiveRide() {
         </div>
       )}
 
-      {/* Modal de reporte de incidente */}
+      {/* Modal de reporte de incidente / disputa */}
       {showIncidentModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -630,16 +668,18 @@ export function ClientActiveRide() {
                 <ShieldAlert className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-surface-800">Reportar incidente</h2>
+                <h2 className="text-lg font-bold text-surface-800">
+                  {isDispute ? 'Reportar un problema' : 'Reportar incidente'}
+                </h2>
                 <p className="text-xs text-surface-500">La plataforma revisará tu reporte</p>
               </div>
             </div>
 
             <div className="space-y-3 mb-4">
               <div>
-                <label className="label">Tipo de incidente *</label>
+                <label className="label">{isDispute ? 'Motivo *' : 'Tipo de incidente *'}</label>
                 <div className="space-y-2">
-                  {incidentTypes.map((type) => (
+                  {reportTypes.map((type) => (
                     <button
                       key={type.value}
                       type="button"
@@ -691,10 +731,11 @@ export function ClientActiveRide() {
                 </label>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className={`rounded-xl p-3 ${isDispute ? 'bg-amber-50 border border-amber-200' : 'bg-amber-50 border border-amber-200'}`}>
                 <p className="text-xs text-amber-700">
-                  Al reportar un incidente, el viaje se pausa y un administrador lo revisará.
-                  No se cancelará automáticamente.
+                  {isDispute
+                    ? 'Tu reporte será revisado por un administrador. Si el viaje no se realizó o el cobro no corresponde, se te reembolsará el monto pagado.'
+                    : 'Al reportar un incidente, el viaje se pausa y un administrador lo revisará. No se cancelará automáticamente.'}
                 </p>
               </div>
             </div>
@@ -711,7 +752,7 @@ export function ClientActiveRide() {
                 className="btn-danger flex-1"
                 disabled={loading}
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reportar'}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDispute ? 'Enviar reporte' : 'Reportar')}
               </button>
             </div>
           </div>

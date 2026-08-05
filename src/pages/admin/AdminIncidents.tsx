@@ -12,7 +12,9 @@ const incidentTypeLabels: Record<IncidentType, string> = {
   falla_mecanica: '🔧 Falla mecánica',
   urgencia_medica: '🏥 Emergencia médica',
   clima: '🌧️ Clima',
-  otro: '❓ Otro'
+  otro: '❓ Otro',
+  viaje_no_realizado: '🚫 Viaje no realizado',
+  disputa_cobro: '💸 Disputa de cobro'
 }
 
 const statusLabels: Record<IncidentStatus, { label: string; className: string }> = {
