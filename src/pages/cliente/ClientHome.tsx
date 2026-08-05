@@ -541,7 +541,7 @@ export function ClientHome() {
           <MapClickHandler onSelect={(lat, lng) => handleSelectDestOnMap(lat, lng)} />
           </MapContainer>
           <div className="absolute bottom-2 left-2 bg-white/90 rounded-lg px-2 py-1 text-[10px] text-surface-500 z-[1000]">
-            Toca el mapa para buscar el punto de destino
+            {origin ? '📍 Tu ubicación actual' : 'Usa el botón "Usar mi ubicación actual"'}
           </div>
         </div>
 
