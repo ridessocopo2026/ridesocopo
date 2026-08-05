@@ -512,7 +512,7 @@ export function ClientHome() {
               </div>
               <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-surface-800">
-                    {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'} ({barrios.find((b) => b.id === destBarrioId) ? getBarrioSurcharge(barrios.find((b) => b.id === destBarrioId)!).toFixed(2) : '0.00'}$)
+                    {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'}
                   </p>
                 <p className="text-xs text-surface-500 truncate">{destAddress}</p>
               </div>
@@ -614,8 +614,11 @@ export function ClientHome() {
                 <span className={`block text-sm font-medium ${selectedCategory === cat.name ? 'text-primary-700' : 'text-surface-600'}`}>
                   {cat.display_name}
                 </span>
-                <span className="block text-xs text-surface-400 mt-1">
-                  {cat.base_fare_usd.toFixed(2)}$
+                <span className="block text-xs font-semibold text-primary-600 mt-1">
+                  +{cat.base_fare_usd.toFixed(2)}$
+                </span>
+                <span className="block text-[10px] text-surface-400 mt-0.5">
+                  + distancia
                 </span>
               </button>
             ))}
@@ -678,9 +681,6 @@ export function ClientHome() {
                         {barrio.name}
                       </span>
                     </div>
-                    <span className="text-sm font-bold text-primary-600 flex-shrink-0">
-                      {getBarrioSurcharge(barrio).toFixed(2)}$
-                    </span>
                   </div>
                 </button>
               ))}
