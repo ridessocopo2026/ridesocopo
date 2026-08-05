@@ -457,6 +457,17 @@ export function ClientHome() {
     }
   }
 
+  // Extra de un barrio para una categoría específica (para las tarjetas de vehículos)
+  const getExtraForCategory = (barrio: Barrio | undefined, cat: VehicleCategoryType): number => {
+    if (!barrio) return 0
+    switch (cat) {
+      case 'moto': return barrio.surcharge_moto_usd ?? barrio.surcharge_usd ?? 0
+      case 'carro': return barrio.surcharge_carro_usd ?? barrio.surcharge_usd ?? 0
+      case 'camioneta': return barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd ?? 0
+      default: return barrio.surcharge_usd ?? 0
+    }
+  }
+
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
     if (!origin) return '📌 Usa tu ubicación para continuar'
@@ -615,11 +626,13 @@ export function ClientHome() {
                   {cat.display_name}
                 </span>
                 <span className="block text-xs font-semibold text-primary-600 mt-1">
-                  +{cat.base_fare_usd.toFixed(2)}$
+                  {cat.base_fare_usd.toFixed(2)}$
                 </span>
-                <span className="block text-[10px] text-surface-400 mt-0.5">
-                  + distancia
-                </span>
+                {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name) > 0 && (
+                  <span className="block text-[10px] text-accent-600 mt-0.5">
+                    + {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name).toFixed(2)}$ extra por sector
+                  </span>
+                )}
               </button>
             ))}
           </div>
