@@ -97,8 +97,8 @@ export function ClientHome() {
 
   const loadExchangeRate = async () => {
     const { data } = await supabase.rpc('get_active_exchange_rate')
-    if (data?.rate) {
-      setExchangeRate(data.rate)
+    if (data && Number(data) > 0) {
+      setExchangeRate(Number(data))
     }
   }
 
