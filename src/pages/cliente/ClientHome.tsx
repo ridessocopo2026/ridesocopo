@@ -58,6 +58,8 @@ export function ClientHome() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [fare, setFare] = useState<FareCalculation | null>(null)
   const [couponCode, setCouponCode] = useState('')
+  const [hasActiveCoupons, setHasActiveCoupons] = useState(false)
+  const [exchangeRate, setExchangeRate] = useState(0)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('')
   const [methodFields, setMethodFields] = useState<Record<string, PaymentMethodField[]>>({})
@@ -80,7 +82,25 @@ export function ClientHome() {
     loadFavorites()
     loadBanners()
     loadPaymentMethods()
+    loadCoupons()
+    loadExchangeRate()
   }, [])
+
+  const loadCoupons = async () => {
+    const { data } = await supabase
+      .from('coupons')
+      .select('id')
+      .eq('is_active', true)
+      .limit(1)
+    setHasActiveCoupons(!!(data && data.length > 0))
+  }
+
+  const loadExchangeRate = async () => {
+    const { data } = await supabase.rpc('get_active_exchange_rate')
+    if (data?.rate) {
+      setExchangeRate(data.rate)
+    }
+  }
 
   const loadCategories = async () => {
     const { data, error } = await supabase
@@ -546,7 +566,7 @@ export function ClientHome() {
           </div>
         )}
 
-        <div>
+        <div id="vehicles-select">
           <h2 className="text-lg font-semibold text-surface-800 mb-3">Elige tu vehículo</h2>
           <div className="grid grid-cols-3 gap-3">
             {categories.map((cat) => (
@@ -573,15 +593,17 @@ export function ClientHome() {
           </div>
         </div>
 
-        <div>
-          <input
-            type="text"
-            className="input"
-            placeholder="Código de cupón (opcional)"
-            value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-          />
-        </div>
+        {hasActiveCoupons && (
+          <div>
+            <input
+              type="text"
+              className="input"
+              placeholder="Código de cupón (opcional)"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+            />
+          </div>
+        )}
 
         <button
           onClick={handleCalculateFare}
@@ -644,6 +666,10 @@ export function ClientHome() {
                 setDestBarrioId(sheetBarrioId)
                 setDestAddress(sheetAddress)
                 setShowDestSheet(false)
+                // Scroll automático a las opciones de vehículo
+                setTimeout(() => {
+                  document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 400)
               }}
               className="btn-primary w-full"
               disabled={!sheetBarrioId || !sheetAddress.trim()}
@@ -679,6 +705,17 @@ export function ClientHome() {
                 <span className="font-semibold text-surface-800">Total</span>
                 <span className="text-2xl font-bold text-primary-600">{fare.final_fare.toFixed(2)}$</span>
               </div>
+
+              {/* Total en bolívares si Pago Móvil está seleccionado */}
+              {selectedPaymentMethod?.toLowerCase().includes('pago') && exchangeRate > 0 && (
+                <div className="bg-surface-50 rounded-xl p-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-surface-500">Total en Bs.</span>
+                    <span className="font-bold text-surface-800">Bs. {(fare.final_fare * exchangeRate).toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-surface-400 mt-1">Tasa: Bs. {exchangeRate.toFixed(2)} por $1.00</p>
+                </div>
+              )}
 
               {/* Método de pago */}
               <div>
