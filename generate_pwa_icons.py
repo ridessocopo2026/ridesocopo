@@ -9,8 +9,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 def make_icon(size: int):
     """Crea un icono hexágono morado con 'R' centrada."""
-    # Fondo transparente
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    # Fondo morado sólido (Android muestra blanco si hay transparencia)
+    img = Image.new("RGBA", (size, size), (124, 58, 237, 255))
     draw = ImageDraw.Draw(img)
 
     # Centrado en el lienzo
