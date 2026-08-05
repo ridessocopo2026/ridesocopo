@@ -14,7 +14,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'public',
       filename: 'sw.js',
-      includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
       manifest: {
         id: '/',
         name: 'RideSocopó',
