@@ -50,6 +50,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Si el usuario YA está autenticado, no debe ver /login ni /registro
+function GuestRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+
+  if (user) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
 function RoleRoute({ role, children }: { role: string; children: React.ReactNode }) {
   const { user } = useAuth()
 
@@ -113,8 +124,8 @@ export default function App() {
       <NotificationProvider>
       <AppLayout>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Register />} />
+          <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+          <Route path="/registro" element={<GuestRoute><Register /></GuestRoute>} />
           <Route path="/onboarding" element={
             <ProtectedRoute>
               <Onboarding />

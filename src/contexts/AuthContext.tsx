@@ -68,6 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
+    // Limpiar el hash de la URL después del OAuth
+    if (window.location.hash?.includes('access_token') || window.location.hash?.includes('error')) {
+      setTimeout(() => {
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+      }, 0)
+    }
+
     // 1. Restaurar sesión al cargar la app.
     //    ESPERAMOS a que el perfil se cargue antes de setLoading(false)
     //    para que HomeRedirect nunca vea user=null cuando hay sesión.
