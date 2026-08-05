@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check } from 'lucide-react'
+import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -70,6 +70,7 @@ export function ClientHome() {
   const [gpsLoading, setGpsLoading] = useState(false)
   const [pulseUbicacion, setPulseUbicacion] = useState(false)
   const [showFareSheet, setShowFareSheet] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   // Estado del bottom sheet de destino (una sola interacción)
   const [showDestSheet, setShowDestSheet] = useState(false)
   const [sheetBarrioId, setSheetBarrioId] = useState('')
@@ -368,7 +369,7 @@ export function ClientHome() {
     if (!origin || !destBarrioId || !selectedCategory || !selectedPaymentMethod) return
 
     if (!user) {
-      setError('Debes iniciar sesión para solicitar un viaje')
+      setShowLoginPrompt(true)
       return
     }
 
@@ -702,6 +703,42 @@ export function ClientHome() {
               disabled={!sheetBarrioId || !sheetAddress.trim()}
             >
               Confirmar destino
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de inicio de sesión requerido */}
+      {showLoginPrompt && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated">
+            <button
+              onClick={() => setShowLoginPrompt(false)}
+              className="float-right text-surface-400 hover:text-surface-600 transition-colors"
+              aria-label="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mb-4">
+                <LogIn className="w-8 h-8 text-primary-600" />
+              </div>
+              <h2 className="text-xl font-bold text-surface-800 mb-2">Inicia sesión para continuar</h2>
+              <p className="text-sm text-surface-500 mb-6">
+                Necesitas una cuenta para solicitar tu viaje. Inicia sesión o regístrate en menos de un minuto.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/login?redirect=/cliente')}
+              className="btn-primary w-full"
+            >
+              Iniciar sesión
+            </button>
+            <button
+              onClick={() => navigate('/registro?redirect=/cliente')}
+              className="btn-outline w-full mt-2"
+            >
+              Crear cuenta
             </button>
           </div>
         </div>

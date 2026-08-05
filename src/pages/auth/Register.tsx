@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Lock, User, Loader2, Hexagon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -14,6 +14,8 @@ export function Register() {
   const [loading, setLoading] = useState(false)
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/onboarding'
 
   const handleGoogle = async () => {
     setError('')
@@ -47,7 +49,7 @@ export function Register() {
       return
     }
 
-    navigate('/onboarding')
+    navigate(redirectTo)
   }
 
   return (

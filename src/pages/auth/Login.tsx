@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Lock, Loader2, Hexagon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -12,6 +12,8 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const { signIn, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,7 +27,7 @@ export function Login() {
       return
     }
 
-    navigate('/')
+    navigate(redirectTo)
   }
 
   const handleGoogle = async () => {

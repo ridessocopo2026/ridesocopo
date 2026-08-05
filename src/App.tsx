@@ -4,6 +4,7 @@ import { NotificationProvider } from '@/contexts/NotificationContext'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { InstallAppButton } from '@/components/ui/InstallAppButton'
 import { NotificationsPage } from '@/pages/NotificationsPage'
+import { Welcome } from '@/pages/Welcome'
 import { Login } from '@/pages/auth/Login'
 import { Register } from '@/pages/auth/Register'
 import { Onboarding } from '@/pages/auth/Onboarding'
@@ -44,13 +45,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (loading) return null
 
   if (!user) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/welcome" replace />
   }
 
   return <>{children}</>
 }
 
-// Si el usuario YA está autenticado, no debe ver /login ni /registro
+// Si el usuario YA está autenticado, no debe ver /welcome, /login ni /registro
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
 
@@ -64,7 +65,7 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 function RoleRoute({ role, children }: { role: string; children: React.ReactNode }) {
   const { user } = useAuth()
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/welcome" replace />
 
   if (user.role !== role) {
     return <Navigate to="/" replace />
@@ -76,7 +77,7 @@ function RoleRoute({ role, children }: { role: string; children: React.ReactNode
 function HomeRedirect() {
   const { user } = useAuth()
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/welcome" replace />
 
   if (!user.onboarding_completed) {
     return <Navigate to="/onboarding" replace />
@@ -95,7 +96,7 @@ function HomeRedirect() {
     case 'super_admin':
       return <Navigate to="/admin" replace />
     default:
-      return <Navigate to="/login" replace />
+      return <Navigate to="/welcome" replace />
   }
 }
 
@@ -103,9 +104,9 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const location = useLocation()
 
-  const isAuthPage = ['/login', '/registro', '/onboarding'].includes(location.pathname)
+  const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding', '/cliente'].includes(location.pathname)
 
-  if (isAuthPage || !user) {
+  if (isPublicPage || !user) {
     return <>{children}</>
   }
 
@@ -124,6 +125,7 @@ export default function App() {
       <NotificationProvider>
       <AppLayout>
         <Routes>
+          <Route path="/welcome" element={<GuestRoute><Welcome /></GuestRoute>} />
           <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/registro" element={<GuestRoute><Register /></GuestRoute>} />
           <Route path="/onboarding" element={
@@ -141,11 +143,8 @@ export default function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/cliente" element={
-            <RoleRoute role="cliente">
-              <ClientHome />
-            </RoleRoute>
-          } />
+          {/* Cliente: accesible sin login (solo se pide autenticación al solicitar un viaje) */}
+          <Route path="/cliente" element={<ClientHome />} />
           <Route path="/cliente/viaje/:rideId" element={
             <RoleRoute role="cliente">
               <ClientActiveRide />
