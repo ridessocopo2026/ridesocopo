@@ -327,6 +327,12 @@ export function ClientHome() {
       return
     }
 
+    // Requiere autenticación ANTES de mostrar tarifa y métodos de pago
+    if (!user) {
+      setShowLoginPrompt(true)
+      return
+    }
+
     setError('')
     setLoading(true)
 
@@ -367,11 +373,7 @@ export function ClientHome() {
 
   const handleRequestRide = async () => {
     if (!origin || !destBarrioId || !selectedCategory || !selectedPaymentMethod) return
-
-    if (!user) {
-      setShowLoginPrompt(true)
-      return
-    }
+    if (!user) return // Ya se valida en handleCalculateFare
 
     setError('')
     setLoading(true)
