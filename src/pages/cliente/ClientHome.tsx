@@ -467,12 +467,9 @@ export function ClientHome() {
           </div>
         )}
 
-        {/* Título principal */}
-        <h2 className="text-center text-2xl font-bold text-surface-800 pt-2">Iniciar un viaje</h2>
-
-        {/* ¿A dónde te diriges? — una sola interacción */}
+        {/* ¿A dónde quieres ir? — una sola interacción */}
         <div className="card space-y-3">
-          <h2 className="font-semibold text-surface-800 text-lg">¿A dónde te diriges?</h2>
+          <h2 className="font-semibold text-surface-800 text-lg">¿A dónde quieres ir?</h2>
 
           {destBarrioId && destAddress ? (
             <button
@@ -496,13 +493,13 @@ export function ClientHome() {
               className="btn-outline w-full"
             >
               <MapPin className="w-4 h-4" />
-              Seleccionar destino
+              Ingresar destino
             </button>
           )}
         </div>
 
-        {/* ¿Dónde estás? */}
-        <h2 className="font-semibold text-surface-800 text-lg pt-1">¿Dónde estás?</h2>
+        {/* ¿Dónde te recogemos? */}
+        <h2 className="font-semibold text-surface-800 text-lg pt-1">¿Dónde te recogemos?</h2>
 
         {/* Botón compacto de ubicación */}
         <button
@@ -517,7 +514,7 @@ export function ClientHome() {
           ) : (
             <Navigation className="w-5 h-5" />
           )}
-          <span>{origin ? 'Ubicación actualizada' : 'Añadir mi ubicación actual'}</span>
+          <span>{origin ? 'Ubicación actualizada' : 'Usar mi ubicación actual'}</span>
         </button>
 
         {origin && (
@@ -619,7 +616,7 @@ export function ClientHome() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setShowDestSheet(false)}>
           <div className="bottom-sheet max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle" />
-            <h2 className="text-xl font-bold text-surface-800 mb-4">¿A dónde te diriges?</h2>
+            <h2 className="text-xl font-bold text-surface-800 mb-4">¿A dónde quieres ir?</h2>
 
             {/* Lista de sectores */}
             <div className="space-y-2 mb-4 max-h-[35vh] overflow-y-auto">
