@@ -68,6 +68,7 @@ export function ClientHome() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
+  const [pulseUbicacion, setPulseUbicacion] = useState(false)
   const [showFareSheet, setShowFareSheet] = useState(false)
   // Estado del bottom sheet de destino (una sola interacción)
   const [showDestSheet, setShowDestSheet] = useState(false)
@@ -434,6 +435,14 @@ export function ClientHome() {
     camioneta: <Truck className="w-6 h-6" />
   }
 
+  // Texto contextual del botón Continuar según qué paso falta
+  const botonContinuarTexto = () => {
+    if (!origin) return '📌 Usa tu ubicación para continuar'
+    if (!destBarrioId) return '📍 Ingresa tu destino para continuar'
+    if (!selectedCategory) return '🛵 Elige tu vehículo para continuar'
+    return 'Continuar'
+  }
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -503,9 +512,10 @@ export function ClientHome() {
 
         {/* Botón compacto de ubicación */}
         <button
+          id="ubicacion-btn"
           onClick={getCurrentLocation}
           disabled={gpsLoading}
-          className={`${origin ? 'btn-outline' : 'btn-primary'} w-full justify-center`}
+          className={`${origin ? 'btn-outline' : 'btn-primary'} w-full justify-center transition-all duration-300 ${pulseUbicacion ? 'animate-pulse ring-4 ring-primary-300 shadow-soft scale-[1.02]' : ''}`}
         >
           {gpsLoading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -541,7 +551,7 @@ export function ClientHome() {
           <MapClickHandler onSelect={(lat, lng) => handleSelectDestOnMap(lat, lng)} />
           </MapContainer>
           <div className="absolute bottom-2 left-2 bg-white/90 rounded-lg px-2 py-1 text-[10px] text-surface-500 z-[1000]">
-            {origin ? '📍 Tu ubicación actual' : 'Usa el botón "Usar mi ubicación actual"'}
+            {origin ? '📍 Tu ubicación actual' : 'Usa el botón "Añadir mi ubicación actual"'}
           </div>
         </div>
 
@@ -607,7 +617,7 @@ export function ClientHome() {
           className="btn-primary w-full"
           disabled={loading || !origin || !inCoverage || !destBarrioId || !destAddress || !selectedCategory}
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continuar'}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : botonContinuarTexto()}
         </button>
       </div>
 
@@ -670,9 +680,16 @@ export function ClientHome() {
                 setDestBarrioId(sheetBarrioId)
                 setDestAddress(sheetAddress)
                 setShowDestSheet(false)
-                // Scroll automático a las opciones de vehículo
                 setTimeout(() => {
-                  document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  if (!origin) {
+                    // Aún no tiene ubicación → llevar atención al botón de GPS con pulso
+                    document.getElementById('ubicacion-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    setPulseUbicacion(true)
+                    setTimeout(() => setPulseUbicacion(false), 2500)
+                  } else {
+                    // Ya tiene ubicación → scroll normal a vehículos
+                    document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
                 }, 400)
               }}
               className="btn-primary w-full"
