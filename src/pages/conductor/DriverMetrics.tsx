@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, Car, TrendingUp, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt, todayVE, daysAgoVE } from '@/lib/format'
+import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/ui/Pagination'
@@ -60,8 +60,8 @@ export function DriverMetrics() {
     setError('')
     try {
       const { data, error } = await supabase.rpc('get_driver_metrics', {
-        p_fecha_inicio: `${fechaInicio}T00:00:00`,
-        p_fecha_fin: `${fechaFin}T23:59:59`,
+        p_fecha_inicio: fechaInicioVE(fechaInicio),
+        p_fecha_fin: fechaFinVE(fechaFin),
         p_metodo: metodo || null
       })
       if (error) throw error

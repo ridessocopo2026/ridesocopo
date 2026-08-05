@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt, todayVE, daysAgoVE } from '@/lib/format'
+import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import type { Profile } from '@/types/database'
@@ -108,8 +108,8 @@ export function AdminMetrics() {
     setError('')
     try {
       const { data, error } = await supabase.rpc('get_admin_metrics', {
-        p_fecha_inicio: `${fechaInicio}T00:00:00`,
-        p_fecha_fin: `${fechaFin}T23:59:59`,
+        p_fecha_inicio: fechaInicioVE(fechaInicio),
+        p_fecha_fin: fechaFinVE(fechaFin),
         p_conductor_id: conductorId || null,
         p_cliente_id: clienteId || null,
         p_metodo: metodo || null

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt, todayVE, daysAgoVE } from '@/lib/format'
+import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -69,8 +69,8 @@ export function AdminRides() {
     try {
       const { data, error } = await supabase.rpc('get_admin_rides', {
         p_search: search || null,
-        p_fecha_inicio: `${daysAgoVE(90)}T00:00:00`,
-        p_fecha_fin: `${todayVE()}T23:59:59`,
+        p_fecha_inicio: fechaInicioVE(daysAgoVE(90)),
+        p_fecha_fin: fechaFinVE(todayVE()),
         p_status: null,
         p_limit: pageSize,
         p_offset: page * pageSize

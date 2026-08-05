@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Receipt, Loader2, Search, Calendar, Filter, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, HandCoins, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt, todayVE, daysAgoVE } from '@/lib/format'
+import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -75,8 +75,8 @@ export function AdminTransactions() {
     setError('')
     try {
       const { data, error } = await supabase.rpc('get_admin_transactions', {
-        p_fecha_inicio: `${fechaInicio}T00:00:00`,
-        p_fecha_fin: `${fechaFin}T23:59:59`,
+        p_fecha_inicio: fechaInicioVE(fechaInicio),
+        p_fecha_fin: fechaFinVE(fechaFin),
         p_tipo: tipo || null,
         p_rol: rol || null,
         p_usuario_id: null,

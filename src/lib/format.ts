@@ -39,3 +39,13 @@ export function daysAgoVE(days: number): string {
   const ve = new Date(d.getTime() - (d.getTimezoneOffset() + 240) * 60000)
   return ve.toISOString().split('T')[0]
 }
+
+/** Timestamp de inicio del día en Venezuela (UTC-4): YYYY-MM-DDT00:00:00-04:00 */
+export function fechaInicioVE(dateStr: string): string {
+  return `${dateStr}T00:00:00-04:00`
+}
+
+/** Timestamp de fin del día en Venezuela (UTC-4): YYYY-MM-DDT23:59:59-04:00 */
+export function fechaFinVE(dateStr: string): string {
+  return `${dateStr}T23:59:59-04:00`
+}
