@@ -75,6 +75,8 @@ export function ClientHome() {
   const [showDestSheet, setShowDestSheet] = useState(false)
   const [sheetBarrioId, setSheetBarrioId] = useState('')
   const [sheetAddress, setSheetAddress] = useState('')
+  const [destSearch, setDestSearch] = useState('')
+  const [destTab, setDestTab] = useState<'todos' | 'barrio' | 'urbanizacion' | 'sector'>('todos')
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -646,25 +648,37 @@ export function ClientHome() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setShowDestSheet(false)}>
           <div className="bottom-sheet max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle" />
-            <h2 className="text-xl font-bold text-surface-800 mb-4">¿A dónde quieres ir?</h2>
+            <h2 className="text-xl font-bold text-surface-800 mb-3">¿A dónde quieres ir?</h2>
+            <input
+              type="text"
+              className="input mb-3"
+              placeholder="🔍 Buscar lugar..."
+              value={destSearch}
+              onChange={(e) => setDestSearch(e.target.value)}
+            />
 
-            {/* Lista de sectores */}
-            <div className="space-y-2 mb-4 max-h-[35vh] overflow-y-auto">
-              {barrios.map((barrio) => (
+            {/* Lista de lugares filtrados */}
+            <div className="space-y-2 mb-4 max-h-[32vh] overflow-y-auto">
+              {barrios
+                .filter(b => b.name.toLowerCase().includes(destSearch.toLowerCase()))
+                .map((barrio) => (
                 <button
                   key={barrio.id}
                   onClick={() => setSheetBarrioId(barrio.id)}
-                  className={`w-full p-3.5 rounded-xl border-2 text-left transition-all ${
+                  className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
                     sheetBarrioId === barrio.id
                       ? 'border-primary-600 bg-primary-50 shadow-soft'
                       : 'border-surface-200 bg-white hover:border-surface-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${sheetBarrioId === barrio.id ? 'text-primary-700' : 'text-surface-700'}`}>
-                      {barrio.name}
-                    </span>
-                    <span className="text-sm font-bold text-primary-600">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span>{barrio.tipo === 'urbanizacion' ? '🏢' : barrio.tipo === 'sector' ? '📍' : '🏘️'}</span>
+                      <span className={`text-sm font-medium truncate ${sheetBarrioId === barrio.id ? 'text-primary-700' : 'text-surface-700'}`}>
+                        {barrio.name}
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold text-primary-600 flex-shrink-0">
                       {getBarrioSurcharge(barrio).toFixed(2)}$
                     </span>
                   </div>

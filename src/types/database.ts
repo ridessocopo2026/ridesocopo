@@ -29,6 +29,7 @@ export interface Profile {
 export interface Barrio {
   id: string
   name: string
+  tipo?: 'barrio' | 'urbanizacion' | 'sector'
   surcharge_usd: number
   surcharge_moto_usd?: number
   surcharge_carro_usd?: number
