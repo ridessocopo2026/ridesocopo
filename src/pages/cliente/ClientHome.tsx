@@ -82,8 +82,18 @@ export function ClientHome() {
   const [bannerIndex, setBannerIndex] = useState(0)
   const [bannerPaused, setBannerPaused] = useState(false)
   const touchStartX = useRef<number | null>(null)
+  // Ref para auto-focus de la dirección exacta al seleccionar un barrio
+  const destAddressRef = useRef<HTMLTextAreaElement>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+
+  // Auto-focus en la dirección exacta al seleccionar un barrio/sector
+  useEffect(() => {
+    if (sheetBarrioId) {
+      const t = setTimeout(() => destAddressRef.current?.focus(), 50)
+      return () => clearTimeout(t)
+    }
+  }, [sheetBarrioId])
 
   useEffect(() => {
     loadCategories()
@@ -608,7 +618,7 @@ export function ClientHome() {
           ) : (
             <button
               onClick={() => { setSheetBarrioId(''); setSheetAddress(''); setShowDestSheet(true) }}
-              className="btn-outline w-full"
+              className="btn-primary w-full"
             >
               <MapPin className="w-4 h-4" />
               Ingresar destino
@@ -781,6 +791,7 @@ export function ClientHome() {
                 <div className="relative">
                   <Search className="absolute left-3 top-4 w-5 h-5 text-surface-400" />
                   <textarea
+                    ref={destAddressRef}
                     rows={3}
                     className="input pl-10 min-h-[96px] resize-none leading-relaxed py-3"
                     placeholder="Escribe tu dirección exacta..."
