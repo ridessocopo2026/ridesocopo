@@ -154,7 +154,7 @@ export function AdminProofs() {
                     <span className="text-sm text-surface-500">{formatDate(r.created_at)}</span>
                   </div>
                   <p className="text-sm text-surface-600 mb-1"><strong>Usuario:</strong> {r.user_name} ({r.user_email})</p>
-                  <p className="text-2xl font-bold text-primary-600 mb-3">${Number(r.amount_usd).toFixed(2)}$</p>
+                  <p className="text-2xl font-bold text-primary-600 mb-3">{Number(r.amount_usd).toFixed(2)}$</p>
 
                   {rechargeProofUrls[r.transaction_id] && (
                     <a href={rechargeProofUrls[r.transaction_id]!} target="_blank" rel="noopener noreferrer"

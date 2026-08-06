@@ -157,9 +157,9 @@ export function AdminBarrios() {
                 <div className="flex-1">
                   <p className="font-medium text-surface-700">{barrio.name}</p>
                   <p className="text-xs text-surface-400 space-x-2">
-                    <span>🛵 ${(barrio.surcharge_moto_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
-                    <span>🚗 ${(barrio.surcharge_carro_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
-                    <span>🚚 ${(barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
+                    <span>🛵 {(barrio.surcharge_moto_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
+                    <span>🚗 {(barrio.surcharge_carro_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
+                    <span>🚚 {(barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
                     {barrio.lat && barrio.lng && ' • 📍'}
                   </p>
                 </div>

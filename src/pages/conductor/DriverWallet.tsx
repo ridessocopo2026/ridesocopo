@@ -421,7 +421,7 @@ export function DriverWallet() {
                       {paymentIcon(e.payment_method)}
                       <span className="text-sm font-medium text-surface-700">{e.payment_method}</span>
                     </div>
-                    <span className="text-sm font-bold text-surface-800">${e.fare_usd.toFixed(2)}$</span>
+                    <span className="text-sm font-bold text-surface-800">{e.fare_usd.toFixed(2)}$</span>
                   </div>
 
                   <p className="text-xs text-surface-400 truncate mb-2">
@@ -456,7 +456,7 @@ export function DriverWallet() {
                         <CreditCard className="w-3 h-3" /> Comisión app
                       </p>
                       <p className="font-semibold text-red-500 mt-0.5">
-                        -${e.commission_usd.toFixed(2)}$
+                        -{e.commission_usd.toFixed(2)}$
                       </p>
                       <p className="text-[10px] text-surface-400">Para la plataforma</p>
                     </div>

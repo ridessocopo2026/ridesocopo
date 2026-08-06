@@ -472,11 +472,11 @@ export function ActiveRide() {
               <span className="text-sm text-surface-500">Tarifa del viaje</span>
               {trackingBadge}
             </div>
-            <span className="text-2xl font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}$</span>
+            <span className="text-2xl font-bold text-primary-600">{ride.final_fare_usd.toFixed(2)}$</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-surface-500">Comisión de la app</span>
-            <span className="text-surface-600">${ride.commission_usd.toFixed(2)}$</span>
+            <span className="text-surface-600">{ride.commission_usd.toFixed(2)}$</span>
           </div>
         </div>
 

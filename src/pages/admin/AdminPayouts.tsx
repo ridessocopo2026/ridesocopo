@@ -194,7 +194,7 @@ export function AdminPayouts() {
                 <option value="">Seleccionar conductor...</option>
                 {drivers.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.full_name} — disponible ${d.balance_usd.toFixed(2)}$
+                    {d.full_name} — disponible {d.balance_usd.toFixed(2)}$
                   </option>
                 ))}
               </select>

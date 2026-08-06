@@ -278,7 +278,7 @@ export function DriverDashboard() {
             </div>
             <span className="text-xs bg-white/20 rounded-full px-3 py-1">Comisión 10%</span>
           </div>
-          <p className="text-3xl font-bold">${wallet?.balance_usd?.toFixed(2) || '0.00'}$</p>
+          <p className="text-3xl font-bold">{wallet?.balance_usd?.toFixed(2) || '0.00'}$</p>
           <p className="text-sm text-white/70 mt-1">
             {wallet && wallet.balance_usd < 0 ? 'Debes esta cantidad a la plataforma' : 'Tu comisión se descuenta de la carrera'}
           </p>
@@ -309,7 +309,7 @@ export function DriverDashboard() {
                       </p>
                     </div>
                     <span className="text-lg font-bold text-primary-600">
-                      ${ride.final_fare_usd.toFixed(2)}$
+                      {ride.final_fare_usd.toFixed(2)}$
                     </span>
                   </div>
 
