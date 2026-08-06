@@ -147,6 +147,9 @@
   /* ===== MAP ===== */
   .leaflet-container {
     @apply w-full h-full;
+    /* position relative crea un stacking context: los panes de Leaflet
+       (z-index 400/1000) quedan contenidos bajo la barra inferior (z-40) */
+    position: relative;
     z-index: 0;
   }
 

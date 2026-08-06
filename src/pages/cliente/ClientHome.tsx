@@ -667,7 +667,7 @@ export function ClientHome() {
         </div>
 
         {/* Mapa */}
-        <div className="h-48 rounded-2xl overflow-hidden shadow-card relative">
+        <div className="h-48 rounded-2xl overflow-hidden shadow-card relative z-0">
           <MapContainer
             center={origin || SOCOPO_CENTER}
             zoom={14}
