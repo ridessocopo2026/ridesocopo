@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { History, Star, Hexagon } from 'lucide-react'
+import { History, Star, Hexagon, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -131,7 +131,10 @@ export function ClientHistory() {
                         </span>
                       )}
                     </div>
-                    <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+                      <ChevronRight className="w-4 h-4 text-surface-300" />
+                    </div>
                   </div>
                 </div>
               ))}

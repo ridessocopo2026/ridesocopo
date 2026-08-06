@@ -4,7 +4,8 @@
 // polling ligero como respaldo barato (6s).
 // ============================================================
 import { supabase } from '@/lib/supabase'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RideIncident } from '@/types/database'
 
 const POLL_MS = 6000 // 6 segundos — muy bajo costo (600 req/h ora/usuario)
 
@@ -103,6 +104,63 @@ export function useAvailableRidesPolling(
 
     return () => window.clearInterval(interval)
   }, [isOnline])
+}
+
+/**
+ * Cargar y mantener al día el incidente/disputa de un viaje.
+ * - Carga inicial al montar o cuando cambia el incident_id
+ * - Se suscribe a cambios en ride_incidents del viaje para reflejar
+ *   en vivo la resolución del administrador
+ */
+export function useRideIncident(
+  rideId: string | undefined,
+  incidentId: string | undefined
+): RideIncident | null {
+  const [incident, setIncident] = useState<RideIncident | null>(null)
+
+  useEffect(() => {
+    if (!rideId || !incidentId) {
+      setIncident(null)
+      return
+    }
+
+    let mounted = true
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('ride_incidents')
+        .select('*')
+        .eq('id', incidentId)
+        .single()
+      if (mounted && !error && data) {
+        setIncident(data as RideIncident)
+      }
+    }
+
+    load()
+
+    // Realtime: reflejar al instante cuando el admin resuelva el reporte
+    const channel = supabase
+      .channel(`incident-rt-${rideId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ride_incidents',
+          filter: `ride_id=eq.${rideId}`
+        },
+        () => load()
+      )
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [rideId, incidentId])
+
+  return incident
 }
 
 /**

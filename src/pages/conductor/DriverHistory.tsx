@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { History, Star, Hexagon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { History, Star, Hexagon, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -15,6 +16,7 @@ export function DriverHistory() {
   const [page, setPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (user) {
@@ -86,7 +88,7 @@ export function DriverHistory() {
           <>
             <div className="space-y-3">
               {rides.map((ride) => (
-                <div key={ride.id} className="card">
+                <div key={ride.id} className="card card-hover cursor-pointer" onClick={() => navigate(`/conductor/viaje/${ride.id}`)}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="badge-primary">{ride.category}</span>
@@ -127,7 +129,10 @@ export function DriverHistory() {
                         </span>
                       )}
                     </div>
-                    <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+                      <ChevronRight className="w-4 h-4 text-surface-300" />
+                    </div>
                   </div>
                 </div>
               ))}

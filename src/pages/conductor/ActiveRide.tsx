@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
+import { useRideIncident } from '@/lib/rideRealtime'
+import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import type { Ride, CancellationEstimate, IncidentType } from '@/types/database'
 
 // Iconos personalizados
@@ -55,6 +57,8 @@ const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
 export function ActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
+  // Incidente/disputa del viaje (se refleja en vivo la resolución del admin)
+  const incident = useRideIncident(rideId, ride?.incident_id)
   const trackingBadge = ride?.tracking_code ? (
     <span className="font-mono text-xs font-bold text-primary-600 bg-primary-50 rounded-lg px-2 py-1">
       {ride.tracking_code}
@@ -476,6 +480,9 @@ export function ActiveRide() {
             <span className="text-surface-600">${ride.commission_usd.toFixed(2)}</span>
           </div>
         </div>
+
+        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
+        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
 
         {/* Calificar al cliente al completar */}
         {ride.status === 'completada' && (

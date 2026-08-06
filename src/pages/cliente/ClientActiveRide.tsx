@@ -8,7 +8,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
-import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
+import { useRideRealtime, fetchRideById, useRideIncident } from '@/lib/rideRealtime'
+import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 
 const vehicleIcon = L.divIcon({
@@ -62,6 +63,8 @@ const disputeTypes: { value: IncidentType; label: string; emoji: string }[] = [
 export function ClientActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
+  // Incidente/disputa del viaje (se refleja en vivo la resolución del admin)
+  const incident = useRideIncident(rideId, ride?.incident_id)
   const [driverName, setDriverName] = useState('')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [error, setError] = useState('')
@@ -488,6 +491,9 @@ export function ClientActiveRide() {
           </div>
         </div>
 
+        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
+        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
+
         {/* Acciones */}
         {ride.status === 'buscando' && (
           <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
@@ -540,7 +546,8 @@ export function ClientActiveRide() {
         )}
 
         {/* Disputa de viaje completado: en revisión */}
-        {ride.status === 'completada' && ride.incident_id && (
+        {ride.status === 'completada' && ride.incident_id && incident &&
+          (incident.status === 'abierto' || incident.status === 'en_revision') && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
