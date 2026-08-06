@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
@@ -80,9 +80,14 @@ export function ClientActiveRide() {
   const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+  // Ref al bloque de acciones post-viaje (calificar/reportar/guardar) para scroll automático
+  const ratingRef = useRef<HTMLDivElement>(null)
+  // Evita repetir el scroll en cada actualización de realtime/polling
+  const autoScrolledRef = useRef(false)
 
   useEffect(() => {
     if (rideId) {
+      autoScrolledRef.current = false
       loadRide()
     }
   }, [rideId])
@@ -102,6 +107,17 @@ export function ClientActiveRide() {
       return fetchRideById(rideId)
     }
   )
+
+  // Scroll automático (una sola vez) cuando el viaje pasa a completado,
+  // para que el cliente vea la calificación sin tener que bajar.
+  useEffect(() => {
+    if (ride?.status === 'completada' && !autoScrolledRef.current) {
+      autoScrolledRef.current = true
+      setTimeout(() => {
+        ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
+    }
+  }, [ride?.status])
 
   const loadRide = async () => {
     const { data, error } = await supabase
@@ -139,6 +155,8 @@ export function ClientActiveRide() {
 
       if (data.status === 'completada') {
         setShowSaveFavorite(true)
+        // Si ya venía completado (ej: abierto desde historial), no hacer scroll automático
+        autoScrolledRef.current = true
       }
     }
   }
@@ -490,6 +508,79 @@ export function ClientActiveRide() {
           </div>
         </div>
 
+        {/* Acciones post-viaje: calificar, reportar problema y guardar destino */}
+        {ride.status === 'completada' && (
+          <div ref={ratingRef} className="space-y-4">
+            {/* Calificar al conductor al completar */}
+            <RatingCard
+              title="Califica a tu conductor"
+              subtitle="Tu opinión ayuda a mejorar el servicio"
+              onSubmit={handleRateDriver}
+              alreadyRated={ride.rating}
+              alreadyReviewed={ride.review}
+            />
+
+            {/* Disputa de viaje completado: en revisión */}
+            {ride.incident_id && incident &&
+              (incident.status === 'abierto' || incident.status === 'en_revision') && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-amber-700">Disputa en revisión</h3>
+                  <p className="text-sm text-amber-600 mt-1">
+                    Reportaste un problema con este viaje. La plataforma lo está revisando
+                    y se te notificará la resolución.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Disputa de viaje completado: reportar problema */}
+            {!ride.incident_id && (
+              <button
+                onClick={() => {
+                  setIncidentType('viaje_no_realizado')
+                  setShowIncidentModal(true)
+                }}
+                className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
+              >
+                <AlertCircle className="w-4 h-4" />
+                Reportar un problema con el viaje
+              </button>
+            )}
+
+            {/* Guardar favorito al completar */}
+            {showSaveFavorite && (
+              <div className="card bg-primary-50 border-primary-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Star className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-semibold text-surface-800">Guardar destino</h3>
+                </div>
+                <p className="text-sm text-surface-600 mb-3">
+                  ¿Quieres guardar este destino en tus lugares favoritos?
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input flex-1"
+                    placeholder="Ej: Casa, Trabajo, Taller"
+                    value={favoriteName}
+                    onChange={(e) => setFavoriteName(e.target.value)}
+                  />
+                  <button
+                    onClick={handleSaveFavorite}
+                    className="btn-primary"
+                    disabled={loading || !favoriteName}
+                  >
+                    <Save className="w-4 h-4" />
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
         <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
 
@@ -533,75 +624,6 @@ export function ClientActiveRide() {
           </>
         )}
 
-        {/* Calificar al conductor al completar */}
-        {ride.status === 'completada' && (
-          <RatingCard
-            title="Califica a tu conductor"
-            subtitle="Tu opinión ayuda a mejorar el servicio"
-            onSubmit={handleRateDriver}
-            alreadyRated={ride.rating}
-            alreadyReviewed={ride.review}
-          />
-        )}
-
-        {/* Disputa de viaje completado: en revisión */}
-        {ride.status === 'completada' && ride.incident_id && incident &&
-          (incident.status === 'abierto' || incident.status === 'en_revision') && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <div>
-              <h3 className="font-semibold text-amber-700">Disputa en revisión</h3>
-              <p className="text-sm text-amber-600 mt-1">
-                Reportaste un problema con este viaje. La plataforma lo está revisando
-                y se te notificará la resolución.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Disputa de viaje completado: reportar problema */}
-        {ride.status === 'completada' && !ride.incident_id && (
-          <button
-            onClick={() => {
-              setIncidentType('viaje_no_realizado')
-              setShowIncidentModal(true)
-            }}
-            className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
-          >
-            <AlertCircle className="w-4 h-4" />
-            Reportar un problema con el viaje
-          </button>
-        )}
-
-        {/* Guardar favorito al completar */}
-        {showSaveFavorite && (
-          <div className="card bg-primary-50 border-primary-200">
-            <div className="flex items-center gap-2 mb-3">
-              <Star className="w-5 h-5 text-amber-400" />
-              <h3 className="font-semibold text-surface-800">Guardar destino</h3>
-            </div>
-            <p className="text-sm text-surface-600 mb-3">
-              ¿Quieres guardar este destino en tus lugares favoritos?
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="input flex-1"
-                placeholder="Ej: Casa, Trabajo, Taller"
-                value={favoriteName}
-                onChange={(e) => setFavoriteName(e.target.value)}
-              />
-              <button
-                onClick={handleSaveFavorite}
-                className="btn-primary"
-                disabled={loading || !favoriteName}
-              >
-                <Save className="w-4 h-4" />
-                Guardar
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Modal de confirmación de cancelación */}
