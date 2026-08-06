@@ -149,7 +149,7 @@ export function AdminZones() {
                 <button onClick={() => handleSelectZone(zone)} className="flex-1 text-left">
                   <p className="font-medium text-surface-700">{zone.name}</p>
                   <p className="text-xs text-surface-400">
-                    {zone.zone_type === 'cobertura_general' ? 'Cobertura general' : `Recargo: $${zone.surcharge_usd.toFixed(2)}`}
+                    {zone.zone_type === 'cobertura_general' ? 'Cobertura general' : `Recargo: ${zone.surcharge_usd.toFixed(2)}$`}
                   </p>
                 </button>
                 {zone.zone_type !== 'cobertura_general' && (

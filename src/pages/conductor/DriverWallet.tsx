@@ -286,7 +286,7 @@ export function DriverWallet() {
                 step="0.01"
                 min="0.01"
                 max={wallet.balance_usd}
-                placeholder={`0.00 (máx $${wallet.balance_usd.toFixed(2)})`}
+                placeholder={`0.00 (máx ${wallet.balance_usd.toFixed(2)}$)`}
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
               />
@@ -421,7 +421,7 @@ export function DriverWallet() {
                       {paymentIcon(e.payment_method)}
                       <span className="text-sm font-medium text-surface-700">{e.payment_method}</span>
                     </div>
-                    <span className="text-sm font-bold text-surface-800">${e.fare_usd.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-surface-800">${e.fare_usd.toFixed(2)}$</span>
                   </div>
 
                   <p className="text-xs text-surface-400 truncate mb-2">
@@ -434,7 +434,7 @@ export function DriverWallet() {
                         <HandCoins className="w-3 h-3" /> Efectivo
                       </p>
                       <p className="font-semibold text-amber-600 mt-0.5">
-                        {e.cash_received_usd > 0 ? `+$${e.cash_received_usd.toFixed(2)}` : '$0.00'}
+                        {e.cash_received_usd > 0 ? `+${e.cash_received_usd.toFixed(2)}$` : '0.00$'}
                       </p>
                       {e.cash_received_usd > 0 && (
                         <p className="text-[10px] text-amber-500">Ya lo recibiste del cliente</p>
@@ -445,7 +445,7 @@ export function DriverWallet() {
                         <Wallet className="w-3 h-3" /> App te acredita
                       </p>
                       <p className="font-semibold text-emerald-600 mt-0.5">
-                        {e.app_credit_usd > 0 ? `+$${e.app_credit_usd.toFixed(2)}` : '$0.00'}
+                        {e.app_credit_usd > 0 ? `+${e.app_credit_usd.toFixed(2)}$` : '0.00$'}
                       </p>
                       {e.app_credit_usd > 0 && (
                         <p className="text-[10px] text-emerald-500">Sumado a tu saldo app</p>
@@ -456,7 +456,7 @@ export function DriverWallet() {
                         <CreditCard className="w-3 h-3" /> Comisión app
                       </p>
                       <p className="font-semibold text-red-500 mt-0.5">
-                        -${e.commission_usd.toFixed(2)}
+                        -${e.commission_usd.toFixed(2)}$
                       </p>
                       <p className="text-[10px] text-surface-400">Para la plataforma</p>
                     </div>

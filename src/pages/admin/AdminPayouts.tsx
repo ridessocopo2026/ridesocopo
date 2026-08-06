@@ -117,7 +117,7 @@ export function AdminPayouts() {
     }
     const driver = drivers.find((d) => d.id === selectedDriver)
     if (driver && parseFloat(payAmount) > driver.balance_usd) {
-      setError(`El conductor solo tiene $${driver.balance_usd.toFixed(2)} disponible`)
+      setError(`El conductor solo tiene ${driver.balance_usd.toFixed(2)}$ disponible`)
       return
     }
 
@@ -194,7 +194,7 @@ export function AdminPayouts() {
                 <option value="">Seleccionar conductor...</option>
                 {drivers.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.full_name} — disponible ${d.balance_usd.toFixed(2)}
+                    {d.full_name} — disponible ${d.balance_usd.toFixed(2)}$
                   </option>
                 ))}
               </select>

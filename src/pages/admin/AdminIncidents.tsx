@@ -318,13 +318,13 @@ export function AdminIncidents() {
                             <p>Culpable: <span className="font-medium">{resolutionDetails.at_fault}</span></p>
                           )}
                           {resolutionDetails.refund_client !== undefined && Number(resolutionDetails.refund_client) > 0 && (
-                            <p>Reembolso al cliente: <span className="font-medium">${Number(resolutionDetails.refund_client).toFixed(2)}</span></p>
+                            <p>Reembolso al cliente: <span className="font-medium">${Number(resolutionDetails.refund_client).toFixed(2)}$</span></p>
                           )}
                           {resolutionDetails.penalty !== undefined && Number(resolutionDetails.penalty) > 0 && (
-                            <p className="text-red-600">Penalización al {resolutionDetails.at_fault}: <span className="font-medium">${Number(resolutionDetails.penalty).toFixed(2)}</span></p>
+                            <p className="text-red-600">Penalización al {resolutionDetails.at_fault}: <span className="font-medium">${Number(resolutionDetails.penalty).toFixed(2)}$</span></p>
                           )}
                           {resolutionDetails.compensate_driver !== undefined && Number(resolutionDetails.compensate_driver) > 0 && (
-                            <p>Compensación al conductor: <span className="font-medium">${Number(resolutionDetails.compensate_driver).toFixed(2)}</span></p>
+                            <p>Compensación al conductor: <span className="font-medium">${Number(resolutionDetails.compensate_driver).toFixed(2)}$</span></p>
                           )}
                           {resolutionDetails.ride_cancelled !== undefined && (
                             <p>Viaje cancelado: <span className="font-medium">{resolutionDetails.ride_cancelled ? 'Sí' : 'No'}</span></p>
@@ -410,7 +410,7 @@ export function AdminIncidents() {
                   </p>
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-500">Tarifa del viaje</span>
-                    <span className="font-medium">${fare.toFixed(2)}</span>
+                    <span className="font-medium">${fare.toFixed(2)}$</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-500">Método de pago</span>
@@ -418,16 +418,16 @@ export function AdminIncidents() {
                   </div>
                   <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
                     <span className="text-emerald-600 font-medium">→ Reembolso al cliente</span>
-                    <span className="font-bold text-emerald-600">${refundClientAmount.toFixed(2)}</span>
+                    <span className="font-bold text-emerald-600">${refundClientAmount.toFixed(2)}$</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
-                    <span className="font-bold text-blue-600">${compensateDriverAmount.toFixed(2)}</span>
+                    <span className="font-bold text-blue-600">${compensateDriverAmount.toFixed(2)}$</span>
                   </div>
                   {penalizeAmount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-red-600 font-medium">→ Penalización ({atFault})</span>
-                      <span className="font-bold text-red-600">-${penalizeAmount.toFixed(2)}</span>
+                      <span className="font-bold text-red-600">-${penalizeAmount.toFixed(2)}$</span>
                     </div>
                   )}
                   <p className="text-[10px] text-surface-400 mt-2">
@@ -452,7 +452,7 @@ export function AdminIncidents() {
                     value={refundClientAmount}
                     onChange={(e) => setRefundClientAmount(Math.max(0, Number(e.target.value)))}
                   />
-                  <p className="text-xs text-surface-400 mt-1">Máximo ${fare.toFixed(2)} (tarifa pagada)</p>
+                  <p className="text-xs text-surface-400 mt-1">Máximo ${fare.toFixed(2)}$ (tarifa pagada)</p>
                 </div>
                 <div>
                   <label className="label">

@@ -131,7 +131,7 @@ export function ClientHistory() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+                      <span className="font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}$</span>
                       <ChevronRight className="w-4 h-4 text-surface-300" />
                     </div>
                   </div>

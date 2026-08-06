@@ -55,7 +55,7 @@ const parseResolutionDetails = (details: any): any => {
 }
 
 const fmt = (value: number | string | null | undefined): string =>
-  `$${Number(value ?? 0).toFixed(2)}`
+  `${Number(value ?? 0).toFixed(2)}$`
 
 const fmtDate = (iso?: string): string | null => {
   if (!iso) return null

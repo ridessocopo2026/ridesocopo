@@ -229,7 +229,7 @@ export function AdminCoupons() {
                       }`}>
                         {coupon.discount_type === 'percentage'
                           ? `${coupon.discount_value}%`
-                          : `$${coupon.discount_value.toFixed(2)}`}
+                          : `${coupon.discount_value.toFixed(2)}$`}
                       </span>
                     </div>
                     {coupon.description && (

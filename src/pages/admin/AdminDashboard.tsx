@@ -190,7 +190,7 @@ export function AdminDashboard() {
               <DollarSign className="w-5 h-5" />
               <span className="text-sm font-medium">Saldo total de la app</span>
             </div>
-            <p className="text-3xl font-bold">$0.00</p>
+            <p className="text-3xl font-bold">0.00$</p>
           </div>
         )}
 

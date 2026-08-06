@@ -486,7 +486,7 @@ export function ClientActiveRide() {
         <div className="card">
           <div className="flex items-center justify-between">
             <span className="text-sm text-surface-500">Tarifa</span>
-            <span className="text-2xl font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-primary-600">${ride.final_fare_usd.toFixed(2)}$</span>
           </div>
         </div>
 
@@ -623,16 +623,16 @@ export function ClientActiveRide() {
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-600">Tarifa de cancelación</span>
-                    <span className="font-bold text-red-600">${cancellationEstimate.fee.toFixed(2)}</span>
+                    <span className="font-bold text-red-600">${cancellationEstimate.fee.toFixed(2)}$</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-600">Compensación al conductor</span>
-                    <span className="font-medium text-surface-700">${cancellationEstimate.compensation.toFixed(2)}</span>
+                    <span className="font-medium text-surface-700">${cancellationEstimate.compensation.toFixed(2)}$</span>
                   </div>
                   {cancellationEstimate.refund > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-surface-600">Reembolso estimado</span>
-                      <span className="font-medium text-emerald-600">${cancellationEstimate.refund.toFixed(2)}</span>
+                      <span className="font-medium text-emerald-600">${cancellationEstimate.refund.toFixed(2)}$</span>
                     </div>
                   )}
                 </div>
