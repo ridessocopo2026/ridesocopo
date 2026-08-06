@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Image, Plus, Trash2, Loader2, Upload, Pencil, X } from 'lucide-react'
+import { Image, Plus, Trash2, Loader2, Upload, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadToImgBB } from '@/lib/imgbb'
 import { useAuth } from '@/contexts/AuthContext'
@@ -145,6 +145,27 @@ export function AdminBanners() {
     }
   }
 
+  // Reordena un banner intercambiando su sort_order con el banner adyacente
+  const handleMove = async (banner: Banner, direction: 'up' | 'down') => {
+    const idx = banners.findIndex((b) => b.id === banner.id)
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || targetIdx < 0 || targetIdx >= banners.length) return
+
+    const target = banners[targetIdx]
+    const tmp = banner.sort_order
+
+    await supabase
+      .from('banners')
+      .update({ sort_order: target.sort_order })
+      .eq('id', banner.id)
+    await supabase
+      .from('banners')
+      .update({ sort_order: tmp })
+      .eq('id', target.id)
+
+    loadBanners()
+  }
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -261,7 +282,7 @@ export function AdminBanners() {
           />
         ) : (
           <div className="space-y-3">
-            {banners.map((banner) => (
+            {banners.map((banner, idx) => (
               <div key={banner.id} className="card">
                 {banner.image_url && (
                   <img
@@ -279,6 +300,24 @@ export function AdminBanners() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => handleMove(banner, 'up')}
+                        disabled={idx === 0}
+                        className="p-0.5 text-surface-400 hover:text-primary-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Mover arriba"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleMove(banner, 'down')}
+                        disabled={idx === banners.length - 1}
+                        className="p-0.5 text-surface-400 hover:text-primary-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Mover abajo"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleEdit(banner)}
                       className="p-2 text-primary-500 hover:text-primary-700 transition-colors"
