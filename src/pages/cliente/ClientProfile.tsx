@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, LogOut, Star, MapPin, ChevronRight, Hexagon } from 'lucide-react'
+import { User, LogOut, Star, MapPin, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function ClientProfile() {
   const { user, signOut } = useAuth()
@@ -34,9 +35,7 @@ export function ClientProfile() {
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-            <Hexagon className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo />
           <div>
             <h1 className="text-lg font-bold text-surface-800">Mi Perfil</h1>
             <p className="text-xs text-surface-500">Información personal</p>

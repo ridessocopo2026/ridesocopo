@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Hexagon, Map as MapIcon, X } from 'lucide-react'
+import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { supabase } from '@/lib/supabase'
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { useAvailableRidesPolling } from '@/lib/rideRealtime'
 import type { Ride, Wallet as WalletType, Vehicle } from '@/types/database'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 const clientIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -214,9 +215,7 @@ export function DriverDashboard() {
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <Hexagon className="w-5 h-5 text-white" />
-            </div>
+            <AppLogo />
             <div>
               <h1 className="text-lg font-bold text-surface-800">Panel del Conductor</h1>
               <p className="text-xs text-surface-500">Hola, {user?.full_name?.split(' ')[0]}</p>

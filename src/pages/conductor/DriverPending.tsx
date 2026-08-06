@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Clock, ShieldCheck, LogOut, Hexagon } from 'lucide-react'
+import { Clock, ShieldCheck, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 

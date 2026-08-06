@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Car, MapPin, Loader2, Hexagon } from 'lucide-react'
+import { User, Car, MapPin, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { AppLogo } from '@/components/ui/AppLogo'
 import type { Zone } from '@/types/database'
 
 export function Onboarding() {
@@ -71,9 +72,7 @@ export function Onboarding() {
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mb-4 shadow-elevated">
-            <Hexagon className="w-8 h-8 text-white" />
-          </div>
+          <AppLogo size="lg" rounded="rounded-2xl" className="mb-4 shadow-elevated" />
           <h1 className="text-2xl font-bold text-surface-800">Bienvenido a RideSocopó</h1>
           <p className="text-sm text-surface-500 mt-1">¿Cómo deseas usar la app?</p>
           <HexUnderline />

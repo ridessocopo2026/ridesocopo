@@ -1,8 +1,8 @@
 """Genera los iconos PWA de RideSocopó a partir del logo oficial.
 
 Usa:
-  - LOGO PNG.png (transparente) -> icon-192x192, icon-512x512 (notificaciones/PWA)
-  - LOGO.jpg (con fondo)        -> maskable-icon-512x512 (instalación) y apple-touch-icon (iOS)
+  - logo o pngg.png (transparente)  -> icon-192x192, icon-512x512 (notificaciones/PWA) y favicon
+  - logo o.jpg      (con fondo)     -> maskable-icon-512x512 (instalación) y apple-touch-icon (iOS)
 """
 import os
 from PIL import Image, ImageOps
@@ -12,8 +12,8 @@ OUT_DIR = os.path.join(BASE, "public", "icons")
 LOGO_DIR = r"C:\Users\PcXpress\Desktop\logo ridesocopo"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-LOGO_TRANSPARENTE = os.path.join(LOGO_DIR, "LOGO PNG.png")
-LOGO_FONDO = os.path.join(LOGO_DIR, "LOGO.jpg")
+LOGO_TRANSPARENTE = os.path.join(LOGO_DIR, "logo o pngg.png")
+LOGO_FONDO = os.path.join(LOGO_DIR, "logo o.jpg")
 
 MASKABLE_SAFE_ZONE = 0.80  # el 80% central del lienzo es la "zona segura"
 

@@ -1,14 +1,13 @@
 import { Link } from 'react-router-dom'
-import { Hexagon, User, CarFront, ChevronRight, ShieldCheck, Clock, MapPin } from 'lucide-react'
+import { User, CarFront, ChevronRight, ShieldCheck, Clock, MapPin } from 'lucide-react'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function Welcome() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-700 via-primary-600 to-accent-600 flex flex-col">
       {/* Header */}
       <div className="pt-12 pb-8 flex flex-col items-center">
-        <div className="w-20 h-20 bg-white/15 backdrop-blur rounded-3xl flex items-center justify-center mb-4 shadow-elevated border border-white/20">
-          <Hexagon className="w-10 h-10 text-white" />
-        </div>
+        <AppLogo size="xl" rounded="rounded-3xl" className="mb-4 shadow-elevated border border-white/20" />
         <h1 className="text-3xl font-bold text-white text-center">RideSocopó</h1>
         <p className="text-white/80 text-sm mt-2 text-center px-8">
           Transporte de pasajeros en Socopó, Barinas

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, Send, Users, Loader2, CheckCircle, Hexagon, LogOut, ChevronLeft } from 'lucide-react'
+import { Bell, Send, Users, Loader2, CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Mail, Lock, User, Loader2, Hexagon } from 'lucide-react'
+import { Mail, Lock, User, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function Register() {
   const [fullName, setFullName] = useState('')
@@ -56,9 +57,7 @@ export function Register() {
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mb-4 shadow-elevated">
-            <Hexagon className="w-8 h-8 text-white" />
-          </div>
+          <AppLogo size="lg" rounded="rounded-2xl" className="mb-4 shadow-elevated" />
           <h1 className="text-3xl font-bold text-surface-800">RideSocopó</h1>
           <p className="text-sm text-surface-500 mt-1">Crea tu cuenta</p>
           <HexUnderline />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Image, Plus, Trash2, Loader2, Hexagon, Upload } from 'lucide-react'
+import { Image, Plus, Trash2, Loader2, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadToImgBB } from '@/lib/imgbb'
 import { useAuth } from '@/contexts/AuthContext'
@@ -7,6 +7,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import type { Banner } from '@/types/database'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function AdminBanners() {
   const [banners, setBanners] = useState<Banner[]>([])
@@ -105,9 +106,7 @@ export function AdminBanners() {
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <Hexagon className="w-5 h-5 text-white" />
-            </div>
+            <AppLogo />
             <div>
               <h1 className="text-lg font-bold text-surface-800">Banners Promocionales</h1>
               <p className="text-xs text-surface-500">Gestiona la publicidad</p>

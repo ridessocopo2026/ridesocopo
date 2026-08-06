@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Loader2, Hexagon, Save } from 'lucide-react'
+import { DollarSign, Loader2, Save } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function AdminExchangeRate() {
   const [currentRate, setCurrentRate] = useState<number | null>(null)
@@ -49,9 +50,7 @@ export function AdminExchangeRate() {
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-            <Hexagon className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo />
           <div>
             <h1 className="text-lg font-bold text-surface-800">Tasa de Cambio</h1>
             <p className="text-xs text-surface-500">Configura la tasa Bs./USD</p>

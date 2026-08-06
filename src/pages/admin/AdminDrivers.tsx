@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Check, X, Loader2, Hexagon, Eye } from 'lucide-react'
+import { Users, Check, X, Loader2, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import type { Profile, DriverDocument, Vehicle } from '@/types/database'
+import { AppLogo } from '@/components/ui/AppLogo'
 
 export function AdminDrivers() {
   const [drivers, setDrivers] = useState<Profile[]>([])
@@ -171,9 +172,7 @@ export function AdminDrivers() {
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-            <Hexagon className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo />
           <div>
             <h1 className="text-lg font-bold text-surface-800">Gestión de Conductores</h1>
             <p className="text-xs text-surface-500">Aprobar y revisar solicitudes</p>
