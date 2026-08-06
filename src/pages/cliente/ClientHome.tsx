@@ -596,8 +596,17 @@ export function ClientHome() {
         )}
 
         {/* ¿A dónde quieres ir? — una sola interacción */}
-        <div className="card space-y-3">
-          <h2 className="font-semibold text-surface-800 text-lg">¿A dónde quieres ir?</h2>
+        <div className="flex gap-3">
+          {/* Ruta lateral: punto destino → línea punteada → punto recogida */}
+          <div className="flex flex-col items-center pt-14 pb-14 shrink-0" aria-hidden="true">
+            <div className="w-2.5 h-2.5 rounded-full bg-primary-600 ring-4 ring-primary-100 shrink-0" />
+            <div className="flex-1 w-0 min-h-8 my-1 border-l-2 border-dashed border-primary-300" />
+            <div className="w-2.5 h-2.5 rounded-full bg-primary-600 ring-4 ring-primary-100 shrink-0" />
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="card space-y-3">
+              <h2 className="font-semibold text-surface-800 text-lg">¿A dónde quieres ir?</h2>
 
           {destBarrioId && destAddress ? (
             <button
@@ -626,14 +635,8 @@ export function ClientHome() {
           )}
         </div>
 
-        {/* Línea punteada que une destino con recogida */}
-        <div className="flex justify-center" aria-hidden="true">
-          <div className="h-5 border-l-2 border-dashed border-primary-300" />
-        </div>
-
-        {/* ¿Dónde te recogemos? — tarjeta con el mismo fondo blanco que destino */}
-        <div className="card space-y-3">
-          <h2 className="font-semibold text-surface-800 text-lg">¿Dónde te recogemos?</h2>
+            <div className="card space-y-3">
+              <h2 className="font-semibold text-surface-800 text-lg">¿Dónde te recogemos?</h2>
 
         {/* Botón compacto de ubicación */}
         <button
@@ -659,6 +662,8 @@ export function ClientHome() {
               {inCoverage ? '✅ Dentro del área de cobertura' : '❌ Fuera del área de cobertura'}
             </div>
           )}
+            </div>
+          </div>
         </div>
 
         {/* Mapa */}
