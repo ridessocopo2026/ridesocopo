@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet'
 import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
+import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -495,6 +496,9 @@ export function ClientHome() {
 
       <div className="max-w-md mx-auto px-4 py-4 space-y-4">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+
+        {/* Activar notificaciones push (si no están activas) */}
+        <PushNotificationCard />
 
         {banners.length > 0 && (
           <div className="overflow-x-auto -mx-4 px-4">

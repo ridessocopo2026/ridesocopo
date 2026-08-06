@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
-import { NotificationBanner } from '@/components/ui/NotificationBanner'
+import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Switch } from '@/components/ui/Switch'
@@ -210,7 +210,6 @@ export function DriverDashboard() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
-      <NotificationBanner />
       {/* Header */}
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -232,6 +231,9 @@ export function DriverDashboard() {
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+
+        {/* Activar notificaciones push (si no están activas) */}
+        <PushNotificationCard />
 
         {/* Estado en línea */}
         <div className="card">
