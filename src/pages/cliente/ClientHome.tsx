@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -78,6 +78,10 @@ export function ClientHome() {
   const [sheetAddress, setSheetAddress] = useState('')
   const [destSearch, setDestSearch] = useState('')
   const [destTab, setDestTab] = useState<'todos' | 'barrio' | 'urbanizacion' | 'sector'>('todos')
+  // Carrusel de banners: índice actual + pausa al interactuar
+  const [bannerIndex, setBannerIndex] = useState(0)
+  const [bannerPaused, setBannerPaused] = useState(false)
+  const touchStartX = useRef<number | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -90,6 +94,22 @@ export function ClientHome() {
     loadCoupons()
     loadExchangeRate()
   }, [])
+
+  // Auto-rotación del carrusel de banners (un banner a la vez, pausa al interactuar)
+  useEffect(() => {
+    if (banners.length <= 1 || bannerPaused) return
+    const timer = window.setInterval(() => {
+      setBannerIndex((i) => (i + 1) % banners.length)
+    }, 4500)
+    return () => window.clearInterval(timer)
+  }, [banners.length, bannerPaused])
+
+  // Si se eliminan banners, mantener el índice válido
+  useEffect(() => {
+    if (banners.length > 0 && bannerIndex >= banners.length) {
+      setBannerIndex(0)
+    }
+  }, [banners.length, bannerIndex])
 
   const loadCoupons = async () => {
     const { data } = await supabase
@@ -501,25 +521,67 @@ export function ClientHome() {
         <PushNotificationCard />
 
         {banners.length > 0 && (
-          <div className="overflow-x-auto -mx-4 px-4">
-            <div className="flex gap-3">
+          <div
+            className="relative overflow-hidden rounded-2xl shadow-card"
+            onMouseEnter={() => setBannerPaused(true)}
+            onMouseLeave={() => setBannerPaused(false)}
+            onTouchStart={(e) => {
+              setBannerPaused(true)
+              touchStartX.current = e.touches[0].clientX
+            }}
+            onTouchEnd={(e) => {
+              if (touchStartX.current !== null) {
+                const delta = e.changedTouches[0].clientX - touchStartX.current
+                touchStartX.current = null
+                if (Math.abs(delta) >= 40) {
+                  setBannerIndex((i) => {
+                    const total = banners.length
+                    return delta < 0 ? (i + 1) % total : (i - 1 + total) % total
+                  })
+                }
+              }
+              setBannerPaused(false)
+            }}
+          >
+            {/* Pista con deslizamiento suave (GPU) — un banner a la vez */}
+            <div
+              className="flex transition-transform duration-500 ease-in-out"
+              style={{ transform: `translateX(-${bannerIndex * 100}%)` }}
+            >
               {banners.map((banner) => (
-                banner.image_url ? (
-                  <img
-                    key={banner.id}
-                    src={banner.image_url}
-                    alt={banner.title || 'Banner'}
-                    loading="lazy"
-                    className="flex-shrink-0 w-64 h-40 object-cover rounded-2xl shadow-card"
-                  />
-                ) : (
-                  <div key={banner.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl p-4 text-white shadow-card flex flex-col justify-center">
-                    <h3 className="font-semibold">{banner.title}</h3>
-                    {banner.subtitle && <p className="text-sm text-white/80 mt-1">{banner.subtitle}</p>}
-                  </div>
-                )
+                <div key={banner.id} className="w-full flex-shrink-0">
+                  {banner.image_url ? (
+                    <img
+                      src={banner.image_url}
+                      alt={banner.title || 'Banner'}
+                      loading="lazy"
+                      className="w-full h-40 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-40 bg-gradient-to-br from-primary-600 to-accent-600 p-4 text-white flex flex-col justify-center">
+                      <h3 className="font-semibold">{banner.title}</h3>
+                      {banner.subtitle && <p className="text-sm text-white/80 mt-1">{banner.subtitle}</p>}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
+
+            {/* Indicadores */}
+            {banners.length > 1 && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                {banners.map((b, i) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setBannerIndex(i)}
+                    aria-label={`Banner ${i + 1}`}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      i === bannerIndex ? 'w-4 bg-white' : 'w-2 bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
