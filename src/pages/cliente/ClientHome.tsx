@@ -626,8 +626,14 @@ export function ClientHome() {
           )}
         </div>
 
-        {/* ¿Dónde te recogemos? */}
-        <h2 className="font-semibold text-surface-800 text-lg pt-1">¿Dónde te recogemos?</h2>
+        {/* Línea punteada que une destino con recogida */}
+        <div className="flex justify-center" aria-hidden="true">
+          <div className="h-5 border-l-2 border-dashed border-primary-300" />
+        </div>
+
+        {/* ¿Dónde te recogemos? — tarjeta con el mismo fondo blanco que destino */}
+        <div className="card space-y-3">
+          <h2 className="font-semibold text-surface-800 text-lg">¿Dónde te recogemos?</h2>
 
         {/* Botón compacto de ubicación */}
         <button
@@ -646,13 +652,14 @@ export function ClientHome() {
           <span>{origin ? 'Ubicación actualizada' : 'Usar mi ubicación actual'}</span>
         </button>
 
-        {origin && (
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium w-fit mx-auto ${
-            inCoverage ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-          }`}>
-            {inCoverage ? '✅ Dentro del área de cobertura' : '❌ Fuera del área de cobertura'}
-          </div>
-        )}
+          {origin && (
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium w-fit mx-auto ${
+              inCoverage ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+            }`}>
+              {inCoverage ? '✅ Dentro del área de cobertura' : '❌ Fuera del área de cobertura'}
+            </div>
+          )}
+        </div>
 
         {/* Mapa */}
         <div className="h-48 rounded-2xl overflow-hidden shadow-card relative">
