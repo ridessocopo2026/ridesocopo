@@ -815,9 +815,9 @@ export function ClientHome() {
                 <div className="bg-surface-50 rounded-xl p-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-500">Total en Bs.</span>
-                    <span className="font-bold text-surface-800">Bs. {(fare.final_fare * exchangeRate).toFixed(2)}</span>
+                    <span className="font-bold text-surface-800">{(fare.final_fare * exchangeRate).toFixed(2)} Bs.</span>
                   </div>
-                  <p className="text-[10px] text-surface-400 mt-1">Tasa: Bs. {exchangeRate.toFixed(2)} por $1.00</p>
+                  <p className="text-[10px] text-surface-400 mt-1">Tasa: {exchangeRate.toFixed(2)} Bs. por 1.00$</p>
                 </div>
               )}
 
