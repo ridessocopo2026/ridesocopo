@@ -465,35 +465,6 @@ export function ActiveRide() {
           </div>
         </div>
 
-        {/* Tarifa */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-surface-500">Tarifa del viaje</span>
-              {trackingBadge}
-            </div>
-            <span className="text-2xl font-bold text-primary-600">{ride.final_fare_usd.toFixed(2)}$</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-surface-500">Comisión de la app</span>
-            <span className="text-surface-600">{ride.commission_usd.toFixed(2)}$</span>
-          </div>
-        </div>
-
-        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
-        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
-
-        {/* Calificar al cliente al completar */}
-        {ride.status === 'completada' && (
-          <RatingCard
-            title="Califica al cliente"
-            subtitle="Tu opinión ayuda a la comunidad"
-            onSubmit={handleRateClient}
-            alreadyRated={ride.client_rating}
-            alreadyReviewed={ride.client_review}
-          />
-        )}
-
         {/* Acciones */}
         <div className="space-y-3">
           {ride.status === 'en_ruta' && (
@@ -518,6 +489,35 @@ export function ActiveRide() {
             </>
           )}
         </div>
+
+        {/* Tarifa */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-surface-500">Tarifa del viaje</span>
+              {trackingBadge}
+            </div>
+            <span className="text-2xl font-bold text-primary-600">{ride.final_fare_usd.toFixed(2)}$</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-surface-500">Comisión de la app</span>
+            <span className="text-surface-600">{ride.commission_usd.toFixed(2)}$</span>
+          </div>
+        </div>
+
+        {/* Calificar al cliente al completar */}
+        {ride.status === 'completada' && (
+          <RatingCard
+            title="Califica al cliente"
+            subtitle="Tu opinión ayuda a la comunidad"
+            onSubmit={handleRateClient}
+            alreadyRated={ride.client_rating}
+            alreadyReviewed={ride.client_review}
+          />
+        )}
+
+        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
+        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
       </div>
 
       {/* Modal de confirmación de cancelación */}

@@ -500,6 +500,46 @@ export function ClientActiveRide() {
           </div>
         </div>
 
+        {/* Acciones */}
+        {ride.status === 'buscando' && (
+          <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
+            <XCircle className="w-4 h-4" />
+            Cancelar solicitud
+          </button>
+        )}
+
+        {ride.status === 'aceptada' && (
+          <>
+            <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
+              <XCircle className="w-4 h-4" />
+              Cancelar viaje
+            </button>
+            <button
+              onClick={() => setShowIncidentModal(true)}
+              className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Reportar incidente / accidente
+            </button>
+          </>
+        )}
+
+        {ride.status === 'en_ruta' && (
+          <>
+            <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
+              <XCircle className="w-4 h-4" />
+              Cancelar viaje
+            </button>
+            <button
+              onClick={() => setShowIncidentModal(true)}
+              className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Reportar incidente / accidente
+            </button>
+          </>
+        )}
+
         {/* Tarifa */}
         <div className="card">
           <div className="flex items-center justify-between">
@@ -583,46 +623,6 @@ export function ClientActiveRide() {
 
         {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
         <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
-
-        {/* Acciones */}
-        {ride.status === 'buscando' && (
-          <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
-            <XCircle className="w-4 h-4" />
-            Cancelar solicitud
-          </button>
-        )}
-
-        {ride.status === 'aceptada' && (
-          <>
-            <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
-              <XCircle className="w-4 h-4" />
-              Cancelar viaje
-            </button>
-            <button
-              onClick={() => setShowIncidentModal(true)}
-              className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              Reportar incidente / accidente
-            </button>
-          </>
-        )}
-
-        {ride.status === 'en_ruta' && (
-          <>
-            <button onClick={handleCancelClick} className="btn-danger w-full" disabled={loading}>
-              <XCircle className="w-4 h-4" />
-              Cancelar viaje
-            </button>
-            <button
-              onClick={() => setShowIncidentModal(true)}
-              className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              Reportar incidente / accidente
-            </button>
-          </>
-        )}
 
       </div>
 
