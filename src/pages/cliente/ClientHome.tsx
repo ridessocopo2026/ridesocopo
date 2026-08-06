@@ -504,10 +504,20 @@ export function ClientHome() {
           <div className="overflow-x-auto -mx-4 px-4">
             <div className="flex gap-3">
               {banners.map((banner) => (
-                <div key={banner.id} className="flex-shrink-0 w-64 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl p-4 text-white shadow-card">
-                  <h3 className="font-semibold">{banner.title}</h3>
-                  {banner.subtitle && <p className="text-sm text-white/80 mt-1">{banner.subtitle}</p>}
-                </div>
+                banner.image_url ? (
+                  <img
+                    key={banner.id}
+                    src={banner.image_url}
+                    alt={banner.title || 'Banner'}
+                    loading="lazy"
+                    className="flex-shrink-0 w-64 h-40 object-cover rounded-2xl shadow-card"
+                  />
+                ) : (
+                  <div key={banner.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl p-4 text-white shadow-card flex flex-col justify-center">
+                    <h3 className="font-semibold">{banner.title}</h3>
+                    {banner.subtitle && <p className="text-sm text-white/80 mt-1">{banner.subtitle}</p>}
+                  </div>
+                )
               ))}
             </div>
           </div>

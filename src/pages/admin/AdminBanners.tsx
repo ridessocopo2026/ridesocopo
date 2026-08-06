@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Image, Plus, Trash2, Loader2, Upload } from 'lucide-react'
+import { Image, Plus, Trash2, Loader2, Upload, Pencil, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadToImgBB } from '@/lib/imgbb'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,9 +12,13 @@ import { AppLogo } from '@/components/ui/AppLogo'
 export function AdminBanners() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
+  // Preview de la imagen seleccionada (object URL) o la imagen actual del banner en edición
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [editingImage, setEditingImage] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -22,6 +26,11 @@ export function AdminBanners() {
 
   useEffect(() => {
     loadBanners()
+    return () => {
+      // Limpiar el object URL al desmontar (evita fugas de memoria)
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadBanners = async () => {
@@ -36,7 +45,34 @@ export function AdminBanners() {
     setLoading(false)
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setTitle('')
+    setSubtitle('')
+    setImageFile(null)
+    setPreviewUrl(null)
+    setEditingImage(null)
+    setEditingId(null)
+  }
+
+  const handleFileChange = (file: File | null) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setImageFile(file)
+    setPreviewUrl(file ? URL.createObjectURL(file) : null)
+  }
+
+  const handleEdit = (banner: Banner) => {
+    setEditingId(banner.id)
+    setTitle(banner.title)
+    setSubtitle(banner.subtitle || '')
+    setImageFile(null)
+    setPreviewUrl(null)
+    setEditingImage(banner.image_url || null)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -48,26 +84,34 @@ export function AdminBanners() {
     setSaving(true)
 
     try {
-      let imageUrl = null
-
+      // Si hay archivo nuevo → subir a ImgBB; si no, conservar la imagen actual
+      let imageUrl = editingImage
       if (imageFile) {
-        // Subir a ImgBB (ahorro de costos)
         imageUrl = await uploadToImgBB(imageFile)
       }
 
-      const { data, error } = await supabase.rpc('create_banner', {
-        p_title: title,
-        p_subtitle: subtitle || null,
-        p_image_url: imageUrl,
-        p_link_url: null,
-        p_sort_order: banners.length
-      })
+      if (editingId) {
+        const { error } = await supabase
+          .from('banners')
+          .update({
+            title,
+            subtitle: subtitle || null,
+            image_url: imageUrl,
+          })
+          .eq('id', editingId)
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase.rpc('create_banner', {
+          p_title: title,
+          p_subtitle: subtitle || null,
+          p_image_url: imageUrl,
+          p_link_url: null,
+          p_sort_order: banners.length
+        })
+        if (error) throw error
+      }
 
-      if (error) throw error
-
-      setTitle('')
-      setSubtitle('')
-      setImageFile(null)
+      resetForm()
       setShowForm(false)
       loadBanners()
     } catch (err: any) {
@@ -112,7 +156,13 @@ export function AdminBanners() {
               <p className="text-xs text-surface-500">Gestiona la publicidad</p>
             </div>
           </div>
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+          <button
+            onClick={() => {
+              if (showForm) resetForm()
+              setShowForm(!showForm)
+            }}
+            className="btn-primary"
+          >
             <Plus className="w-4 h-4" />
             Nuevo
           </button>
@@ -124,8 +174,8 @@ export function AdminBanners() {
         <HexUnderline />
 
         {showForm && (
-          <form onSubmit={handleCreate} className="card space-y-4 mb-6 animate-fade-in">
-            <h2 className="font-semibold text-surface-800">Nuevo banner</h2>
+          <form onSubmit={handleSubmit} className="card space-y-4 mb-6 animate-fade-in">
+            <h2 className="font-semibold text-surface-800">{editingId ? 'Editar banner' : 'Nuevo banner'}</h2>
 
             <div>
               <label className="label">Título *</label>
@@ -152,29 +202,53 @@ export function AdminBanners() {
 
             <div>
               <label className="label">Imagen</label>
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-400 transition-colors">
-                {imageFile ? (
-                  <div className="text-center">
-                    <Upload className="w-8 h-8 text-primary-600 mx-auto mb-1" />
-                    <span className="text-xs text-surface-600">{imageFile.name}</span>
-                  </div>
-                ) : (
+              {previewUrl || editingImage ? (
+                <div className="relative">
+                  <img
+                    src={previewUrl || editingImage || undefined}
+                    alt="Vista previa"
+                    className="w-full h-40 object-cover rounded-xl border border-surface-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleFileChange(null)
+                      setEditingImage(null)
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors"
+                    aria-label="Quitar imagen"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <label className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/90 text-surface-700 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-white shadow-sm">
+                    <Upload className="w-3 h-3" />
+                    Cambiar
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-400 transition-colors">
                   <div className="text-center">
                     <Upload className="w-8 h-8 text-surface-400 mx-auto mb-1" />
                     <span className="text-xs text-surface-500">Toca para subir imagen</span>
                   </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                />
-              </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                  />
+                </label>
+              )}
             </div>
 
             <button type="submit" className="btn-primary w-full" disabled={saving}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear banner'}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? 'Guardar cambios' : 'Crear banner')}
             </button>
           </form>
         )}
@@ -189,6 +263,14 @@ export function AdminBanners() {
           <div className="space-y-3">
             {banners.map((banner) => (
               <div key={banner.id} className="card">
+                {banner.image_url && (
+                  <img
+                    src={banner.image_url}
+                    alt={banner.title}
+                    loading="lazy"
+                    className="w-full h-32 object-cover rounded-xl mb-3 border border-surface-100"
+                  />
+                )}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-surface-700">{banner.title}</h3>
@@ -197,6 +279,13 @@ export function AdminBanners() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(banner)}
+                      className="p-2 text-primary-500 hover:text-primary-700 transition-colors"
+                      title="Editar banner"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => handleToggle(banner)}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
