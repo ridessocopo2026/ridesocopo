@@ -2,6 +2,8 @@ interface AppLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
   rounded?: string
+  /** 'light' = logo a color (para fondos claros/blancos) | 'dark' = logo blanco (para fondos oscuros) */
+  variant?: 'light' | 'dark'
 }
 
 const sizeClasses = {
@@ -11,14 +13,20 @@ const sizeClasses = {
   xl: 'w-20 h-20'
 }
 
+const logoSources = {
+  light: '/icons/logo-az-192.png',
+  dark: '/icons/icon-192x192.png'
+}
+
 /**
- * Logo oficial de RideSocopó (PNG transparente).
- * Se usa en encabezados y en la pantalla de bienvenida.
+ * Logo oficial de RideSocopó.
+ * Usa la variante 'light' (logo a color) en fondos blancos y
+ * 'dark' (logo blanco) en fondos oscuros (ej: pantalla de bienvenida).
  */
-export function AppLogo({ size = 'md', className = '', rounded = 'rounded-xl' }: AppLogoProps) {
+export function AppLogo({ size = 'md', className = '', rounded = 'rounded-xl', variant = 'light' }: AppLogoProps) {
   return (
     <img
-      src="/icons/icon-192x192.png"
+      src={logoSources[variant]}
       alt="RideSocopó"
       className={`${sizeClasses[size]} ${rounded} object-contain flex-shrink-0 ${className}`}
     />

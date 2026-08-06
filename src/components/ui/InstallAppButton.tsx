@@ -91,7 +91,7 @@ export function InstallAppButton() {
         <div className="bg-white rounded-2xl shadow-lg shadow-primary-600/20 border border-surface-100 p-4 flex items-center gap-3">
           {/* Icono de la app */}
           <img
-            src="/icons/icon-192x192.png"
+            src="/icons/logo-az-192.png"
             alt="RideSocopó"
             className="w-12 h-12 rounded-xl shadow-sm flex-shrink-0"
           />

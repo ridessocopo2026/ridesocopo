@@ -7,7 +7,7 @@ export function Welcome() {
     <div className="min-h-screen bg-gradient-to-b from-primary-700 via-primary-600 to-accent-600 flex flex-col">
       {/* Header */}
       <div className="pt-12 pb-8 flex flex-col items-center">
-        <AppLogo size="xl" rounded="rounded-3xl" className="mb-4 shadow-elevated border border-white/20" />
+        <AppLogo size="xl" rounded="rounded-3xl" variant="dark" className="mb-4 shadow-elevated border border-white/20" />
         <h1 className="text-3xl font-bold text-white text-center">RideSocopó</h1>
         <p className="text-white/80 text-sm mt-2 text-center px-8">
           Transporte de pasajeros en Socopó, Barinas
