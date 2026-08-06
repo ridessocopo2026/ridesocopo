@@ -9,9 +9,8 @@
 //  - Rate limiting: verifica el JWT del usuario y limita subidas.
 //
 // Configurar secreto:
-//   supabase secrets set IMGBB_API_KEY=c96e6efbc1ce0615c6ed884ddaa838ce
-//
-// Deploy:
+//   ⚠️ ROTAR ESTA KEY: la anterior quedó expuesta en el código.
+//   supabase secrets set IMGBB_API_KEY=TU_NUEVA_KEY_ROTADA
 //   supabase functions deploy upload-image --no-verify-jwt=false
 // ============================================================
 

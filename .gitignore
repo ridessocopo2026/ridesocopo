@@ -12,6 +12,8 @@ build/
 .env
 .env.local
 .env.*.local
+# El archivo de producción también debe quedar fuera de git (puede contener claves)
+.env.production
 
 # Logs
 logs/

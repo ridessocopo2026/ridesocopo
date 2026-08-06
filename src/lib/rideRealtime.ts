@@ -1,13 +1,14 @@
 // ============================================================
-// RIDESOCOPÓ - Helper de tiempo real optimizado
-// Usa Realtime (postgres_changes) como fuente principal, con
-// polling ligero como respaldo barato (6s).
+// RIDESOCOPÓ - Helper de tiempo real OPTIMIZADO PARA COSTO
+// Realtime (postgres_changes) es la FUENTE PRINCIPAL.
+// El polling (60s) solo actúa como respaldo si Realtime se
+// desconecta → hasta 10x menos requests/hora por usuario.
 // ============================================================
 import { supabase } from '@/lib/supabase'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RideIncident } from '@/types/database'
 
-const POLL_MS = 6000 // 6 segundos — muy bajo costo (600 req/h ora/usuario)
+const POLL_MS = 60000 // 60s — SOLO respaldo si Realtime se desconecta (antes 6s = 10x menos requests)
 
 /**
  * Suscribirse a cambios de un ride específico con fallback polling.
@@ -29,6 +30,38 @@ export function useRideRealtime(
     if (!rideId) return
 
     let mounted = true
+    let realtimeOk = false
+    let pollTimer: number | null = null
+    let isPolling = false
+
+    const stopPolling = () => {
+      if (pollTimer !== null) {
+        window.clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+
+    const pollOnce = async () => {
+      if (isPolling || !mounted) return
+      isPolling = true
+      try {
+        const fresh = await getFreshRideRef.current()
+        if (mounted && fresh) {
+          onRideUpdateRef.current(fresh)
+        }
+      } catch (_) {
+        // Silencioso en error de red
+      } finally {
+        isPolling = false
+      }
+    }
+
+    const startPolling = () => {
+      if (pollTimer !== null) return
+      // Poll inmediato al detectar desconexión + respaldo periódico
+      pollOnce()
+      pollTimer = window.setInterval(pollOnce, POLL_MS)
+    }
 
     // --- FUENTE PRINCIPAL: Realtime (postgres_changes) ---
     const channel = supabase
@@ -47,31 +80,17 @@ export function useRideRealtime(
           }
         }
       )
-      .subscribe()
-
-    // --- RESPALDO: Polling ligero cada 6s ---
-    // Si Realtime falla o se desconecta, el poll asegura que no se
-    // pierdan cambios. Costo: ~600 req/h ora por usuario activo.
-    let isPolling = false
-    const interval = window.setInterval(async () => {
-      if (isPolling) return
-      isPolling = true
-      try {
-        const fresh = await getFreshRideRef.current()
-        if (mounted && fresh) {
-          onRideUpdateRef.current(fresh)
-        }
-      } catch (_) {
-        // Silencioso en error de red
-      } finally {
-        isPolling = false
-      }
-    }, POLL_MS)
+      .subscribe((status) => {
+        // 💰 COSTO: el polling SOLO se activa si Realtime no está conectado
+        realtimeOk = status === 'SUBSCRIBED'
+        if (realtimeOk) stopPolling()
+        else startPolling()
+      })
 
     return () => {
       mounted = false
+      stopPolling()
       supabase.removeChannel(channel)
-      window.clearInterval(interval)
     }
   }, [rideId])
 }
@@ -89,9 +108,32 @@ export function useAvailableRidesPolling(
   useEffect(() => {
     if (!isOnline) return
 
+    let mounted = true
+    let pollTimer: number | null = null
     let isPolling = false
-    const interval = window.setInterval(async () => {
-      if (isPolling) return
+
+    // 💰 COSTO: FUENTE PRINCIPAL = Realtime (nuevo viaje 'buscando' llega
+    // al instante, RLS lo filtra por categoría del conductor). Esto
+    // reemplaza el polling de 6s → cientos de requests/hora ahorrados.
+    const channel = supabase
+      .channel('driver-available-rides')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'rides',
+          filter: 'status=eq.buscando'
+        },
+        () => {
+          if (mounted) loadRidesRef.current()
+        }
+      )
+      .subscribe()
+
+    // RESPALDO barato: cada 60s (antes 6s → 10x menos requests/hora)
+    const pollOnce = async () => {
+      if (isPolling || !mounted) return
       isPolling = true
       try {
         await loadRidesRef.current()
@@ -100,9 +142,14 @@ export function useAvailableRidesPolling(
       } finally {
         isPolling = false
       }
-    }, POLL_MS)
+    }
+    pollTimer = window.setInterval(pollOnce, POLL_MS)
 
-    return () => window.clearInterval(interval)
+    return () => {
+      mounted = false
+      if (pollTimer !== null) window.clearInterval(pollTimer)
+      supabase.removeChannel(channel)
+    }
   }, [isOnline])
 }
 
