@@ -509,18 +509,18 @@ export function ClientHome() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
               <MapPin className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-surface-800">RideSocopó</h1>
-              <p className="text-xs text-surface-500">Hola, {user?.full_name?.split(' ')[0]}</p>
+              <h1 className="text-lg font-bold text-white">RideSocopó</h1>
+              <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
             </div>
           </div>
-          <NotificationBell />
+          <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
         </div>
       </div>
 

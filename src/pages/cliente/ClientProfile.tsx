@@ -33,12 +33,12 @@ export function ClientProfile() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center gap-3">
-          <AppLogo />
+          <AppLogo variant="dark" />
           <div>
-            <h1 className="text-lg font-bold text-surface-800">Mi Perfil</h1>
-            <p className="text-xs text-surface-500">Información personal</p>
+            <h1 className="text-lg font-bold text-white">Mi Perfil</h1>
+            <p className="text-xs text-white/80">Información personal</p>
           </div>
         </div>
       </div>

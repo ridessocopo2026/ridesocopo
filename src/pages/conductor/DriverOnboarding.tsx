@@ -171,16 +171,16 @@ export function DriverOnboarding() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-20">
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center gap-3">
-          <AppLogo />
+          <AppLogo variant="dark" />
           <div>
-            <h1 className="text-lg font-bold text-surface-800">Registro de Conductor</h1>
-            <p className="text-xs text-surface-500">Paso {step} de 4</p>
+            <h1 className="text-lg font-bold text-white">Registro de Conductor</h1>
+            <p className="text-xs text-white/80">Paso {step} de 4</p>
           </div>
         </div>
-        <div className="progress-bar mt-4">
-          <div className="progress-fill" style={{ width: `${(step / 4) * 100}%` }} />
+        <div className="h-2 bg-white/20 rounded-full overflow-hidden mt-4">
+          <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }} />
         </div>
       </div>
 

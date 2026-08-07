@@ -330,18 +330,18 @@ export function ClientActiveRide() {
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <NotificationBanner />
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <AppLogo />
+            <AppLogo variant="dark" />
             <div>
-              <h1 className="text-lg font-bold text-surface-800">Mi viaje</h1>
-              <p className="text-xs text-surface-500">{statusLabels[ride.status]}</p>
+              <h1 className="text-lg font-bold text-white">Mi viaje</h1>
+              <p className="text-xs text-white/80">{statusLabels[ride.status]}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {ride.tracking_code && (
-              <span className="font-mono text-xs font-bold text-primary-600 bg-primary-50 rounded-lg px-2 py-1">
+              <span className="font-mono text-xs font-bold text-white bg-white/15 rounded-lg px-2 py-1">
                 {ride.tracking_code}
               </span>
             )}

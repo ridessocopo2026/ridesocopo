@@ -115,15 +115,15 @@ export function NotificationsPage() {
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       {/* Header */}
-      <div className="bg-white border-b border-surface-100 px-6 py-4 sticky top-0 z-10">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
               <Bell className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-surface-800">Notificaciones</h1>
-              <p className="text-xs text-surface-500">
+              <h1 className="text-lg font-bold text-white">Notificaciones</h1>
+              <p className="text-xs text-white/80">
                 {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
               </p>
             </div>
@@ -132,7 +132,7 @@ export function NotificationsPage() {
           <div className="flex items-center gap-1">
             <button
               onClick={handleRefresh}
-              className="p-2 text-surface-400 hover:text-primary-600 transition-colors"
+              className="p-2 text-white/80 hover:text-white transition-colors"
               aria-label="Actualizar"
             >
               <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -140,7 +140,7 @@ export function NotificationsPage() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-white/15 hover:bg-white/25 rounded-lg transition-colors"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Leer todo

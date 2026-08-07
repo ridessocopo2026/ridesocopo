@@ -211,18 +211,18 @@ export function DriverDashboard() {
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       {/* Header */}
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <AppLogo />
+            <AppLogo variant="dark" />
             <div>
-              <h1 className="text-lg font-bold text-surface-800">Panel del Conductor</h1>
-              <p className="text-xs text-surface-500">Hola, {user?.full_name?.split(' ')[0]}</p>
+              <h1 className="text-lg font-bold text-white">Panel del Conductor</h1>
+              <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <NotificationBell />
-            <button onClick={handleSignOut} className="p-2 text-surface-400 hover:text-red-500 transition-colors">
+            <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+            <button onClick={handleSignOut} className="p-2 text-white/80 hover:text-white transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
           </div>
