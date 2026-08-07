@@ -1,4 +1,4 @@
-# 🚗 RideSocopó - PWA de Transporte de Pasajeros
+# 🚗 RiderFlasshi - PWA de Transporte de Pasajeros
 
 Aplicación PWA para transporte de pasajeros en Socopó, Barinas, Venezuela.
 
@@ -141,4 +141,4 @@ wrangler pages deploy dist --project-name ridesocopo
 
 ## 📄 Licencia
 
-Uso privado - RideSocopó © 2026
+Uso privado - RiderFlasshi © 2026

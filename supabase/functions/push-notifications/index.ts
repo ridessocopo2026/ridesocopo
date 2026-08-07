@@ -1,5 +1,5 @@
 // ============================================================
-// RIDESOCOPÓ - Edge Function: push-notifications
+// RIDERFLASSHI - Edge Function: push-notifications
 // Recibe notificaciones y envía Web Push a los suscriptores.
 // Se invoca desde el trigger SQL vía pg_net.
 //
@@ -22,7 +22,7 @@ import webpush from "npm:web-push@3.6.7";
 const FUNCTION_SECRET = Deno.env.get("PUSH_FUNCTION_SECRET") || "";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:ridessocopo@gmail.com";
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:contacto@riderflasshi.com";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

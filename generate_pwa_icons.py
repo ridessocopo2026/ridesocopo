@@ -1,4 +1,4 @@
-"""Genera los iconos PWA de RideSocopó a partir del logo oficial.
+"""Genera los iconos PWA de RiderFlasshi a partir del logo oficial.
 
 Usa:
   - logo o pngg.png (transparente)  -> icon-192x192, icon-512x512 (notificaciones/PWA) y favicon

@@ -1,4 +1,4 @@
-# 🔔 Notificaciones Push + In-App — RideSocopó
+# 🔔 Notificaciones Push + In-App — RiderFlasshi
 
 Sistema completo de notificaciones:
 

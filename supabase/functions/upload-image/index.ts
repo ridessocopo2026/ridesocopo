@@ -1,5 +1,5 @@
 // ============================================================
-// RIDESOCOPÓ - Edge Function: upload-image
+// RIDERFLASSHI - Edge Function: upload-image
 // Sube imágenes a ImgBB DESDE EL SERVIDOR.
 //
 // 🔐 Seguridad:
