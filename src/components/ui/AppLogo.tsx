@@ -14,8 +14,8 @@ const sizeClasses = {
 }
 
 const logoSources = {
-  light: '/icons/logo-az-192.png',
-  dark: '/icons/icon-192x192.png'
+  light: '/icons/logo-morado.png', // logo morado (transparente) para fondos blancos
+  dark: '/icons/logo-blanco.png'   // logo blanco (transparente) para fondos morados
 }
 
 /**

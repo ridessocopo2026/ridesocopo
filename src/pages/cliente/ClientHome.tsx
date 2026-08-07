@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X } from 'lucide-react'
+import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
@@ -512,9 +513,7 @@ export function ClientHome() {
       <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
+            <AppLogo variant="dark" />
             <div>
               <h1 className="text-lg font-bold text-white">RideSocopó</h1>
               <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
