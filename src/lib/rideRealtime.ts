@@ -1,5 +1,5 @@
 // ============================================================
-// RIDESOCOPÓ - Helper de tiempo real OPTIMIZADO PARA COSTO
+// RIDERFLASSHI - Helper de tiempo real OPTIMIZADO PARA COSTO
 // Realtime (postgres_changes) es la FUENTE PRINCIPAL.
 // El polling (60s) solo actúa como respaldo si Realtime se
 // desconecta → hasta 10x menos requests/hora por usuario.

@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { InstallAppButton } from '@/components/ui/InstallAppButton'
+import { Footer } from '@/components/ui/Footer'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { Welcome } from '@/pages/Welcome'
 import { Login } from '@/pages/auth/Login'
@@ -38,6 +40,8 @@ import { AdminIncidents } from '@/pages/admin/AdminIncidents'
 import { AdminMetrics } from '@/pages/admin/AdminMetrics'
 import { AdminTransactions } from '@/pages/admin/AdminTransactions'
 import { AdminRides } from '@/pages/admin/AdminRides'
+import { AdminLegal } from '@/pages/admin/AdminLegal'
+import { LegalPage } from '@/pages/LegalPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -105,14 +109,54 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
 
   const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding'].includes(location.pathname)
+  const isFullScreen =
+    ['/conductor/registro', '/conductor/pendiente'].includes(location.pathname) ||
+    location.pathname.startsWith('/cliente/viaje/') ||
+    location.pathname.startsWith('/conductor/viaje/')
+
+  // SEO: título de la pestaña por ruta
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      '/': 'RiderFlasshi — Pide tu transporte en Socopó, Barinas',
+      '/welcome': 'RiderFlasshi — Transporte de pasajeros en Socopó',
+      '/login': 'Iniciar sesión | RiderFlasshi',
+      '/registro': 'Regístrate | RiderFlasshi',
+      '/onboarding': 'Bienvenido | RiderFlasshi',
+      '/cliente': 'Solicitar viaje | RiderFlasshi',
+      '/cliente/historial': 'Historial de viajes | RiderFlasshi',
+      '/cliente/billetera': 'Mi billetera | RiderFlasshi',
+      '/cliente/perfil': 'Mi perfil | RiderFlasshi',
+      '/conductor': 'Panel del conductor | RiderFlasshi',
+      '/conductor/historial': 'Historial de viajes | RiderFlasshi',
+      '/conductor/billetera': 'Mi billetera | RiderFlasshi',
+      '/conductor/perfil': 'Mi perfil | RiderFlasshi',
+      '/conductor/metricas': 'Mis métricas | RiderFlasshi',
+      '/notificaciones': 'Notificaciones | RiderFlasshi',
+      '/admin': 'Panel Admin | RiderFlasshi',
+      '/politicas-de-privacidad': 'Políticas de Privacidad | RiderFlasshi',
+      '/terminos-y-condiciones': 'Términos y Condiciones | RiderFlasshi',
+      '/sobre-riderflash': 'Sobre RiderFlasshi',
+    }
+    document.title = titles[location.pathname] || 'RiderFlasshi'
+  }, [location.pathname])
 
   if (isPublicPage || !user) {
-    return <>{children}</>
+    return (
+      <>
+        {children}
+        <Footer />
+      </>
+    )
   }
 
   return (
     <div className="min-h-screen">
       {children}
+      {!isFullScreen && (
+        <div className="pb-24">
+          <Footer />
+        </div>
+      )}
       <InstallAppButton />
       <BottomNav role={user.role} />
     </div>
@@ -135,6 +179,11 @@ export default function App() {
           } />
 
           <Route path="/" element={<HomeRedirect />} />
+
+          {/* Páginas legales públicas */}
+          <Route path="/politicas-de-privacidad" element={<LegalPage pageKey="politicas_privacidad" />} />
+          <Route path="/terminos-y-condiciones" element={<LegalPage pageKey="terminos_condiciones" />} />
+          <Route path="/sobre-riderflash" element={<LegalPage pageKey="sobre_riderflash" />} />
 
           {/* Notificaciones (accesible para cualquier usuario autenticado) */}
           <Route path="/notificaciones" element={
@@ -290,6 +339,11 @@ export default function App() {
           <Route path="/admin/viajes" element={
             <RoleRoute role="super_admin">
               <AdminRides />
+            </RoleRoute>
+          } />
+          <Route path="/admin/legal" element={
+            <RoleRoute role="super_admin">
+              <AdminLegal />
             </RoleRoute>
           } />
 

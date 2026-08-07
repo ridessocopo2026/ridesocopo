@@ -58,7 +58,7 @@ export function Register() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <AppLogo size="lg" rounded="rounded-2xl" className="mb-4 shadow-elevated" />
-          <h1 className="text-3xl font-bold text-surface-800">RideSocopó</h1>
+          <h1 className="text-3xl font-bold text-surface-800">RiderFlasshi</h1>
           <p className="text-sm text-surface-500 mt-1">Crea tu cuenta</p>
           <HexUnderline />
         </div>

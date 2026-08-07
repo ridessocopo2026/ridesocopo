@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // RIDESOCOPÓ - Edge Function: push-notifications
 // Recibe notificaciones y envía Web Push a los suscriptores.
 // Se invoca desde el trigger SQL vía pg_net.

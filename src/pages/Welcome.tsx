@@ -8,7 +8,7 @@ export function Welcome() {
       {/* Header */}
       <div className="pt-12 pb-8 flex flex-col items-center">
         <AppLogo size="xl" rounded="rounded-3xl" variant="dark" className="mb-4 shadow-elevated border border-white/20" />
-        <h1 className="text-3xl font-bold text-white text-center">RideSocopó</h1>
+        <h1 className="text-3xl font-bold text-white text-center">RiderFlasshi</h1>
         <p className="text-white/80 text-sm mt-2 text-center px-8">
           Transporte de pasajeros en Socopó, Barinas
         </p>
@@ -17,7 +17,7 @@ export function Welcome() {
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <h2 className="text-white text-xl font-semibold text-center mb-2">
-          ¿Cómo quieres usar RideSocopó?
+          ¿Cómo quieres usar RiderFlasshi?
         </h2>
         <p className="text-white/70 text-sm text-center mb-8">
           Elige tu rol para continuar

@@ -111,7 +111,7 @@ export function AdminNotifications() {
             <input
               type="text"
               className="input"
-              placeholder="Ej: ¡Llega RideSocopó a nuevos barrios!"
+              placeholder="Ej: ¡Llega RiderFlasshi a nuevos barrios!"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}

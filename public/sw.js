@@ -1,5 +1,5 @@
 // ============================================================
-// RIDESOCOPÓ - Service Worker
+// RIDERFLASSHI - Service Worker
 // Maneja notificaciones push + precache de la PWA.
 // ============================================================
 
@@ -8,7 +8,7 @@ self.__WB_MANIFEST
 
 // Instalar: precachear los archivos inyectados por vite-plugin-pwa
 self.addEventListener('install', (event) => {
-  const preCacheName = 'ridesocopo-precache-v1'
+  const preCacheName = 'riderflasshi-precache-v1'
   self.skipWaiting()
 
   event.waitUntil(
@@ -21,7 +21,7 @@ self.addEventListener('install', (event) => {
 
 // Activar: limpiar caches viejos
 self.addEventListener('activate', (event) => {
-  const cacheNames = ['ridesocopo-precache-v1', 'ridesocopo-pages-v1']
+  const cacheNames = ['riderflasshi-precache-v1', 'riderflasshi-pages-v1']
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -47,7 +47,7 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone()
-          caches.open('ridesocopo-pages-v1').then((cache) => cache.put('/index.html', copy))
+          caches.open('riderflasshi-pages-v1').then((cache) => cache.put('/index.html', copy))
           return response
         })
         .catch(() => caches.match('/index.html'))
@@ -62,7 +62,7 @@ self.addEventListener('fetch', (event) => {
         // Revalidar en background
         fetch(event.request).then((response) => {
           if (response.ok) {
-            caches.open('ridesocopo-precache-v1').then((cache) => cache.put(event.request, response))
+            caches.open('riderflasshi-precache-v1').then((cache) => cache.put(event.request, response))
           }
         }).catch(() => {})
         return cached
@@ -71,7 +71,7 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request).then((response) => {
         if (response.ok) {
           const copy = response.clone()
-          caches.open('ridesocopo-precache-v1').then((cache) => cache.put(event.request, copy))
+          caches.open('riderflasshi-precache-v1').then((cache) => cache.put(event.request, copy))
         }
         return response
       })
@@ -85,7 +85,7 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   let data = {
-    title: 'RideSocopó',
+    title: 'RiderFlasshi',
     body: 'Tienes una nueva notificación',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-192x192.png',
@@ -108,7 +108,7 @@ self.addEventListener('push', (event) => {
       badge: data.badge,
       data: data.data,
       vibrate: [200, 100, 200],
-      tag: data.data?.url || 'ridesocopo',
+      tag: data.data?.url || 'riderflasshi',
       renotify: true,
     })
   )

@@ -1,5 +1,5 @@
 // ============================================================
-// RIDESOCOPÓ - Utilidades de Notificaciones Push
+// RIDERFLASSHI - Utilidades de Notificaciones Push
 // ============================================================
 import { supabase } from '@/lib/supabase'
 
