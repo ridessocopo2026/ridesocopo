@@ -12,8 +12,9 @@ build/
 .env
 .env.local
 .env.*.local
-# El archivo de producción también debe quedar fuera de git (puede contener claves)
-.env.production
+# .env.production contiene SOLO claves públicas (anon key, VAPID pública)
+# y se versiona porque Cloudflare Pages lo necesita para el build.
+# No contiene secretos reales (la API key de ImgBB vive en Supabase secrets).
 
 # Logs
 logs/
