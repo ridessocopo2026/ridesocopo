@@ -179,6 +179,8 @@ export interface Ride {
   client_start_confirmed?: boolean
   started_at?: string
   completed_at?: string
+  completed_by?: string
+  client_confirmed_at?: string
   cancelled_by?: string
   cancel_reason?: string
   cancellation_fee_usd: number

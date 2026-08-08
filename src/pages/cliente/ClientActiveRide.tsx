@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
+import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -78,6 +78,7 @@ export function ClientActiveRide() {
   const [incidentType, setIncidentType] = useState<IncidentType>('accidente')
   const [incidentDesc, setIncidentDesc] = useState('')
   const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
+  const [showMap, setShowMap] = useState(false)
   const { user } = useAuth()
   const navigate = useNavigate()
   // Ref al bloque de acciones post-viaje (calificar/reportar/guardar) para scroll automático
@@ -112,10 +113,14 @@ export function ClientActiveRide() {
   // para que el cliente vea la calificación sin tener que bajar.
   useEffect(() => {
     if (ride?.status === 'completada' && !autoScrolledRef.current) {
-      autoScrolledRef.current = true
-      setTimeout(() => {
-        ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 150)
+      // Si el conductor completo y el cliente aun no confirma, esperar la confirmacion
+      const needsConfirm = ride.completed_by === ride.driver_id && !ride.client_confirmed_at
+      if (!needsConfirm) {
+        autoScrolledRef.current = true
+        setTimeout(() => {
+          ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 150)
+      }
     }
   }, [ride?.status])
 
@@ -173,6 +178,29 @@ export function ClientActiveRide() {
       if (error) throw error
 
       setRide({ ...ride!, ...data } as Ride)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Confirmar que el viaje se realizo (lo marco el conductor)
+  const handleConfirmCompletion = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabase.rpc('confirm_ride_completion', {
+        p_ride_id: rideId
+      })
+
+      if (error) throw error
+
+      setRide((prev) => prev ? { ...prev, client_confirmed_at: (data as any)?.client_confirmed_at } : prev)
+      setTimeout(() => {
+        ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 200)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -318,6 +346,12 @@ export function ClientActiveRide() {
   const isDispute = ride.status === 'completada'
   const reportTypes = isDispute ? disputeTypes : incidentTypes
 
+  // El conductor marco el viaje como completado y el cliente aun no confirma
+  const needsCompletionConfirm =
+    ride.status === 'completada' &&
+    ride.completed_by === ride.driver_id &&
+    !ride.client_confirmed_at
+
   const statusLabels = {
     buscando: 'Buscando conductor...',
     aceptada: 'Conductor en camino',
@@ -379,34 +413,49 @@ export function ClientActiveRide() {
         </div>
       )}
 
-      {/* Mapa */}
-      <div className="h-[40vh] relative">
-        <MapContainer
-          center={origin}
-          zoom={15}
-          className="h-full w-full"
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
-          <Marker position={origin} icon={originIcon}>
-            <Popup>Tu ubicación</Popup>
-          </Marker>
-          <Marker position={destination} icon={destIcon}>
-            <Popup>Destino</Popup>
-          </Marker>
-          {driverPos && (
-            <Marker position={driverPos} icon={vehicleIcon}>
-              <Popup>Conductor</Popup>
-            </Marker>
-          )}
-          <Polyline
-            positions={[origin, destination]}
-            pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
-          />
-        </MapContainer>
-      </div>
+      {/* Mapa: colapsable con boton Ver mapa (solo se monta al abrirlo) */}
+      {showMap ? (
+        <>
+          <div className="h-[40vh] relative map-scroll-safe">
+            <MapContainer
+              center={origin}
+              zoom={15}
+              className="h-full w-full"
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              />
+              <Marker position={origin} icon={originIcon}>
+                <Popup>Tu ubicación</Popup>
+              </Marker>
+              <Marker position={destination} icon={destIcon}>
+                <Popup>Destino</Popup>
+              </Marker>
+              {driverPos && (
+                <Marker position={driverPos} icon={vehicleIcon}>
+                  <Popup>Conductor</Popup>
+                </Marker>
+              )}
+              <Polyline
+                positions={[origin, destination]}
+                pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+              />
+            </MapContainer>
+          </div>
+          <div className="max-w-md mx-auto px-4 mt-2">
+            <button onClick={() => setShowMap(false)} className="btn-outline w-full">
+              Ocultar mapa
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <button onClick={() => setShowMap(true)} className="btn-outline w-full flex items-center justify-center gap-2">
+            <Map className="w-4 h-4" /> Ver mapa del viaje
+          </button>
+        </div>
+      )}
 
       {/* Detalles */}
       <div className="max-w-md mx-auto px-4 py-6 space-y-4">
@@ -551,7 +600,32 @@ export function ClientActiveRide() {
         {/* Acciones post-viaje: calificar, reportar problema y guardar destino */}
         {ride.status === 'completada' && (
           <div ref={ratingRef} className="space-y-4">
-            {/* Calificar al conductor al completar */}
+            {/* Confirmación: el conductor marcó el viaje como completado */}
+            {needsCompletionConfirm && (
+              <div className="card border-2 border-primary-100 bg-primary-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-5 h-5 text-primary-600" />
+                  <h3 className="font-semibold text-surface-800">El conductor completó el viaje</h3>
+                </div>
+                <p className="text-sm text-surface-600 mb-4">
+                  ¿Confirmas que el viaje se realizó correctamente?
+                </p>
+                <div className="space-y-2">
+                  <button onClick={handleConfirmCompletion} className="btn-success w-full" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Confirmar viaje</>}
+                  </button>
+                  <button
+                    onClick={() => { setIncidentType('viaje_no_realizado'); setShowIncidentModal(true) }}
+                    className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300">
+                    <ShieldAlert className="w-4 h-4" /> Reportar incidente
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Calificar al conductor al completar (tras confirmar o si completó el cliente) */}
+            {!needsCompletionConfirm && (
+              <>
             <RatingCard
               title="Califica a tu conductor"
               subtitle="Tu opinión ayuda a mejorar el servicio"
@@ -617,6 +691,8 @@ export function ClientActiveRide() {
                   </button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

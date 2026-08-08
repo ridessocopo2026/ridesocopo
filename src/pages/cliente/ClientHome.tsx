@@ -666,11 +666,14 @@ export function ClientHome() {
         </div>
 
         {/* Mapa */}
-        <div className="h-48 rounded-2xl overflow-hidden shadow-card relative z-0">
+        <div className="h-48 rounded-2xl overflow-hidden shadow-card relative z-0 map-static">
           <MapContainer
             center={origin || SOCOPO_CENTER}
             zoom={14}
             className="h-full w-full"
+            dragging={false}
+            touchZoom={false}
+            scrollWheelZoom={false}
           >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

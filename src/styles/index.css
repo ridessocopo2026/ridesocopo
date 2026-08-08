@@ -162,6 +162,13 @@
     z-index: 0 !important;
   }
 
+  /* Mapa estatico (solicitar viaje): el toque hace scroll de la pagina, no mueve el mapa.
+     El mapa del viaje en curso tambien deja pasar el scroll vertical. */
+  .map-static .leaflet-container,
+  .map-scroll-safe .leaflet-container {
+    touch-action: pan-y !important;
+  }
+
   /* Modales y bottom sheets SIEMPRE por encima del mapa */
   .fixed.inset-0,
   .bottom-sheet,
