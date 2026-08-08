@@ -87,8 +87,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'RiderFlasshi',
     body: 'Tienes una nueva notificación',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
+    icon: '/icons/notification-icon-192.png',
+    badge: '/icons/notification-icon-192.png',
     data: { url: '/' },
   }
 

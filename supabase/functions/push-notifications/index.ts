@@ -84,8 +84,8 @@ async function processNotification(notificationId: string) {
   const payload = JSON.stringify({
     title: notification.title,
     body: notification.body,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-192x192.png",
+    icon: "/icons/notification-icon-192.png",
+    badge: "/icons/notification-icon-192.png",
     data: { url },
   });
 
