@@ -109,18 +109,34 @@ export function ClientHome() {
     loadExchangeRate()
   }, [])
 
-  // ── Viaje en curso: aviso en el inicio + bloqueo de nueva solicitud ──
+  // ── Viaje en curso / confirmación pendiente: aviso en el inicio + bloqueo ──
+  const needsConfirm = (r: Ride) =>
+    r.status === 'completada' && r.completed_by === r.driver_id && !r.client_confirmed_at
+
   const loadActiveRide = async () => {
     if (!user) {
       setActiveRide(null)
       return
     }
-    const { data, error } = await supabase.rpc('get_client_active_ride')
-    if (!error && data && data.length > 0) {
-      setActiveRide(data[0] as Ride)
-    } else {
-      setActiveRide(null)
+
+    // 1) Viaje en curso (buscando/aceptada/en_ruta/incidente) vía RPC
+    const { data: active } = await supabase.rpc('get_client_active_ride')
+    if (active && active.length > 0) {
+      setActiveRide(active[0] as Ride)
+      return
     }
+
+    // 2) Viaje completado por el conductor SIN confirmar → confirmar desde el inicio
+    const { data: pending } = await supabase
+      .from('rides')
+      .select('*')
+      .eq('client_id', user.id)
+      .eq('status', 'completada')
+      .is('client_confirmed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const pendingRide = pending && pending.length > 0 ? (pending[0] as Ride) : null
+    setActiveRide(pendingRide && needsConfirm(pendingRide) ? pendingRide : null)
   }
 
   useEffect(() => {
@@ -128,12 +144,13 @@ export function ClientHome() {
   }, [user?.id])
 
   // Mantener el aviso al día en tiempo real:
-  // aceptada → en_ruta se actualiza en vivo; completada/cancelada vuelve el formulario.
+  // aceptada → en_ruta se actualiza en vivo; si el conductor completa y falta
+  // confirmación → tarjeta de confirmación; cancelada/confirmada → vuelve el formulario.
   useRideRealtime(
     activeRide?.id,
     (newRide) => {
       const r = newRide as Ride
-      if (r.status === 'completada' || r.status === 'cancelada') {
+      if (r.status === 'cancelada' || (r.status === 'completada' && r.client_confirmed_at)) {
         setActiveRide(null)
       } else {
         setActiveRide(r)
@@ -141,6 +158,24 @@ export function ClientHome() {
     },
     async () => (activeRide?.id ? fetchRideById(activeRide.id) : null)
   )
+
+  // Confirmar el viaje completado por el conductor (directo desde el inicio)
+  const handleConfirmCompletion = async () => {
+    if (!activeRide) return
+    setError('')
+    setLoading(true)
+    try {
+      const { error } = await supabase.rpc('confirm_ride_completion', {
+        p_ride_id: activeRide.id
+      })
+      if (error) throw error
+      setActiveRide(null) // viaje confirmado → vuelve el formulario
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Auto-rotación del carrusel de banners (un banner a la vez, pausa al interactuar)
   useEffect(() => {
@@ -574,38 +609,69 @@ export function ClientHome() {
         <div className="max-w-md mx-auto px-4 py-4 space-y-4">
           {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-          {/* Aviso de viaje en curso */}
-          <div className="card border-2 border-primary-200 bg-primary-50/50 p-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-primary-600 text-white flex items-center justify-center shrink-0">
-                {statusInfo.icon}
+          {/* Viaje completado sin confirmar → confirmar aquí mismo */}
+          {activeRide.status === 'completada' ? (
+            <div className="card border-2 border-emerald-200 bg-emerald-50/50 p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-surface-800">Tu viaje finalizó</p>
+                  <p className="text-sm text-surface-600">El conductor completó el viaje. Confírmalo para continuar.</p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-surface-800">Tienes un viaje en curso</p>
-                <p className="text-sm text-surface-600">{statusInfo.label}</p>
-              </div>
-            </div>
 
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between gap-2">
-                <span className="text-surface-500">Destino</span>
-                <span className="font-medium text-surface-700 truncate text-right max-w-[60%]">
-                  {activeRide.destination_barrio_name || activeRide.destination_address || '—'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-surface-500">Tarifa</span>
-                <span className="font-bold text-primary-600">{activeRide.final_fare_usd.toFixed(2)}$</span>
-              </div>
+              <button
+                onClick={handleConfirmCompletion}
+                disabled={loading}
+                className="btn-primary w-full"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar viaje'}
+              </button>
+              <button
+                onClick={() => navigate(`/cliente/viaje/${activeRide.id}`)}
+                className="btn-outline w-full"
+              >
+                Ver detalle
+              </button>
             </div>
+          ) : (
+            /* Aviso de viaje en curso */
+            <div className="card border-2 border-primary-200 bg-primary-50/50 p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-primary-600 text-white flex items-center justify-center shrink-0">
+                  {statusInfo.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-surface-800">Tienes un viaje en curso</p>
+                  <p className="text-sm text-surface-600">{statusInfo.label}</p>
+                </div>
+              </div>
 
-            <button onClick={() => navigate(`/cliente/viaje/${activeRide.id}`)} className="btn-primary w-full">
-              Ver mi viaje
-            </button>
-          </div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-surface-500">Destino</span>
+                  <span className="font-medium text-surface-700 truncate text-right max-w-[60%]">
+                    {activeRide.destination_barrio_name || activeRide.destination_address || '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-surface-500">Tarifa</span>
+                  <span className="font-bold text-primary-600">{activeRide.final_fare_usd.toFixed(2)}$</span>
+                </div>
+              </div>
+
+              <button onClick={() => navigate(`/cliente/viaje/${activeRide.id}`)} className="btn-primary w-full">
+                Ver mi viaje
+              </button>
+            </div>
+          )}
 
           <p className="text-xs text-surface-400 text-center">
-            Para pedir otro viaje espera a que finalice o cancele el actual.
+            {activeRide.status === 'completada'
+              ? 'Confirma tu viaje para poder pedir uno nuevo.'
+              : 'Para pedir otro viaje espera a que finalice o cancele el actual.'}
           </p>
         </div>
       </div>
