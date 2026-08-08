@@ -5,6 +5,7 @@ import { NotificationProvider } from '@/contexts/NotificationContext'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { InstallAppButton } from '@/components/ui/InstallAppButton'
 import { Footer } from '@/components/ui/Footer'
+import { ScrollToTop } from '@/components/ui/ScrollToTop'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { Welcome } from '@/pages/Welcome'
 import { Login } from '@/pages/auth/Login'
@@ -167,6 +168,7 @@ export default function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
+      <ScrollToTop />
       <AppLayout>
         <Routes>
           <Route path="/welcome" element={<GuestRoute><Welcome /></GuestRoute>} />
