@@ -697,8 +697,9 @@ export function ClientActiveRide() {
           </div>
         )}
 
-        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones, desglose) */}
-        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} />
+        {/* Información total del viaje (estado, cancelación, incidentes/resoluciones).
+            Desglose de la tarifa oculto para el cliente (showFareBreakdown={false}) */}
+        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} showFareBreakdown={false} />
 
       </div>
 

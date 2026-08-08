@@ -5,6 +5,8 @@ interface TripDetailInfoProps {
   ride: Ride
   incident?: RideIncident | null
   currentUserId?: string
+  /** El desglose de la tarifa (base, recargos, comisión) se oculta para el cliente */
+  showFareBreakdown?: boolean
 }
 
 const incidentTypeLabels: Record<IncidentType, string> = {
@@ -64,7 +66,7 @@ const fmtDate = (iso?: string): string | null => {
   })
 }
 
-export function TripDetailInfo({ ride, incident, currentUserId }: TripDetailInfoProps) {
+export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdown = true }: TripDetailInfoProps) {
   const details = parseResolutionDetails(incident?.resolution_details)
   const incidentResolved = !!incident && (incident.status === 'resuelto' || incident.status === 'cerrado')
   const isDispute = !!incident && (
@@ -268,7 +270,8 @@ export function TripDetailInfo({ ride, incident, currentUserId }: TripDetailInfo
       )}
 
 
-      {/* Desglose de la tarifa */}
+      {/* Desglose de la tarifa (solo visible si showFareBreakdown; el cliente ya no lo ve) */}
+      {showFareBreakdown && (
       <div className="card">
         <div className="flex items-center gap-2 mb-3">
           <Receipt className="w-5 h-5 text-primary-600" />
@@ -307,6 +310,7 @@ export function TripDetailInfo({ ride, incident, currentUserId }: TripDetailInfo
           </div>
         </div>
       </div>
+      )}
     </>
   )
 }

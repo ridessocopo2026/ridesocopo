@@ -2,14 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X } from 'lucide-react'
+import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle } from 'lucide-react'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
+import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
-import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField } from '@/types/database'
+import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
 
 const SOCOPO_CENTER: [number, number] = [8.23293, -70.82228]
 
@@ -87,6 +88,8 @@ export function ClientHome() {
   const destAddressRef = useRef<HTMLTextAreaElement>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+  // Viaje en curso: aviso en el inicio + bloqueo de nueva solicitud
+  const [activeRide, setActiveRide] = useState<Ride | null>(null)
 
   // Auto-focus en la dirección exacta al seleccionar un barrio/sector
   useEffect(() => {
@@ -105,6 +108,39 @@ export function ClientHome() {
     loadCoupons()
     loadExchangeRate()
   }, [])
+
+  // ── Viaje en curso: aviso en el inicio + bloqueo de nueva solicitud ──
+  const loadActiveRide = async () => {
+    if (!user) {
+      setActiveRide(null)
+      return
+    }
+    const { data, error } = await supabase.rpc('get_client_active_ride')
+    if (!error && data && data.length > 0) {
+      setActiveRide(data[0] as Ride)
+    } else {
+      setActiveRide(null)
+    }
+  }
+
+  useEffect(() => {
+    loadActiveRide()
+  }, [user?.id])
+
+  // Mantener el aviso al día en tiempo real:
+  // aceptada → en_ruta se actualiza en vivo; completada/cancelada vuelve el formulario.
+  useRideRealtime(
+    activeRide?.id,
+    (newRide) => {
+      const r = newRide as Ride
+      if (r.status === 'completada' || r.status === 'cancelada') {
+        setActiveRide(null)
+      } else {
+        setActiveRide(r)
+      }
+    },
+    async () => (activeRide?.id ? fetchRideById(activeRide.id) : null)
+  )
 
   // Auto-rotación del carrusel de banners (un banner a la vez, pausa al interactuar)
   useEffect(() => {
@@ -508,6 +544,74 @@ export function ClientHome() {
     return 'Continuar'
   }
 
+  // ── Si hay un viaje activo: el inicio muestra el aviso y bloquea nueva solicitud ──
+  if (activeRide) {
+    const statusInfo = ({
+      buscando: { label: 'Buscando conductor…', icon: <Loader2 className="w-5 h-5 animate-spin" /> },
+      aceptada: { label: 'Conductor en camino', icon: <Navigation className="w-5 h-5" /> },
+      en_ruta: { label: 'En ruta al destino', icon: <Navigation className="w-5 h-5" /> },
+      incidente: { label: 'Incidente en revisión', icon: <XCircle className="w-5 h-5" /> },
+    } as Record<string, { label: string; icon: React.ReactNode }>)[activeRide.status] || {
+      label: 'Viaje en curso',
+      icon: <Navigation className="w-5 h-5" />,
+    }
+
+    return (
+      <div className="min-h-screen bg-surface-50 pb-24">
+        <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AppLogo variant="dark" />
+              <div>
+                <h1 className="text-lg font-bold text-white">RiderFlasshi</h1>
+                <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
+              </div>
+            </div>
+            <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+          </div>
+        </div>
+
+        <div className="max-w-md mx-auto px-4 py-4 space-y-4">
+          {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+
+          {/* Aviso de viaje en curso */}
+          <div className="card border-2 border-primary-200 bg-primary-50/50 p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-primary-600 text-white flex items-center justify-center shrink-0">
+                {statusInfo.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-surface-800">Tienes un viaje en curso</p>
+                <p className="text-sm text-surface-600">{statusInfo.label}</p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between gap-2">
+                <span className="text-surface-500">Destino</span>
+                <span className="font-medium text-surface-700 truncate text-right max-w-[60%]">
+                  {activeRide.destination_barrio_name || activeRide.destination_address || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Tarifa</span>
+                <span className="font-bold text-primary-600">{activeRide.final_fare_usd.toFixed(2)}$</span>
+              </div>
+            </div>
+
+            <button onClick={() => navigate(`/cliente/viaje/${activeRide.id}`)} className="btn-primary w-full">
+              Ver mi viaje
+            </button>
+          </div>
+
+          <p className="text-xs text-surface-400 text-center">
+            Para pedir otro viaje espera a que finalice o cancele el actual.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
@@ -892,21 +996,8 @@ export function ClientHome() {
             <h2 className="text-xl font-bold text-surface-800 mb-4">Detalle del viaje</h2>
 
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-surface-500">Tarifa base</span>
-                <span className="font-medium">{fare.base_fare.toFixed(2)}$</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-surface-500">Sitio de llegada</span>
-                <span className="font-medium">{fare.destination_surcharge.toFixed(2)}$</span>
-              </div>
-              {fare.discount > 0 && (
-                <div className="flex justify-between text-sm text-emerald-600">
-                  <span>Descuento cupón</span>
-                  <span>-{fare.discount.toFixed(2)}$</span>
-                </div>
-              )}
-              <div className="border-t border-surface-100 pt-3 flex justify-between">
+              {/* Solo el total: el desglose de la tarifa ya no se muestra al cliente */}
+              <div className="flex justify-between">
                 <span className="font-semibold text-surface-800">Total</span>
                 <span className="text-2xl font-bold text-primary-600">{fare.final_fare.toFixed(2)}$</span>
               </div>
