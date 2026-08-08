@@ -1,17 +1,17 @@
 // ============================================================
 // RIDERFLASSHI - Edge Function: push-notifications
-// Recibe notificaciones y envía Web Push a los suscriptores.
-// Se invoca desde el trigger SQL vía pg_net.
+// Recibe notificaciones y envÃ­a Web Push a los suscriptores.
+// Se invoca desde el trigger SQL vÃ­a pg_net.
 //
-// ✅ SOPORTE DE LOTE (optimización de costos):
+// âœ… SOPORTE DE LOTE (optimizaciÃ³n de costos):
 //   Acepta `{ notification_ids: [...] }` (procesa varias en UNA
-//   invocación — 1 llamada por statement SQL en vez de una por
-//   notificación) o `{ notification_id: "..." }` (backward compat
+//   invocaciÃ³n â€” 1 llamada por statement SQL en vez de una por
+//   notificaciÃ³n) o `{ notification_id: "..." }` (backward compat
 //   para reprocesos manuales).
 //
 // Secretos requeridos (supabase secrets set):
 //   PUSH_FUNCTION_SECRET  - secreto compartido con la BD (en push_settings)
-//   VAPID_PUBLIC_KEY      - clave pública VAPID
+//   VAPID_PUBLIC_KEY      - clave pÃºblica VAPID
 //   VAPID_PRIVATE_KEY     - clave privada VAPID
 //   VAPID_SUBJECT         - email de contacto
 // ============================================================
@@ -38,14 +38,14 @@ webpush.setVapidDetails(
   VAPID_PRIVATE_KEY,
 );
 
-// Máx. de notificaciones por invocación (evitar timeout)
+// MÃ¡x. de notificaciones por invocaciÃ³n (evitar timeout)
 const MAX_PER_INVOCATION = 100;
 
 // ------------------------------------------------------------
-// Procesa UNA notificación: envía push a las suscripciones del usuario
+// Procesa UNA notificaciÃ³n: envÃ­a push a las suscripciones del usuario
 // ------------------------------------------------------------
 async function processNotification(notificationId: string) {
-  // 1. Obtener notificación
+  // 1. Obtener notificaciÃ³n
   const { data: notification, error: notifErr } = await supabase
     .from("notifications")
     .select("title, body, data, user_id")
@@ -77,15 +77,17 @@ async function processNotification(notificationId: string) {
     return { ok: true, sent: 0, skipped: "no subscriptions" };
   }
 
-  // 3. Enviar push a cada suscripción
+  // 3. Enviar push a cada suscripciÃ³n
   const data = notification.data || {};
   const url = data.url || "/";
+
+  // El icono/badge lo pone SIEMPRE el Service Worker (la "R" del logo),
+  // así que el payload NO envía icon: payload más liviano y sin riesgo de
+  // que un icono viejo sobrescriba el branding de la notificación.
 
   const payload = JSON.stringify({
     title: notification.title,
     body: notification.body,
-    icon: "/icons/notification-icon-192.png",
-    badge: "/icons/notification-icon-192.png",
     data: { url },
   });
 
@@ -177,7 +179,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 💰 LOTE: procesar varias notificaciones en UNA invocación
+    // ðŸ’° LOTE: procesar varias notificaciones en UNA invocaciÃ³n
     const results: any[] = [];
     for (const notificationId of notificationIds.slice(0, MAX_PER_INVOCATION)) {
       try {

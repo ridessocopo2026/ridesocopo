@@ -87,8 +87,6 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'RiderFlasshi',
     body: 'Tienes una nueva notificación',
-    icon: '/icons/notification-icon-192.png',
-    badge: '/icons/notification-icon-192.png',
     data: { url: '/' },
   }
 
@@ -101,11 +99,17 @@ self.addEventListener('push', (event) => {
     // Payload inválido o no JSON: usar valores por defecto
   }
 
+  // 🚀 El icono de la notificación es SIEMPRE el logo de la app (la "R").
+  // Se ignora cualquier icon/badge del payload para que nunca vuelva a
+  // mostrarse un icono incorrecto (p. ej. el cuadro PWA).
+  const icon = '/icons/notification-icon-192.png'
+  const badge = '/icons/notification-icon-192.png'
+
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: data.icon,
-      badge: data.badge,
+      icon,
+      badge,
       data: data.data,
       vibrate: [200, 100, 200],
       tag: data.data?.url || 'riderflasshi',
