@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle } from 'lucide-react'
+import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle } from 'lucide-react'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -69,6 +70,7 @@ export function ClientHome() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [copiedField, setCopiedField] = useState('')
   const [error, setError] = useState('')
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [pulseUbicacion, setPulseUbicacion] = useState(false)
@@ -142,6 +144,32 @@ export function ClientHome() {
   useEffect(() => {
     loadActiveRide()
   }, [user?.id])
+
+  // Cargar el saldo de la billetera del cliente (para avisar de saldo insuficiente antes de fallar)
+  const loadWalletBalance = async () => {
+    if (!user) {
+      setWalletBalance(null)
+      return
+    }
+    const { data, error } = await supabase
+      .from('wallets')
+      .select('balance_usd')
+      .eq('user_id', user.id)
+      .single()
+    if (!error && data) {
+      setWalletBalance(Number(data.balance_usd))
+    }
+  }
+
+  // Aviso de error SIEMPRE visible: scroll suave hasta el banner cuando no hay sheet abierto
+  useEffect(() => {
+    if (error && !showFareSheet && !showDestSheet) {
+      const t = setTimeout(() => {
+        document.getElementById('home-error-banner')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+      return () => clearTimeout(t)
+    }
+  }, [error, showFareSheet, showDestSheet])
 
   // Mantener el aviso al día en tiempo real:
   // aceptada → en_ruta se actualiza en vivo; si el conductor completa y falta
@@ -460,6 +488,8 @@ export function ClientHome() {
 
       setFare(data as FareCalculation)
       setShowFareSheet(true)
+      // Cargar saldo de la billetera para avisar del saldo insuficiente sin esperar el fallo
+      void loadWalletBalance()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -607,7 +637,7 @@ export function ClientHome() {
         </div>
 
         <div className="max-w-md mx-auto px-4 py-4 space-y-4">
-          {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+          {error && <ErrorMessage id="home-error-banner" message={error} onDismiss={() => setError('')} />}
 
           {/* Viaje completado sin confirmar → confirmar aquí mismo */}
           {activeRide.status === 'completada' ? (
@@ -694,7 +724,7 @@ export function ClientHome() {
       </div>
 
       <div className="max-w-md mx-auto px-4 py-4 space-y-4">
-        {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+        {error && <ErrorMessage id="home-error-banner" message={error} onDismiss={() => setError('')} />}
 
         {/* Activar notificaciones push (si no están activas) */}
         <PushNotificationCard />
@@ -1100,6 +1130,19 @@ export function ClientHome() {
                 </div>
               </div>
 
+              {/* Aviso preventivo de saldo insuficiente (Billetera) — visible sin scroll */}
+              {selectedPaymentMethod === 'Billetera' && walletBalance !== null && walletBalance < fare.final_fare && (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in" role="alert">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700">Saldo insuficiente en billetera</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Tienes {fmt(walletBalance)} y este viaje cuesta {fmt(fare.final_fare)}. Recarga tu billetera o elige otro método de pago.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Campos del método seleccionado (con botón copiar) */}
               {getSelectedMethod() && getSelectedMethodFields().length > 0 && (
                 <div>
@@ -1155,6 +1198,9 @@ export function ClientHome() {
                 </div>
               )}
             </div>
+
+            {/* Aviso de error del viaje aquí mismo (saldo insuficiente, etc.) — sin scroll */}
+            {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
             <button
               onClick={handleRequestRide}

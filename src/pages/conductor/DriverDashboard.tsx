@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X } from 'lucide-react'
+import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { Switch } from '@/components/ui/Switch'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -86,6 +87,16 @@ export function DriverDashboard() {
       stopLocationTracking()
     }
   }, [isOnline])
+
+  // Aviso de error SIEMPRE visible sin scroll: llevar atención al banner
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => {
+        document.getElementById('driver-error-banner')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+      return () => clearTimeout(t)
+    }
+  }, [error])
 
   const loadWallet = async () => {
     if (!user) return
@@ -202,6 +213,9 @@ export function DriverDashboard() {
     navigate('/login')
   }
 
+  // Deuda que supera el límite permitido (bloqueo real en toggle_driver_online / accept_ride)
+  const debtExceeded = !!wallet && wallet.balance_usd < -wallet.debt_limit_usd
+
   // Si hay viaje activo, redirigir
   if (activeRide) {
     navigate(`/conductor/viaje/${activeRide.id}`)
@@ -230,7 +244,7 @@ export function DriverDashboard() {
       </div>
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
-        {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+        {error && <ErrorMessage id="driver-error-banner" message={error} onDismiss={() => setError('')} />}
 
         {/* Activar notificaciones push (si no están activas) */}
         <PushNotificationCard />
@@ -283,6 +297,20 @@ export function DriverDashboard() {
             {wallet && wallet.balance_usd < 0 ? 'Debes esta cantidad a la plataforma' : 'Tu comisión se descuenta de la carrera'}
           </p>
         </div>
+
+        {/* Aviso de deuda superada — visible sin scroll, junto a la billetera */}
+        {debtExceeded && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in" role="alert">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-700">Límite de deuda superado</p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Tu deuda es de {fmt(Math.abs(wallet?.balance_usd ?? 0))} y el límite es {fmt(wallet?.debt_limit_usd ?? 0)}.
+                Recarga tu billetera o contacta al administrador para poder aceptar viajes.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Viajes disponibles */}
         <div>
@@ -398,6 +426,9 @@ export function DriverDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Aviso de error del viaje aquí mismo (saldo/deuda insuficiente) — sin scroll */}
+            {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
             <div className="flex gap-2">
               <button onClick={() => setMapRide(null)} className="btn-outline flex-1">

@@ -3,13 +3,14 @@ import { AlertCircle, X } from 'lucide-react'
 interface ErrorMessageProps {
   message: string
   onDismiss?: () => void
+  id?: string
 }
 
-export function ErrorMessage({ message, onDismiss }: ErrorMessageProps) {
+export function ErrorMessage({ message, onDismiss, id }: ErrorMessageProps) {
   if (!message) return null
 
   return (
-    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+    <div id={id} className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
       <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
       <p className="text-sm text-red-700 flex-1">{message}</p>
       {onDismiss && (
