@@ -44,14 +44,13 @@ export function Onboarding() {
       return
     }
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        role,
-        zone_id: selectedZone || null,
-        onboarding_completed: true
-      })
-      .eq('id', user.id)
+    // IMPORTANTE: no actualizar role directamente: la política RLS de
+    // profiles (users_update_own_profile) prohíbe cambiar role/driver_status.
+    // La transición de rol se hace vía RPC SECURITY DEFINER (segura).
+    const { error: updateError } = await supabase.rpc('complete_onboarding', {
+      p_role: role,
+      p_zone_id: selectedZone || null
+    })
 
     if (updateError) {
       setError(updateError.message)
