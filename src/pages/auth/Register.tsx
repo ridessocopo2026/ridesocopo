@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Mail, Lock, User, Loader2 } from 'lucide-react'
+import { Mail, Lock, User, Phone, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -8,6 +8,7 @@ import { AppLogo } from '@/components/ui/AppLogo'
 
 export function Register() {
   const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -43,7 +44,7 @@ export function Register() {
     }
 
     setLoading(true)
-    const { error } = await signUp(email, password, fullName)
+    const { error } = await signUp(email, password, fullName, phone)
     if (error) {
       setError(error)
       setLoading(false)
@@ -97,6 +98,22 @@ export function Register() {
                 placeholder="Tu nombre completo"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label" htmlFor="phone">Teléfono</label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+              <input
+                id="phone"
+                type="tel"
+                className="input pl-10"
+                placeholder="0412-1234567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
               />
             </div>

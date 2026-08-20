@@ -18,7 +18,6 @@ export function DriverOnboarding() {
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [phone, setPhone] = useState('')
   const [cedulaNumber, setCedulaNumber] = useState('')
-  const [licenseNumber, setLicenseNumber] = useState('')
   const [licenseExpiry, setLicenseExpiry] = useState('')
 
   // Fotos
@@ -93,7 +92,7 @@ export function DriverOnboarding() {
         p_phone: phone,
         p_cedula_number: cedulaNumber,
         p_cedula_photo_url: cedulaPhotoUrl,
-        p_license_number: licenseNumber,
+        p_license_number: null,
         p_license_photo_url: licensePhotoUrl,
         p_license_expiry_date: licenseExpiry,
         p_profile_photo_url: profilePhotoUrl,
@@ -226,17 +225,6 @@ export function DriverOnboarding() {
                   placeholder="V-00000000"
                   value={cedulaNumber}
                   onChange={(e) => setCedulaNumber(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="label">Número de Licencia *</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
                   required
                 />
               </div>

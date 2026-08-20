@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank } from 'lucide-react'
+import { Users, UsersRound, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -73,6 +73,7 @@ export function AdminDashboard() {
     { to: '/admin/barrios', icon: <MapPin className="w-6 h-6" />, title: 'Barrios', desc: 'Barrios y precios de llegada' },
     { to: '/admin/zonas', icon: <MapPin className="w-6 h-6" />, title: 'Cobertura', desc: 'Polígono de cobertura de Socopó' },
     { to: '/admin/conductores', icon: <Users className="w-6 h-6" />, title: 'Conductores', desc: 'Aprobar y gestionar' },
+    { to: '/admin/usuarios', icon: <UsersRound className="w-6 h-6" />, title: 'Usuarios', desc: 'Pasajeros y conductores' },
     { to: '/admin/tarifas', icon: <Car className="w-6 h-6" />, title: 'Tarifas', desc: 'Tarifas por vehículo' },
     { to: '/admin/tasa', icon: <DollarSign className="w-6 h-6" />, title: 'Tasa de cambio', desc: 'Bs./USD' },
     { to: '/admin/comprobantes', icon: <ClipboardCheck className="w-6 h-6" />, title: 'Comprobantes', desc: 'Aprobar pagos de viajes' },

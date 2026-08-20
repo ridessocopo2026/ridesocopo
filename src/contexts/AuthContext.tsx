@@ -8,7 +8,7 @@ interface AuthContextType {
   user: Profile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>
   signInWithGoogle: () => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -35,7 +35,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (!error && data) {
-        setUser(data as Profile)
+        const profile = data as Profile
+        setUser(profile)
+
+        // Aplicar el teléfono del registro (user_metadata) si el perfil aún no lo tiene
+        if (!profile.phone) {
+          const { data: { user: au } } = await supabase.auth.getUser()
+          const metaPhone = String(au?.user_metadata?.phone || '').trim()
+          if (metaPhone) {
+            const { error: phoneErr } = await supabase
+              .from('profiles')
+              .update({ phone: metaPhone })
+              .eq('id', userId)
+            if (!phoneErr) {
+              setUser((prev) => (prev ? { ...prev, phone: metaPhone } : prev))
+            }
+          }
+        }
       } else if (error) {
         console.error('Error cargando perfil:', error)
         // FALLBACK: crear perfil si el trigger no lo creó (común con OAuth)
@@ -52,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: au.id,
               full_name: fullName,
               email: au.email || '',
+              phone: au.user_metadata?.phone || null,
               avatar_url: au.user_metadata?.avatar_url || au.user_metadata?.picture || null,
             }, { onConflict: 'id' })
             .select()
@@ -137,12 +154,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message || null }
   }
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName }
+        data: { full_name: fullName, phone }
       }
     })
     return { error: error?.message || null }

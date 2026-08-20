@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Users, Check, X, Loader2, Eye } from 'lucide-react'
+import { Users, Check, X, Loader2, Eye, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -208,6 +209,22 @@ export function AdminDrivers() {
                     <div>
                       <p className="font-medium text-surface-700">{driver.full_name}</p>
                       <p className="text-xs text-surface-400">{driver.email}</p>
+                      {driver.phone && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-surface-500">{driver.phone}</span>
+                          {whatsappNumber(driver.phone) && (
+                            <a
+                              href={`https://wa.me/${whatsappNumber(driver.phone)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Abrir WhatsApp"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                            >
+                              <MessageCircle className="w-3 h-3" /> WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {statusBadge[driver.driver_status || 'pendiente']}
@@ -271,13 +288,28 @@ export function AdminDrivers() {
                   <div>
                     <p className="font-medium text-surface-800">{selectedDriver.full_name}</p>
                     <p className="text-sm text-surface-500">{selectedDriver.email}</p>
+                    {selectedDriver.phone && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-surface-600">{selectedDriver.phone}</span>
+                        {whatsappNumber(selectedDriver.phone) && (
+                          <a
+                            href={`https://wa.me/${whatsappNumber(selectedDriver.phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {documents && (
                   <>
                     <p className="text-sm text-surface-600"><strong>Cédula:</strong> {documents.cedula_number}</p>
-                    <p className="text-sm text-surface-600"><strong>Licencia:</strong> {documents.license_number}</p>
+                    <p className="text-sm text-surface-600"><strong>Licencia:</strong> {documents.license_number || '—'}</p>
                     <p className="text-sm text-surface-600">
                       <strong>Vence:</strong> {new Date(documents.license_expiry_date).toLocaleDateString('es-VE')}
                     </p>

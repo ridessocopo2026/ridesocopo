@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Receipt, Loader2, Search, Calendar, Filter, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, HandCoins, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
@@ -65,10 +66,19 @@ export function AdminTransactions() {
   const [tipo, setTipo] = useState('')
   const [rol, setRol] = useState('')
   const [applying, setApplying] = useState(false)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const usuarioId = searchParams.get('usuario_id') || null
+  const usuarioName = searchParams.get('usuario') || ''
+
+  // Al cambiar el usuario filtrado (desde la lista de usuarios), volver a la página 1
+  useEffect(() => {
+    setPage(0)
+  }, [usuarioId])
 
   useEffect(() => {
     loadTransactions()
-  }, [page, pageSize])
+  }, [page, pageSize, usuarioId])
 
   const loadTransactions = async () => {
     setLoading(true)
@@ -79,7 +89,7 @@ export function AdminTransactions() {
         p_fecha_fin: fechaFinVE(fechaFin),
         p_tipo: tipo || null,
         p_rol: rol || null,
-        p_usuario_id: null,
+        p_usuario_id: usuarioId,
         p_limit: pageSize,
         p_offset: page * pageSize
       })
@@ -164,6 +174,22 @@ export function AdminTransactions() {
             </button>
           </div>
         </div>
+
+        {/* Filtro de usuario (desde la lista de usuarios) */}
+        {usuarioId && (
+          <div className="bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <p className="text-xs text-primary-700">
+              <Filter className="w-3 h-3 inline mr-1" />
+              Mostrando transacciones de: <strong>{usuarioName || 'usuario seleccionado'}</strong>
+            </p>
+            <button
+              onClick={() => navigate('/admin/transacciones')}
+              className="text-xs font-medium text-primary-700 hover:text-primary-900 transition-colors"
+            >
+              ✕ Quitar filtro
+            </button>
+          </div>
+        )}
 
         {/* Tabla */}
         {loading ? (

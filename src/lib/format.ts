@@ -49,3 +49,25 @@ export function fechaInicioVE(dateStr: string): string {
 export function fechaFinVE(dateStr: string): string {
   return `${dateStr}T23:59:59-04:00`
 }
+
+/** Normaliza un teléfono venezolano a dígitos internacionales para WhatsApp (wa.me).
+ *  Acepta: 0412-1234567, +58 412 1234567, 4121234567, 58412...
+ *  Devuelve solo dígitos (sin '+'): '584121234567' o null si no es válido. */
+export function whatsappNumber(phone: string | null | undefined): string | null {
+  if (!phone) return null
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return null
+
+  let number: string | null
+  if (digits.startsWith('58')) {
+    number = digits.length >= 12 ? digits : null
+  } else if (digits.startsWith('0')) {
+    number = '58' + digits.slice(1)
+  } else if (digits.length === 10 || digits.length === 11) {
+    number = '58' + digits
+  } else {
+    number = null
+  }
+
+  return number && number.length >= 11 && number.length <= 15 ? number : null
+}

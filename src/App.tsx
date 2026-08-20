@@ -26,6 +26,7 @@ import { ClientHistory } from '@/pages/cliente/ClientHistory'
 import { ClientProfile } from '@/pages/cliente/ClientProfile'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminDrivers } from '@/pages/admin/AdminDrivers'
+import { AdminUsers } from '@/pages/admin/AdminUsers'
 import { AdminZones } from '@/pages/admin/AdminZones'
 import { AdminFares } from '@/pages/admin/AdminFares'
 import { AdminExchangeRate } from '@/pages/admin/AdminExchangeRate'
@@ -266,6 +267,11 @@ export default function App() {
           <Route path="/admin/conductores" element={
             <RoleRoute role="super_admin">
               <AdminDrivers />
+            </RoleRoute>
+          } />
+          <Route path="/admin/usuarios" element={
+            <RoleRoute role="super_admin">
+              <AdminUsers />
             </RoleRoute>
           } />
           <Route path="/admin/zonas" element={
