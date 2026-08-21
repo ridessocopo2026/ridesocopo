@@ -65,6 +65,7 @@ export function AdminTransactions() {
   const [fechaFin, setFechaFin] = useState<string>(() => todayVE())
   const [tipo, setTipo] = useState('')
   const [rol, setRol] = useState('')
+  const [busqueda, setBusqueda] = useState('')
   const [applying, setApplying] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -90,6 +91,7 @@ export function AdminTransactions() {
         p_tipo: tipo || null,
         p_rol: rol || null,
         p_usuario_id: usuarioId,
+        p_busqueda: busqueda.trim() || null,
         p_limit: pageSize,
         p_offset: page * pageSize
       })
@@ -132,6 +134,17 @@ export function AdminTransactions() {
 
         {/* Filtros */}
         <div className="card p-4 space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+            <input
+              type="text"
+              className="input pl-9"
+              placeholder="Buscar por código de viaje (RS-XXXXXX), nombre, correo o referencia..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleApply() }}
+            />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="label">Desde</label>

@@ -54,6 +54,7 @@ export function AdminRides() {
   const [page, setPage] = useState(0)
   const [pageSize] = useState(25)
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
   const [applying, setApplying] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, FullDetail>>({})
@@ -71,7 +72,7 @@ export function AdminRides() {
         p_search: search || null,
         p_fecha_inicio: fechaInicioVE(daysAgoVE(90)),
         p_fecha_fin: fechaFinVE(todayVE()),
-        p_status: null,
+        p_status: status || null,
         p_limit: pageSize,
         p_offset: page * pageSize
       })
@@ -155,6 +156,20 @@ export function AdminRides() {
                 onKeyDown={(e) => e.key === 'Enter' && handleApply()}
               />
             </div>
+            <select
+              className="input w-auto"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Filtrar por estado"
+            >
+              <option value="">Todos los estados</option>
+              <option value="buscando">Buscando</option>
+              <option value="aceptada">Aceptada</option>
+              <option value="en_ruta">En ruta</option>
+              <option value="completada">Completada</option>
+              <option value="cancelada">Cancelada</option>
+              <option value="incidente">Incidente</option>
+            </select>
             <button onClick={handleApply} className="btn-primary" disabled={applying}>
               {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buscar'}
             </button>
