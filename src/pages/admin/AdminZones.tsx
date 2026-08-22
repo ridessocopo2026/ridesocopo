@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polygon, useMapEvents } from 'react-leaflet'
-import { MapPin, Plus, Save, Trash2, Loader2 } from 'lucide-react'
+import { MapPin, Plus, Save, Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -32,6 +32,9 @@ export function AdminZones() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Zone | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteBarrios, setDeleteBarrios] = useState(0)
   const { user } = useAuth()
 
   useEffect(() => {
@@ -123,16 +126,34 @@ export function AdminZones() {
     }
   }
 
-  const handleDeleteZone = async (zoneId: string) => {
-    if (!confirm('¿Seguro que deseas eliminar esta zona?')) return
+  const handleAskDelete = async (zone: Zone) => {
+    // Contar barrios de la zona para el mensaje de advertencia
+    const { count } = await supabase
+      .from('barrios')
+      .select('id', { count: 'exact', head: true })
+      .eq('zone_id', zone.id)
+    setDeleteBarrios(count || 0)
+    setDeleteTarget(zone)
+  }
 
-    const { error } = await supabase
-      .from('zones')
-      .delete()
-      .eq('id', zoneId)
-
-    if (!error) {
-      loadZones()
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setError('')
+    try {
+      const { data, error } = await supabase.rpc('delete_zone', { p_zone_id: deleteTarget.id })
+      if (error) throw error
+      const res = data as { success?: boolean; error?: string; message?: string } | null
+      if (res && res.success === false) {
+        setError(res.message || 'No se pudo eliminar la zona')
+      } else {
+        setDeleteTarget(null)
+        loadZones()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -164,14 +185,13 @@ export function AdminZones() {
                     {zone.zone_type === 'cobertura_general' ? 'Cobertura general' : `Recargo: ${zone.surcharge_usd.toFixed(2)}$`}
                   </p>
                 </button>
-                {zone.zone_type !== 'cobertura_general' && (
-                  <button
-                    onClick={() => handleDeleteZone(zone.id)}
-                    className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button
+                  onClick={() => handleAskDelete(zone)}
+                  className="p-2 text-red-400 hover:text-red-600 transition-colors"
+                  title="Eliminar zona"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
@@ -301,6 +321,31 @@ export function AdminZones() {
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated animate-slide-up">
+            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+            </div>
+            <h2 className="text-lg font-bold text-surface-800 text-center mb-1">Eliminar zona</h2>
+            <p className="text-sm text-surface-500 text-center mb-5">
+              Se eliminará la zona <strong>{deleteTarget.name}</strong>
+              {deleteBarrios > 0 ? ` y sus ${deleteBarrios} barrio(s)` : ''}.
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="btn-outline flex-1" disabled={deleting}>
+                Cancelar
+              </button>
+              <button onClick={handleConfirmDelete} className="btn-danger flex-1" disabled={deleting}>
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Eliminar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
