@@ -15,6 +15,13 @@ import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareC
 
 const SOCOPO_CENTER: [number, number] = [8.23293, -70.82228]
 
+interface CityInfo {
+  id: string
+  name: string
+  center_lat: number | null
+  center_lng: number | null
+}
+
 const userIcon = L.divIcon({
   className: 'custom-div-icon',
   html: `<div class="w-8 h-8 bg-accent-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
@@ -58,6 +65,8 @@ export function ClientHome() {
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryType | null>(null)
   const [categories, setCategories] = useState<VehicleCategory[]>([])
   const [barrios, setBarrios] = useState<Barrio[]>([])
+  const [cities, setCities] = useState<CityInfo[]>([])
+  const [selectedCityId, setSelectedCityId] = useState('')
   const [favorites, setFavorites] = useState<FavoritePlace[]>([])
   const [banners, setBanners] = useState<Banner[]>([])
   const [fare, setFare] = useState<FareCalculation | null>(null)
@@ -103,13 +112,22 @@ export function ClientHome() {
 
   useEffect(() => {
     loadCategories()
-    loadBarrios()
+    loadCities()
     loadFavorites()
     loadBanners()
     loadPaymentMethods()
     loadCoupons()
     loadExchangeRate()
   }, [])
+
+  // Al elegir ciudad: cargar sus barrios y limpiar el destino previo
+  useEffect(() => {
+    if (selectedCityId) {
+      loadBarrios(selectedCityId)
+      setDestBarrioId('')
+      setDestAddress('')
+    }
+  }, [selectedCityId])
 
   // ── Viaje en curso / confirmación pendiente: aviso en el inicio + bloqueo ──
   const needsConfirm = (r: Ride) =>
@@ -249,16 +267,44 @@ export function ClientHome() {
     }
   }
 
-  const loadBarrios = async () => {
+  const loadBarrios = async (zoneId: string) => {
     const { data, error } = await supabase
       .from('barrios')
       .select('*')
       .eq('is_active', true)
+      .eq('zone_id', zoneId)
       .order('name')
 
     if (!error && data) {
       setBarrios(data as Barrio[])
     }
+  }
+
+  const loadCities = async () => {
+    const { data, error } = await supabase.rpc('get_active_cities')
+    if (!error && data) {
+      const list = (data as CityInfo[]) || []
+      setCities(list)
+      const saved = localStorage.getItem('rider_city') || ''
+      let initial = ''
+      if (list.length === 1) {
+        initial = list[0].id
+      } else if (saved && list.some((c) => c.id === saved)) {
+        initial = saved
+      } else if (user?.zone_id && list.some((c) => c.id === user.zone_id)) {
+        initial = user.zone_id
+      }
+      if (initial) setSelectedCityId(initial)
+    }
+  }
+
+  const handleSelectCity = (id: string) => {
+    setSelectedCityId(id)
+    localStorage.setItem('rider_city', id)
+    // Al cambiar de ciudad se reinicia el origen para forzar la nueva ubicación
+    setOrigin(null)
+    setOriginAddress('')
+    setInCoverage(false)
   }
 
   const loadFavorites = async () => {
@@ -365,6 +411,13 @@ export function ClientHome() {
         const { latitude, longitude } = position.coords
         setOrigin({ lat: latitude, lng: longitude })
         setGpsLoading(false)
+
+        // Auto-detectar la ciudad del pasajero por GPS
+        const { data: city } = await supabase.rpc('find_city', { p_lat: latitude, p_lng: longitude })
+        if (city?.found && city?.id) {
+          setSelectedCityId(city.id)
+          localStorage.setItem('rider_city', city.id)
+        }
 
         const address = await reverseGeocode(latitude, longitude)
         setOriginAddress(address)
@@ -579,6 +632,13 @@ export function ClientHome() {
     camioneta: <Truck className="w-6 h-6" />
   }
 
+  const selectedCity = cities.find((c) => c.id === selectedCityId) || null
+  const cityCenter: { lat: number; lng: number } | null =
+    selectedCity && selectedCity.center_lat != null && selectedCity.center_lng != null
+      ? { lat: selectedCity.center_lat, lng: selectedCity.center_lng }
+      : null
+  const cityCenterTuple: [number, number] | null = cityCenter ? [cityCenter.lat, cityCenter.lng] : null
+
   // Devuelve el recargo del barrio según el tipo de vehículo seleccionado
   const getBarrioSurcharge = (barrio: Barrio): number => {
     if (!selectedCategory) return barrio.surcharge_usd || 0
@@ -726,6 +786,35 @@ export function ClientHome() {
       <div className="max-w-md mx-auto px-4 py-4 space-y-4">
         {error && <ErrorMessage id="home-error-banner" message={error} onDismiss={() => setError('')} />}
 
+        {/* Selector de ciudad (multi-ciudad) */}
+        {cities.length > 1 && (
+          <div className="card p-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-surface-700">Estás en:</span>
+            </div>
+            <select
+              className="input w-auto py-1.5 text-sm font-medium"
+              value={selectedCityId}
+              onChange={(e) => handleSelectCity(e.target.value)}
+              aria-label="Selecciona tu ciudad"
+            >
+              <option value="" disabled>Elige tu ciudad…</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {cities.length > 1 && !selectedCityId && (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in" role="alert">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-700">
+              Selecciona tu ciudad para ver sus destinos y poder solicitar un viaje.
+            </p>
+          </div>
+        )}
+
         {/* Activar notificaciones push (si no están activas) */}
         <PushNotificationCard />
 
@@ -868,7 +957,7 @@ export function ClientHome() {
         {/* Mapa */}
         <div className="h-48 rounded-2xl overflow-hidden shadow-card relative z-0 map-static">
           <MapContainer
-            center={origin || SOCOPO_CENTER}
+            center={origin || cityCenterTuple || SOCOPO_CENTER}
             zoom={14}
             className="h-full w-full"
             dragging={false}
@@ -879,7 +968,7 @@ export function ClientHome() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
-          <MapCenterController target={origin} />
+          <MapCenterController target={origin || cityCenter} />
           {origin && <Marker position={[origin.lat, origin.lng]} icon={userIcon} />}
           <MapClickHandler onSelect={(lat, lng) => handleSelectDestOnMap(lat, lng)} />
           </MapContainer>

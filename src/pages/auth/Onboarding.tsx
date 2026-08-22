@@ -26,6 +26,7 @@ export function Onboarding() {
       .from('zones')
       .select('*')
       .eq('is_active', true)
+      .eq('zone_type', 'cobertura_general')
       .order('name')
 
     if (!error && data) {
@@ -135,8 +136,7 @@ export function Onboarding() {
                 <option value="">Selecciona tu zona</option>
                 {zones.map((zone) => (
                   <option key={zone.id} value={zone.id}>
-                    {zone.name}
-                    {zone.zone_type === 'cobertura_general' ? ' (Toda Socopó)' : ''}
+                    {zone.name} (Toda la ciudad)
                   </option>
                 ))}
               </select>

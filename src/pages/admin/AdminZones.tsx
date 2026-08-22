@@ -26,6 +26,9 @@ export function AdminZones() {
   const [zoneName, setZoneName] = useState('')
   const [zoneDesc, setZoneDesc] = useState('')
   const [surcharge, setSurcharge] = useState('')
+  const [zoneType, setZoneType] = useState<'cobertura_general' | 'zona_especifica'>('zona_especifica')
+  const [centerLat, setCenterLat] = useState('')
+  const [centerLng, setCenterLng] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -79,7 +82,10 @@ export function AdminZones() {
         p_description: zoneDesc,
         p_surcharge_usd: parseFloat(surcharge),
         p_polygon_geojson: geojson,
-        p_zone_id: selectedZone?.id || null
+        p_zone_id: selectedZone?.id || null,
+        p_zone_type: zoneType,
+        p_center_lat: centerLat ? parseFloat(centerLat) : null,
+        p_center_lng: centerLng ? parseFloat(centerLng) : null
       })
 
       if (error) throw error
@@ -88,6 +94,9 @@ export function AdminZones() {
       setZoneName('')
       setZoneDesc('')
       setSurcharge('')
+      setZoneType('zona_especifica')
+      setCenterLat('')
+      setCenterLng('')
       setDrawingPoints([])
       setSelectedZone(null)
       loadZones()
@@ -103,6 +112,9 @@ export function AdminZones() {
     setZoneName(zone.name)
     setZoneDesc(zone.description || '')
     setSurcharge(zone.surcharge_usd.toString())
+    setZoneType(zone.zone_type)
+    setCenterLat(zone.center_lat?.toString() || '')
+    setCenterLng(zone.center_lng?.toString() || '')
 
     // Convertir polígono a puntos
     if (zone.polygon) {
@@ -206,6 +218,43 @@ export function AdminZones() {
                 value={surcharge}
                 onChange={(e) => setSurcharge(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label className="label">Tipo de zona</label>
+              <select
+                className="input"
+                value={zoneType}
+                onChange={(e) => setZoneType(e.target.value as 'cobertura_general' | 'zona_especifica')}
+              >
+                <option value="cobertura_general">Ciudad (cobertura general)</option>
+                <option value="zona_especifica">Zona específica (recargo)</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Centro latitud (opcional)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="Ej: 8.23293"
+                  step="0.00001"
+                  value={centerLat}
+                  onChange={(e) => setCenterLat(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">Centro longitud (opcional)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="Ej: -70.82228"
+                  step="0.00001"
+                  value={centerLng}
+                  onChange={(e) => setCenterLng(e.target.value)}
+                />
+              </div>
             </div>
 
             {/* Mapa para dibujar */}

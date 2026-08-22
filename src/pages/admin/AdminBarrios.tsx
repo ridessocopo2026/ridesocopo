@@ -34,6 +34,8 @@ function MapClickHandler({ onSelect }: { onSelect: (lat: number, lng: number) =>
 
 export function AdminBarrios() {
   const [barrios, setBarrios] = useState<Barrio[]>([])
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
+  const [selectedCityId, setSelectedCityId] = useState('')
   const [editing, setEditing] = useState<Barrio | null>(null)
   const [name, setName] = useState('')
   const [surcharge, setSurcharge] = useState('')
@@ -49,19 +51,36 @@ export function AdminBarrios() {
   const { user } = useAuth()
 
   useEffect(() => {
-    loadBarrios()
+    loadCities()
   }, [])
 
-  const loadBarrios = async () => {
+  // Al elegir ciudad: cargar sus barrios
+  useEffect(() => {
+    if (selectedCityId) {
+      loadBarrios(selectedCityId)
+    }
+  }, [selectedCityId])
+
+  const loadCities = async () => {
+    const { data, error } = await supabase.rpc('get_active_cities')
+    if (!error && data) {
+      const list = (data as { id: string; name: string }[]) || []
+      setCities(list)
+      if (list.length === 1) setSelectedCityId(list[0].id)
+    }
+    setLoading(false)
+  }
+
+  const loadBarrios = async (zoneId: string) => {
     const { data, error } = await supabase
       .from('barrios')
       .select('*')
+      .eq('zone_id', zoneId)
       .order('name')
 
     if (!error && data) {
       setBarrios(data as Barrio[])
     }
-    setLoading(false)
   }
 
   const resetForm = () => {
@@ -78,6 +97,7 @@ export function AdminBarrios() {
 
   const handleEdit = (barrio: Barrio) => {
     setEditing(barrio)
+    if (barrio.zone_id) setSelectedCityId(barrio.zone_id)
     setName(barrio.name)
     setSurcharge(barrio.surcharge_usd?.toString() || '0')
     setSurchargeMoto((barrio.surcharge_moto_usd ?? barrio.surcharge_usd)?.toString() || '')
@@ -92,6 +112,11 @@ export function AdminBarrios() {
     e.preventDefault()
     setError('')
 
+    if (!selectedCityId) {
+      setError('Primero selecciona la ciudad a la que pertenece el barrio')
+      return
+    }
+
     if (!name || !surcharge) {
       setError('Completa el nombre y el precio')
       return
@@ -103,6 +128,7 @@ export function AdminBarrios() {
       const { data, error } = await supabase.rpc('upsert_barrio', {
         p_name: name,
         p_surcharge_usd: parseFloat(surcharge),
+        p_zone_id: selectedCityId,
         p_surcharge_moto_usd: surchargeMoto ? parseFloat(surchargeMoto) : null,
         p_surcharge_carro_usd: surchargeCarro ? parseFloat(surchargeCarro) : null,
         p_surcharge_camioneta_usd: surchargeCamioneta ? parseFloat(surchargeCamioneta) : null,
@@ -115,7 +141,7 @@ export function AdminBarrios() {
       if (error) throw error
 
       resetForm()
-      loadBarrios()
+      loadBarrios(selectedCityId)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -129,7 +155,7 @@ export function AdminBarrios() {
     const { error } = await supabase.from('barrios').delete().eq('id', id)
 
     if (!error) {
-      loadBarrios()
+      loadBarrios(selectedCityId)
     }
   }
 
@@ -139,14 +165,33 @@ export function AdminBarrios() {
         <div className="flex items-center gap-3">
           <AppLogo />
           <div>
-            <h1 className="text-lg font-bold text-surface-800">Barrios de Socopó</h1>
-            <p className="text-xs text-surface-500">Configura los barrios y sus precios</p>
+            <h1 className="text-lg font-bold text-surface-800">Barrios</h1>
+            <p className="text-xs text-surface-500">Configura los barrios de cada ciudad</p>
           </div>
         </div>
       </div>
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+
+        {/* Selector de ciudad */}
+        <div className="card p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
+            <span className="text-sm font-medium text-surface-700">Ciudad:</span>
+          </div>
+          <select
+            className="input w-auto py-1.5 text-sm font-medium"
+            value={selectedCityId}
+            onChange={(e) => setSelectedCityId(e.target.value)}
+            aria-label="Selecciona la ciudad"
+          >
+            <option value="" disabled>Elige la ciudad…</option>
+            {cities.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
 
         <div>
           <h2 className="text-lg font-semibold text-surface-800 mb-3">Barrios existentes</h2>

@@ -29,6 +29,7 @@ export interface Profile {
 export interface Barrio {
   id: string
   name: string
+  zone_id?: string
   tipo?: 'barrio' | 'urbanizacion' | 'sector'
   surcharge_usd: number
   surcharge_moto_usd?: number
@@ -67,6 +68,8 @@ export interface Zone {
   description?: string
   zone_type: ZoneType
   surcharge_usd: number
+  center_lat?: number
+  center_lng?: number
   polygon?: any
   is_active: boolean
   created_by?: string
