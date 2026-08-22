@@ -7,6 +7,68 @@
 -- ============================================================
 
 -- ============================================================
+-- 0. GARANTIZAR QUE LA TABLA BARRIOS EXISTA (autocontenido)
+-- ------------------------------------------------------------
+-- La tabla barrios se crea en la migración 002. Si esta base no
+-- la tiene (migración parcial), se crea aquí completa con las
+-- columnas de precios por vehículo, RLS, políticas y trigger.
+-- ============================================================
+
+-- Función updated_at (idempotente)
+CREATE OR REPLACE FUNCTION public.update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Tabla barrios (completa)
+CREATE TABLE IF NOT EXISTS public.barrios (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  zone_id UUID REFERENCES public.zones(id),
+  surcharge_usd NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  surcharge_moto_usd NUMERIC(10,2) DEFAULT 0.00,
+  surcharge_carro_usd NUMERIC(10,2) DEFAULT 0.00,
+  surcharge_camioneta_usd NUMERIC(10,2) DEFAULT 0.00,
+  lat NUMERIC(10,7),
+  lng NUMERIC(10,7),
+  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Columnas de precios por si la tabla ya existía sin ellas
+ALTER TABLE public.barrios ADD COLUMN IF NOT EXISTS surcharge_moto_usd NUMERIC(10,2) DEFAULT 0.00;
+ALTER TABLE public.barrios ADD COLUMN IF NOT EXISTS surcharge_carro_usd NUMERIC(10,2) DEFAULT 0.00;
+ALTER TABLE public.barrios ADD COLUMN IF NOT EXISTS surcharge_camioneta_usd NUMERIC(10,2) DEFAULT 0.00;
+
+-- RLS y políticas (idempotente)
+ALTER TABLE public.barrios ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_view_barrios" ON public.barrios;
+CREATE POLICY "public_view_barrios" ON public.barrios
+  FOR SELECT USING (is_active = TRUE);
+
+DROP POLICY IF EXISTS "super_admin_manage_barrios" ON public.barrios;
+CREATE POLICY "super_admin_manage_barrios" ON public.barrios
+  FOR ALL USING (public.get_user_role(auth.uid()) = 'super_admin');
+
+-- Trigger updated_at (idempotente)
+DROP TRIGGER IF EXISTS update_barrios_updated_at ON public.barrios;
+CREATE TRIGGER update_barrios_updated_at BEFORE UPDATE ON public.barrios
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- Permisos básicos
+GRANT ALL ON public.barrios TO anon, authenticated, service_role;
+
+-- Columnas de barrio en rides (por si falta la migración 002)
+ALTER TABLE public.rides ADD COLUMN IF NOT EXISTS destination_barrio_id UUID REFERENCES public.barrios(id);
+ALTER TABLE public.rides ADD COLUMN IF NOT EXISTS destination_barrio_name TEXT;
+
+-- ============================================================
 -- 1. MODELO DE DATOS
 -- ============================================================
 
