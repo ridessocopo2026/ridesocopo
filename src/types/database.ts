@@ -70,6 +70,7 @@ export interface Zone {
   surcharge_usd: number
   center_lat?: number
   center_lng?: number
+  support_whatsapp?: string
   polygon?: any
   is_active: boolean
   created_by?: string

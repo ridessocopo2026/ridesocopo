@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polygon, useMapEvents } from 'react-leaflet'
-import { MapPin, Plus, Save, Trash2, Loader2, AlertTriangle } from 'lucide-react'
+import { MapPin, Plus, Save, Trash2, Loader2, AlertTriangle, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -29,6 +29,7 @@ export function AdminZones() {
   const [zoneType, setZoneType] = useState<'cobertura_general' | 'zona_especifica'>('zona_especifica')
   const [centerLat, setCenterLat] = useState('')
   const [centerLng, setCenterLng] = useState('')
+  const [supportPhone, setSupportPhone] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -93,6 +94,10 @@ export function AdminZones() {
 
       if (error) throw error
 
+      // Guardar número de soporte de la zona (la app lo usa en el perfil de los usuarios)
+      const { error: supErr } = await supabase.rpc('set_zone_support', { p_zone_id: data, p_phone: supportPhone })
+      if (supErr) console.error('Error guardando soporte:', supErr.message)
+
       // Reset
       setZoneName('')
       setZoneDesc('')
@@ -100,6 +105,7 @@ export function AdminZones() {
       setZoneType('zona_especifica')
       setCenterLat('')
       setCenterLng('')
+      setSupportPhone('')
       setDrawingPoints([])
       setSelectedZone(null)
       loadZones()
@@ -118,6 +124,7 @@ export function AdminZones() {
     setZoneType(zone.zone_type)
     setCenterLat(zone.center_lat?.toString() || '')
     setCenterLng(zone.center_lng?.toString() || '')
+    setSupportPhone(zone.support_whatsapp || '')
 
     // Convertir polígono a puntos
     if (zone.polygon) {
@@ -184,6 +191,9 @@ export function AdminZones() {
                   <p className="text-xs text-surface-400">
                     {zone.zone_type === 'cobertura_general' ? 'Cobertura general' : `Recargo: ${zone.surcharge_usd.toFixed(2)}$`}
                   </p>
+                  {zone.support_whatsapp && (
+                    <span className="badge-success mt-1"><MessageCircle className="w-3 h-3 inline mr-1" />Soporte</span>
+                  )}
                 </button>
                 <button
                   onClick={() => handleAskDelete(zone)}
@@ -275,6 +285,20 @@ export function AdminZones() {
                   onChange={(e) => setCenterLng(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="label">WhatsApp de soporte (opcional)</label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="0412-1234567"
+                value={supportPhone}
+                onChange={(e) => setSupportPhone(e.target.value)}
+              />
+              <p className="text-[10px] text-surface-400 mt-1">
+                Los usuarios de esta zona verán este número en su perfil (botón "Soporte").
+              </p>
             </div>
 
             {/* Mapa para dibujar */}

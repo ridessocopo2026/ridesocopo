@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, LogOut, Star, MapPin, ChevronRight } from 'lucide-react'
+import { User, LogOut, Star, MapPin, ChevronRight, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
@@ -11,6 +12,13 @@ export function ClientProfile() {
   const navigate = useNavigate()
   const [showFavorites, setShowFavorites] = useState(false)
   const [favorites, setFavorites] = useState<any[]>([])
+  const [supportPhone, setSupportPhone] = useState('')
+
+  useEffect(() => {
+    supabase.rpc('get_my_support').then((res: any) => {
+      if (res.data && res.data.phone) setSupportPhone(res.data.phone)
+    })
+  }, [])
 
   const loadFavorites = async () => {
     if (!user) return
@@ -96,6 +104,24 @@ export function ClientProfile() {
             </div>
           )}
         </div>
+
+        {/* Soporte por WhatsApp */}
+        {supportPhone && whatsappNumber(supportPhone) && (
+          <a
+            href={`https://wa.me/${whatsappNumber(supportPhone)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="card flex items-center gap-3 p-4 hover:border-emerald-300 transition-colors"
+          >
+            <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-surface-700">Soporte</p>
+              <p className="text-xs text-surface-400">Escríbenos por WhatsApp</p>
+            </div>
+          </a>
+        )}
 
         {/* Cerrar sesión */}
         <button onClick={handleSignOut} className="btn-danger w-full">

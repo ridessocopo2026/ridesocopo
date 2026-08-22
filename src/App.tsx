@@ -43,6 +43,8 @@ import { AdminMetrics } from '@/pages/admin/AdminMetrics'
 import { AdminTransactions } from '@/pages/admin/AdminTransactions'
 import { AdminRides } from '@/pages/admin/AdminRides'
 import { AdminLegal } from '@/pages/admin/AdminLegal'
+import { EncargadoDashboard } from '@/pages/encargado/EncargadoDashboard'
+import { EncargadoProfile } from '@/pages/encargado/EncargadoProfile'
 import { LegalPage } from '@/pages/LegalPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -68,12 +70,13 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function RoleRoute({ role, children }: { role: string; children: React.ReactNode }) {
+function RoleRoute({ role, children }: { role: string | string[]; children: React.ReactNode }) {
   const { user } = useAuth()
 
   if (!user) return <Navigate to="/welcome" replace />
 
-  if (user.role !== role) {
+  const allowed = Array.isArray(role) ? role : [role]
+  if (!allowed.includes(user.role)) {
     return <Navigate to="/" replace />
   }
 
@@ -352,6 +355,48 @@ export default function App() {
           <Route path="/admin/legal" element={
             <RoleRoute role="super_admin">
               <AdminLegal />
+            </RoleRoute>
+          } />
+
+          {/* Encargado por ciudad */}
+          <Route path="/encargado" element={
+            <RoleRoute role="encargado">
+              <EncargadoDashboard />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/comprobantes" element={
+            <RoleRoute role="encargado">
+              <AdminProofs />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/recargas" element={
+            <RoleRoute role="encargado">
+              <AdminProofs />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/incidentes" element={
+            <RoleRoute role="encargado">
+              <AdminIncidents />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/conductores" element={
+            <RoleRoute role="encargado">
+              <AdminDrivers />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/usuarios" element={
+            <RoleRoute role="encargado">
+              <AdminUsers />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/transacciones" element={
+            <RoleRoute role="encargado">
+              <AdminTransactions />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/perfil" element={
+            <RoleRoute role="encargado">
+              <EncargadoProfile />
             </RoleRoute>
           } />
 

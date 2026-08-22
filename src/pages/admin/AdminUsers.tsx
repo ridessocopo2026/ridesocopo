@@ -56,8 +56,17 @@ export function AdminUsers() {
   const [appliedSearch, setAppliedSearch] = useState('')
   const [appliedRole, setAppliedRole] = useState('')
   const [appliedStatus, setAppliedStatus] = useState('')
+  const [roleTarget, setRoleTarget] = useState<AdminUserItem | null>(null)
+  const [roleZone, setRoleZone] = useState('')
+  const [roleSaving, setRoleSaving] = useState(false)
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
 
   const navigate = useNavigate()
+
+  const loadCities = async () => {
+    const { data } = await supabase.rpc('get_active_cities')
+    if (data) setCities(data as { id: string; name: string }[])
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,7 +92,44 @@ export function AdminUsers() {
 
   useEffect(() => {
     load()
+    loadCities()
   }, [load])
+
+  const confirmRole = async () => {
+    if (!roleTarget || !roleZone) return
+    setRoleSaving(true)
+    setError('')
+    try {
+      const { error } = await supabase.rpc('set_user_role', {
+        p_user_id: roleTarget.id,
+        p_role: 'encargado',
+        p_zone_id: roleZone
+      })
+      if (error) throw error
+      setRoleTarget(null)
+      load()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRoleSaving(false)
+    }
+  }
+
+  const handleRemoveEncargado = async (u: AdminUserItem) => {
+    if (!confirm(`¿Quitar a ${u.full_name} como encargado? Volverá a ser cliente.`)) return
+    setError('')
+    try {
+      const { error } = await supabase.rpc('set_user_role', {
+        p_user_id: u.id,
+        p_role: 'cliente',
+        p_zone_id: null
+      })
+      if (error) throw error
+      load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
 
   const handleApply = () => {
     setPage(0)
@@ -236,6 +282,23 @@ export function AdminUsers() {
                           {new Date(u.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3 text-right">
+                          {u.role === 'encargado' ? (
+                            <button
+                              onClick={() => handleRemoveEncargado(u)}
+                              className="btn-outline text-xs px-3 py-1.5 text-red-600 border-red-200"
+                              title="Quitar encargado"
+                            >
+                              Quitar encargado
+                            </button>
+                          ) : u.role === 'super_admin' ? null : (
+                            <button
+                              onClick={() => { setRoleTarget(u); setRoleZone('') }}
+                              className="btn-outline text-xs px-3 py-1.5"
+                              title="Hacer encargado"
+                            >
+                              Encargado
+                            </button>
+                          )}
                           <button
                             onClick={() => navigate(`/admin/transacciones?usuario_id=${u.id}&usuario=${encodeURIComponent(u.full_name || '')}`)}
                             className="btn-outline text-xs px-3 py-1.5"
@@ -274,6 +337,33 @@ export function AdminUsers() {
           </div>
         )}
       </div>
+
+      {/* Modal: hacer encargado */}
+      {roleTarget && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated animate-slide-up">
+            <h2 className="text-lg font-bold text-surface-800 text-center mb-1">Hacer encargado</h2>
+            <p className="text-sm text-surface-500 text-center mb-4">
+              {roleTarget.full_name} gestionará la ciudad que elijas (pagos, incidentes, conductores, usuarios).
+            </p>
+            <label className="label">Ciudad</label>
+            <select className="input mb-4" value={roleZone} onChange={(e) => setRoleZone(e.target.value)}>
+              <option value="">Selecciona la ciudad…</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button onClick={() => setRoleTarget(null)} className="btn-outline flex-1" disabled={roleSaving}>
+                Cancelar
+              </button>
+              <button onClick={confirmRole} className="btn-primary flex-1" disabled={roleSaving || !roleZone}>
+                {roleSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

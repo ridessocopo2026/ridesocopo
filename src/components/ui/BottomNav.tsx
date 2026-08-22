@@ -32,9 +32,9 @@ export function BottomNav({ role }: BottomNavProps) {
   } else if (role === 'encargado') {
     items.push(
       { to: '/encargado', label: 'Panel', icon: <Home className="nav-icon" /> },
-      { to: '/encargado/conductores', label: 'Conductores', icon: <User className="nav-icon" /> },
-      { to: '/encargado/recargas', label: 'Recargas', icon: <Wallet className="nav-icon" /> },
-      { to: '/encargado/perfil', label: 'Perfil', icon: <Settings className="nav-icon" /> }
+      { to: '/encargado/comprobantes', label: 'Pagos', icon: <Wallet className="nav-icon" /> },
+      { to: '/encargado/incidentes', label: 'Incidentes', icon: <Settings className="nav-icon" /> },
+      { to: '/encargado/perfil', label: 'Perfil', icon: <User className="nav-icon" /> }
     )
   } else if (role === 'super_admin') {
     items.push(
