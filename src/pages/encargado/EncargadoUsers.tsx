@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Search, Loader2, MessageCircle, Receipt, Filter } from 'lucide-react'
+import { Users, Search, Loader2, MessageCircle, Receipt, Filter, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, whatsappNumber } from '@/lib/format'
@@ -9,12 +9,12 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { AppLogo } from '@/components/ui/AppLogo'
 
-interface AdminUserItem {
+interface UserItem {
   id: string
   full_name: string
   email: string
   phone: string | null
-  role: 'cliente' | 'conductor' | 'encargado' | 'super_admin'
+  role: 'cliente' | 'conductor'
   driver_status: string | null
   is_online: boolean
   onboarding_completed: boolean
@@ -22,16 +22,14 @@ interface AdminUserItem {
   balance_usd: number
 }
 
-interface AdminUsersResponse {
+interface UsersResponse {
   total: number
-  items: AdminUserItem[]
+  items: UserItem[]
 }
 
 const rolBadges: Record<string, { label: string; cls: string }> = {
   cliente: { label: 'Pasajero', cls: 'badge-success' },
-  conductor: { label: 'Conductor', cls: 'badge-warning' },
-  super_admin: { label: 'Admin', cls: 'badge-danger' },
-  encargado: { label: 'Encargado', cls: 'badge-info' }
+  conductor: { label: 'Conductor', cls: 'badge-warning' }
 }
 
 const statusBadges: Record<string, { label: string; cls: string }> = {
@@ -41,36 +39,28 @@ const statusBadges: Record<string, { label: string; cls: string }> = {
   suspendido: { label: 'Suspendido', cls: 'badge-danger' }
 }
 
-export function AdminUsers() {
-  const [items, setItems] = useState<AdminUserItem[]>([])
+/**
+ * Página de usuarios del ENCARGADO (solo lectura):
+ * ve únicamente pasajeros y conductores de SU ciudad.
+ * No hay botones para cambiar roles (eso es solo del super_admin).
+ */
+export function EncargadoUsers() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [items, setItems] = useState<UserItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [page, setPage] = useState(0)
   const [pageSize] = useState(25)
+  const [zoneName, setZoneName] = useState('')
 
   // Filtros del formulario (se aplican al pulsar "Buscar")
   const [searchInput, setSearchInput] = useState('')
   const [roleInput, setRoleInput] = useState('')
-  const [statusInput, setStatusInput] = useState('')
   // Filtros aplicados (los que usa la consulta)
   const [appliedSearch, setAppliedSearch] = useState('')
   const [appliedRole, setAppliedRole] = useState('')
-  const [appliedStatus, setAppliedStatus] = useState('')
-  const [roleTarget, setRoleTarget] = useState<AdminUserItem | null>(null)
-  const [roleZone, setRoleZone] = useState('')
-  const [roleSaving, setRoleSaving] = useState(false)
-  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
-
-  const navigate = useNavigate()
-
-  // Solo el super_admin puede cambiar roles (defensa en profundidad)
-  const { user } = useAuth()
-
-  const loadCities = async () => {
-    const { data } = await supabase.rpc('get_active_cities')
-    if (data) setCities(data as { id: string; name: string }[])
-  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,12 +69,12 @@ export function AdminUsers() {
       const { data, error } = await supabase.rpc('get_admin_users', {
         p_search: appliedSearch.trim() || null,
         p_role: appliedRole || null,
-        p_driver_status: appliedStatus || null,
+        p_driver_status: null,
         p_limit: pageSize,
         p_offset: page * pageSize
       })
       if (error) throw error
-      const res = data as AdminUsersResponse
+      const res = data as UsersResponse
       setItems(res.items || [])
       setTotal(res.total || 0)
     } catch (err: any) {
@@ -92,76 +82,45 @@ export function AdminUsers() {
     } finally {
       setLoading(false)
     }
-  }, [appliedSearch, appliedRole, appliedStatus, page, pageSize])
+  }, [appliedSearch, appliedRole, page, pageSize])
 
   useEffect(() => {
     load()
-    loadCities()
-  }, [load])
-
-  const confirmRole = async () => {
-    if (!roleTarget || !roleZone) return
-    setRoleSaving(true)
-    setError('')
-    try {
-      const { error } = await supabase.rpc('set_user_role', {
-        p_user_id: roleTarget.id,
-        p_role: 'encargado',
-        p_zone_id: roleZone
-      })
-      if (error) throw error
-      setRoleTarget(null)
-      load()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setRoleSaving(false)
+    if (user?.zone_id) {
+      supabase
+        .from('zones')
+        .select('name')
+        .eq('id', user.zone_id)
+        .single()
+        .then(({ data }) => { if (data) setZoneName(data.name) })
     }
-  }
-
-  const handleRemoveEncargado = async (u: AdminUserItem) => {
-    if (!confirm(`¿Quitar a ${u.full_name} como encargado? Volverá a ser cliente.`)) return
-    setError('')
-    try {
-      const { error } = await supabase.rpc('set_user_role', {
-        p_user_id: u.id,
-        p_role: 'cliente',
-        p_zone_id: null
-      })
-      if (error) throw error
-      load()
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }
+  }, [load, user?.zone_id])
 
   const handleApply = () => {
     setPage(0)
     setAppliedSearch(searchInput)
     setAppliedRole(roleInput)
-    setAppliedStatus(statusInput)
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
-      <div className="bg-white border-b border-surface-100 px-6 py-4">
+      <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-            <Users className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo variant="dark" />
           <div>
-            <h1 className="text-lg font-bold text-surface-800">Usuarios</h1>
-            <p className="text-xs text-surface-500">Todos los pasajeros y conductores de la plataforma</p>
+            <h1 className="text-lg font-bold text-white">Usuarios</h1>
+            <p className="text-xs text-white/80 flex items-center gap-1">
+              <MapPin className="w-3 h-3" /> {zoneName || 'Tu ciudad'}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-4xl mx-auto px-4 py-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-        {/* Filtros */}
         <div className="card p-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="md:col-span-2">
@@ -184,32 +143,20 @@ export function AdminUsers() {
                 <option value="">Todos</option>
                 <option value="cliente">Pasajeros</option>
                 <option value="conductor">Conductores</option>
-                <option value="admin">Admins</option>
               </select>
             </div>
-            <div>
-              <label className="label">Estado conductor</label>
-              <select className="input" value={statusInput} onChange={(e) => setStatusInput(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="aprobado">Aprobado</option>
-                <option value="rechazado">Rechazado</option>
-                <option value="suspendido">Suspendido</option>
-              </select>
+            <div className="flex items-end justify-between">
+              <p className="text-xs text-surface-400">
+                <Filter className="w-3 h-3 inline mr-1" />
+                {total} usuarios
+              </p>
+              <button onClick={handleApply} className="btn-primary text-sm px-4 py-2" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4" /> Buscar</>}
+              </button>
             </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-surface-400">
-              <Filter className="w-3 h-3 inline mr-1" />
-              {total} usuarios encontrados
-            </p>
-            <button onClick={handleApply} className="btn-primary text-sm px-4 py-2" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4" /> Buscar</>}
-            </button>
           </div>
         </div>
 
-        {/* Tabla */}
         {loading ? (
           <SkeletonList count={5} />
         ) : items.length === 0 ? (
@@ -229,7 +176,6 @@ export function AdminUsers() {
                     <th className="px-4 py-3">Rol</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3">Saldo</th>
-                    <th className="px-4 py-3">Registro</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -251,6 +197,8 @@ export function AdminUsers() {
                             </div>
                           </div>
                         </td>
+
+
                         <td className="px-4 py-3">
                           {u.phone ? (
                             <div className="flex items-center gap-2">
@@ -282,31 +230,9 @@ export function AdminUsers() {
                             {fmt(u.balance_usd)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-surface-500">
-                          {new Date(u.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </td>
                         <td className="px-4 py-3 text-right">
-                          {user?.role === 'super_admin' && (
-                            u.role === 'encargado' ? (
-                              <button
-                                onClick={() => handleRemoveEncargado(u)}
-                                className="btn-outline text-xs px-3 py-1.5 text-red-600 border-red-200"
-                                title="Quitar encargado"
-                              >
-                                Quitar encargado
-                              </button>
-                            ) : u.role === 'super_admin' ? null : (
-                              <button
-                                onClick={() => { setRoleTarget(u); setRoleZone('') }}
-                                className="btn-outline text-xs px-3 py-1.5"
-                                title="Hacer encargado"
-                              >
-                                Encargado
-                              </button>
-                            )
-                          )}
                           <button
-                            onClick={() => navigate(`/admin/transacciones?usuario_id=${u.id}&usuario=${encodeURIComponent(u.full_name || '')}`)}
+                            onClick={() => navigate(`/encargado/transacciones?usuario_id=${u.id}&usuario=${encodeURIComponent(u.full_name || '')}`)}
                             className="btn-outline text-xs px-3 py-1.5"
                             title="Ver transacciones"
                           >
@@ -320,7 +246,6 @@ export function AdminUsers() {
               </table>
             </div>
 
-            {/* Paginación */}
             <div className="flex items-center justify-between px-4 py-3 border-t border-surface-100">
               <button
                 className="btn-outline text-xs px-3 py-1.5"
@@ -343,33 +268,7 @@ export function AdminUsers() {
           </div>
         )}
       </div>
-
-      {/* Modal: hacer encargado */}
-      {roleTarget && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated animate-slide-up">
-            <h2 className="text-lg font-bold text-surface-800 text-center mb-1">Hacer encargado</h2>
-            <p className="text-sm text-surface-500 text-center mb-4">
-              {roleTarget.full_name} gestionará la ciudad que elijas (pagos, incidentes, conductores, usuarios).
-            </p>
-            <label className="label">Ciudad</label>
-            <select className="input mb-4" value={roleZone} onChange={(e) => setRoleZone(e.target.value)}>
-              <option value="">Selecciona la ciudad…</option>
-              {cities.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <button onClick={() => setRoleTarget(null)} className="btn-outline flex-1" disabled={roleSaving}>
-                Cancelar
-              </button>
-              <button onClick={confirmRole} className="btn-primary flex-1" disabled={roleSaving || !roleZone}>
-                {roleSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
+

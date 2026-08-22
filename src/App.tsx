@@ -43,8 +43,10 @@ import { AdminMetrics } from '@/pages/admin/AdminMetrics'
 import { AdminTransactions } from '@/pages/admin/AdminTransactions'
 import { AdminRides } from '@/pages/admin/AdminRides'
 import { AdminLegal } from '@/pages/admin/AdminLegal'
+import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs'
 import { EncargadoDashboard } from '@/pages/encargado/EncargadoDashboard'
 import { EncargadoProfile } from '@/pages/encargado/EncargadoProfile'
+import { EncargadoUsers } from '@/pages/encargado/EncargadoUsers'
 import { LegalPage } from '@/pages/LegalPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -342,6 +344,11 @@ export default function App() {
               <AdminMetrics />
             </RoleRoute>
           } />
+          <Route path="/admin/auditoria" element={
+            <RoleRoute role="super_admin">
+              <AdminAuditLogs />
+            </RoleRoute>
+          } />
           <Route path="/admin/transacciones" element={
             <RoleRoute role="super_admin">
               <AdminTransactions />
@@ -386,7 +393,7 @@ export default function App() {
           } />
           <Route path="/encargado/usuarios" element={
             <RoleRoute role="encargado">
-              <AdminUsers />
+              <EncargadoUsers />
             </RoleRoute>
           } />
           <Route path="/encargado/transacciones" element={
