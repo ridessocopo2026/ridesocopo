@@ -44,6 +44,12 @@ export function Onboarding() {
       return
     }
 
+    if (!selectedZone) {
+      setError('Debes seleccionar tu zona para continuar')
+      setLoading(false)
+      return
+    }
+
     // IMPORTANTE: no actualizar role directamente: la política RLS de
     // profiles (users_update_own_profile) prohíbe cambiar role/driver_status.
     // La transición de rol se hace vía RPC SECURITY DEFINER (segura).
@@ -124,6 +130,7 @@ export function Onboarding() {
                 className="input pl-10 appearance-none"
                 value={selectedZone}
                 onChange={(e) => setSelectedZone(e.target.value)}
+                required
               >
                 <option value="">Selecciona tu zona</option>
                 {zones.map((zone) => (
@@ -136,7 +143,7 @@ export function Onboarding() {
             </div>
           </div>
 
-          <button type="submit" className="btn-primary w-full" disabled={loading}>
+          <button type="submit" className="btn-primary w-full" disabled={loading || !selectedZone}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continuar'}
           </button>
         </form>
