@@ -787,7 +787,7 @@ export function ClientHome() {
         {error && <ErrorMessage id="home-error-banner" message={error} onDismiss={() => setError('')} />}
 
         {/* Selector de ciudad (multi-ciudad) */}
-        {cities.length > 1 && (
+        {cities.length > 1 && (!user || !selectedCityId) && (
           <div className="card p-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
@@ -806,12 +806,29 @@ export function ClientHome() {
             </select>
           </div>
         )}
-        {cities.length > 1 && !selectedCityId && (
-          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in" role="alert">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-700">
-              Selecciona tu ciudad para ver sus destinos y poder solicitar un viaje.
-            </p>
+        {/* Modal de selección de ciudad (solo invitados sin zona elegida aún) */}
+        {cities.length > 1 && !user && !selectedCityId && (
+          <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated animate-slide-up">
+              <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <MapPin className="w-6 h-6 text-primary-600" />
+              </div>
+              <h2 className="text-lg font-bold text-surface-800 text-center mb-1">¿En qué ciudad estás?</h2>
+              <p className="text-sm text-surface-500 text-center mb-5">
+                Elige tu ciudad para ver sus destinos y poder solicitar un viaje.
+              </p>
+              <div className="space-y-2">
+                {cities.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSelectCity(c.id)}
+                    className="w-full p-3 rounded-xl border-2 border-surface-200 bg-white text-left hover:border-primary-400 hover:bg-primary-50 transition-all"
+                  >
+                    <span className="font-medium text-surface-700">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
