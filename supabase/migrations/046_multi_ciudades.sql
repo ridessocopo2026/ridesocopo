@@ -631,6 +631,7 @@ GRANT EXECUTE ON FUNCTION public.get_nearest_barrio TO anon, authenticated, serv
 -- 8. UPSERT_BARRIO: cada barrio pertenece a una ciudad
 -- ============================================================
 DROP FUNCTION IF EXISTS public.upsert_barrio(text, numeric, numeric, numeric, text, uuid, numeric, numeric, numeric);
+DROP FUNCTION IF EXISTS public.upsert_barrio(text, numeric, numeric, numeric, text, uuid);
 
 CREATE OR REPLACE FUNCTION public.upsert_barrio(
   p_name TEXT,
