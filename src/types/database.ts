@@ -271,6 +271,9 @@ export interface Coupon {
   used_count: number
   valid_from?: string
   valid_until?: string
+  per_user_limit?: number
+  first_ride_only?: boolean
+  min_fare_usd?: number
   is_active: boolean
   created_by?: string
   created_at: string

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Ticket, Plus, Trash2, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -16,6 +17,11 @@ export function AdminCoupons() {
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage')
   const [discountValue, setDiscountValue] = useState('')
   const [maxUses, setMaxUses] = useState('')
+  const [perUserLimit, setPerUserLimit] = useState('1')
+  const [firstRideOnly, setFirstRideOnly] = useState(false)
+  const [minFare, setMinFare] = useState('')
+  const [validFrom, setValidFrom] = useState('')
+  const [validUntil, setValidUntil] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -55,8 +61,11 @@ export function AdminCoupons() {
         p_discount_type: discountType,
         p_discount_value: parseFloat(discountValue),
         p_max_uses: maxUses ? parseInt(maxUses) : null,
-        p_valid_from: null,
-        p_valid_until: null
+        p_valid_from: validFrom ? new Date(validFrom).toISOString() : null,
+        p_valid_until: validUntil ? new Date(validUntil).toISOString() : null,
+        p_per_user_limit: perUserLimit ? parseInt(perUserLimit) : 1,
+        p_first_ride_only: firstRideOnly,
+        p_min_fare_usd: minFare ? parseFloat(minFare) : 0
       })
 
       if (error) throw error
@@ -65,6 +74,11 @@ export function AdminCoupons() {
       setDescription('')
       setDiscountValue('')
       setMaxUses('')
+      setPerUserLimit('1')
+      setFirstRideOnly(false)
+      setMinFare('')
+      setValidFrom('')
+      setValidUntil('')
       setShowForm(false)
       loadCoupons()
     } catch (err: any) {
@@ -204,6 +218,63 @@ export function AdminCoupons() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Usos por usuario</label>
+                <input
+                  type="number"
+                  className="input"
+                  min="1"
+                  placeholder="1"
+                  value={perUserLimit}
+                  onChange={(e) => setPerUserLimit(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">Monto mínimo del viaje ($)</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00 (sin mínimo)"
+                  value={minFare}
+                  onChange={(e) => setMinFare(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-5 h-5 accent-primary-600"
+                checked={firstRideOnly}
+                onChange={(e) => setFirstRideOnly(e.target.checked)}
+              />
+              <span className="text-sm font-medium text-surface-700">Solo aplica en el primer viaje</span>
+            </label>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Válido desde</label>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={validFrom}
+                  onChange={(e) => setValidFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">Válido hasta</label>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                />
+              </div>
+            </div>
+
             <button type="submit" className="btn-primary w-full" disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear cupón'}
             </button>
@@ -231,12 +302,21 @@ export function AdminCoupons() {
                           ? `${coupon.discount_value}%`
                           : `${coupon.discount_value.toFixed(2)}$`}
                       </span>
+                      {coupon.first_ride_only && (
+                        <span className="badge badge-warning">Primer viaje</span>
+                      )}
+                      {coupon.per_user_limit != null && coupon.per_user_limit > 0 && (
+                        <span className="badge badge-info">{coupon.per_user_limit}× por usuario</span>
+                      )}
                     </div>
                     {coupon.description && (
                       <p className="text-sm text-surface-500 mt-1">{coupon.description}</p>
                     )}
                     <p className="text-xs text-surface-400 mt-1">
                       Usados: {coupon.used_count}{coupon.max_uses ? ` / ${coupon.max_uses}` : ''}
+                      {coupon.min_fare_usd && coupon.min_fare_usd > 0 ? ` • Mín. ${fmt(coupon.min_fare_usd)}` : ''}
+                      {coupon.valid_from ? ` • Desde ${new Date(coupon.valid_from).toLocaleDateString('es-VE')}` : ''}
+                      {coupon.valid_until ? ` • Hasta ${new Date(coupon.valid_until).toLocaleDateString('es-VE')}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

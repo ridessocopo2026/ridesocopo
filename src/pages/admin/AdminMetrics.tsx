@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp, Ticket } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -75,16 +75,26 @@ export function AdminMetrics() {
   const [clienteId, setClienteId] = useState('')
   const [metodo, setMetodo] = useState('')
   const [applying, setApplying] = useState(false)
+  const [couponStats, setCouponStats] = useState<{ total_discount_usd: number; redemptions: number } | null>(null)
 
   useEffect(() => {
     loadProfiles()
     loadMetrics()
     loadWalletOverview()
+    loadCouponStats()
   }, [])
 
   const loadWalletOverview = async () => {
     const { data } = await supabase.rpc('get_wallet_overview')
     if (data) setWalletOverview(data as WalletOverview)
+  }
+
+  const loadCouponStats = async () => {
+    const { data } = await supabase.rpc('get_coupon_stats', {
+      p_fecha_inicio: fechaInicioVE(fechaInicio),
+      p_fecha_fin: fechaFinVE(fechaFin)
+    })
+    if (data) setCouponStats(data as { total_discount_usd: number; redemptions: number })
   }
 
   const loadProfiles = async () => {
@@ -126,6 +136,7 @@ export function AdminMetrics() {
   const handleApply = async () => {
     setApplying(true)
     await loadMetrics()
+    await loadCouponStats()
     setApplying(false)
   }
 
@@ -319,6 +330,19 @@ export function AdminMetrics() {
                 <p className="text-[10px] text-amber-600">Ya cobrado por ellos, NO de la app</p>
               </div>
             </div>
+
+            {/* Descuentos por cupones (costo de promos que cubre la app) */}
+            {couponStats && (
+              <div className="card p-4 bg-purple-50 border-purple-200">
+                <p className="text-xs text-purple-700 flex items-center gap-1 font-semibold">
+                  <Ticket className="w-4 h-4" /> Descuentos por cupones (los cubre la app)
+                </p>
+                <p className="text-2xl font-bold text-purple-700 mt-1">−{fmt(couponStats.total_discount_usd)}</p>
+                <p className="text-[10px] text-purple-600">
+                  {couponStats.redemptions} canjes en el período
+                </p>
+              </div>
+            )}
 
             {/* Tarjetas operativas */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
