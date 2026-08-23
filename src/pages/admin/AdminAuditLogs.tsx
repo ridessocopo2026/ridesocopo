@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ScrollText, Loader2, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -51,6 +52,129 @@ const sensitiveActions = new Set([
   'PROMOTE_SUPER_ADMIN',
   'SEND_BROADCAST'
 ])
+
+// ============================================================
+// Detalles legibles (en vez de JSON crudo)
+// ============================================================
+const LABELS: Record<string, string> = {
+  fare: 'Tarifa',
+  final_fare: 'Tarifa final',
+  commission: 'Comisión',
+  app_credit: 'Crédito app',
+  cash_received: 'Efectivo recibido',
+  payment_method: 'Método de pago',
+  fee: 'Cargo',
+  at_fault: 'Culpable',
+  compensation: 'Compensación',
+  refunded_commission: 'Comisión devuelta',
+  reimbursement_status: 'Estado de reembolso',
+  approved: 'Aprobado',
+  reason: 'Motivo',
+  count: 'Destinatarios',
+  target: 'Destino',
+  title: 'Título',
+  both_confirmed: 'Ambos confirmaron',
+  proof_required: 'Requiere comprobante',
+  wallet_debited: 'Se debitó la billetera',
+  driver_id: 'Conductor',
+  client_id: 'Cliente',
+  user_id: 'Usuario',
+  ride_id: 'Viaje',
+  incident_id: 'Incidente',
+  zone_id: 'Ciudad',
+  status: 'Estado',
+  proof_status: 'Estado del comprobante',
+  dispute: 'Disputa',
+  type: 'Tipo',
+  from_role: 'Rol anterior',
+  from_zone: 'Ciudad anterior',
+  to_role: 'Rol nuevo',
+  to_zone: 'Ciudad nueva',
+  from_phone: 'Teléfono anterior',
+  to_phone: 'Teléfono nuevo',
+  amount_usd: 'Monto',
+  penalty: 'Penalización',
+  refund_client: 'Reembolso al cliente',
+  compensate_driver: 'Compensación al conductor',
+  cancelled: 'Viaje cancelado',
+  notifications: 'Notificaciones',
+  outbox: 'Cola de push',
+  audit_logs: 'Auditoría',
+  proofs: 'Comprobantes',
+  entity_id: 'Entidad'
+}
+
+const MONEY_KEYS = new Set([
+  'fare', 'final_fare', 'commission', 'app_credit', 'cash_received',
+  'fee', 'compensation', 'penalty', 'refund_client', 'compensate_driver', 'amount_usd'
+])
+
+const ID_KEYS = new Set(['driver_id', 'client_id', 'user_id', 'ride_id', 'incident_id', 'zone_id', 'entity_id'])
+
+const ENUMS: Record<string, Record<string, string>> = {
+  payment_method: { billetera: 'Billetera', efectivo: 'Efectivo', pago_movil: 'Pago Móvil', zelle: 'Zelle' },
+  at_fault: { cliente: 'Cliente', conductor: 'Conductor', plataforma: 'Plataforma', ninguno: 'Ninguno' },
+  reimbursement_status: { auto_completado: 'Auto completado', pendiente_manual: 'Pendiente manual', no_aplica: 'No aplica' },
+  status: {
+    buscando: 'Buscando', aceptada: 'Aceptada', en_ruta: 'En ruta',
+    completada: 'Completada', cancelada: 'Cancelada', incidente: 'Incidente',
+    resuelto: 'Resuelto', pendiente: 'Pendiente', aprobado: 'Aprobado',
+    rechazado: 'Rechazado', completado: 'Completado'
+  },
+  proof_status: { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado' },
+  role: { cliente: 'Pasajero', conductor: 'Conductor', encargado: 'Encargado', super_admin: 'Admin' }
+}
+
+function formatValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No'
+  if (typeof value === 'number') {
+    if (MONEY_KEYS.has(key)) return fmt(value)
+    return String(value)
+  }
+  if (typeof value === 'string') {
+    if (ID_KEYS.has(key) && /^[0-9a-f]{8}-/i.test(value)) return value.slice(0, 8)
+    const enumMap = ENUMS[key]
+    if (enumMap && enumMap[value]) return enumMap[value]
+    return value
+  }
+  return JSON.stringify(value)
+}
+
+function DetailPanel({ details }: { details: Record<string, unknown> | null }) {
+  const [showRaw, setShowRaw] = useState(false)
+  const entries = Object.entries(details ?? {})
+  if (entries.length === 0) {
+    return <p className="mt-2 text-[10px] text-surface-400">Sin detalles</p>
+  }
+  return (
+    <div className="mt-2">
+      <div className="mb-1">
+        <button
+          onClick={() => setShowRaw((v) => !v)}
+          className="text-[10px] text-primary-600 hover:underline"
+          title={showRaw ? 'Ver formato legible' : 'Ver JSON crudo'}
+        >
+          {showRaw ? 'Ver legible' : 'Ver JSON'}
+        </button>
+      </div>
+      {showRaw ? (
+        <pre className="text-[10px] bg-surface-50 rounded-lg p-2 text-surface-600 overflow-x-auto whitespace-pre-wrap break-words max-w-[320px]">
+          {JSON.stringify(details ?? {}, null, 2)}
+        </pre>
+      ) : (
+        <div className="bg-surface-50 rounded-lg p-2 space-y-1 max-w-[320px]">
+          {entries.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-2 text-[11px]">
+              <span className="text-surface-400 flex-shrink-0">{LABELS[k] || k}</span>
+              <span className="text-surface-700 font-medium text-right break-words">{formatValue(k, v)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function AdminAuditLogs() {
   const [items, setItems] = useState<AuditItem[]>([])
@@ -196,9 +320,7 @@ export function AdminAuditLogs() {
                             {isOpen ? ' Ocultar' : ' Ver'}
                           </button>
                           {isOpen && (
-                            <pre className="mt-2 text-[10px] bg-surface-50 rounded-lg p-2 text-surface-600 overflow-x-auto whitespace-pre-wrap break-words max-w-[320px]">
-                              {JSON.stringify(a.details ?? {}, null, 2)}
-                            </pre>
+                            <DetailPanel details={a.details} />
                           )}
                         </td>
                       </tr>
