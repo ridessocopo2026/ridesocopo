@@ -216,7 +216,7 @@ export function ClientWallet() {
                 {/* Datos para pagar (dónde transferir) */}
                 {selectedMethod && selectedMethod.fields.length > 0 && (
                   <div>
-                    <label className="label">Datos para pagar</label>
+                    <label className="label">Recarga con {selectedMethod.name}</label>
                     <div className="space-y-2">
                       {selectedMethod.fields.map((field) => (
                         <div key={field.id} className="flex items-center justify-between bg-surface-50 rounded-lg p-2">
