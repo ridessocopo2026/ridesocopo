@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle } from 'lucide-react'
+import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle, UserPlus } from 'lucide-react'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
@@ -1063,6 +1063,23 @@ export function ClientHome() {
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : botonContinuarTexto()}
         </button>
+
+        {/* Visitante: opciones de cuenta en la parte inferior para no quedar atrapado */}
+        {!user && (
+          <div className="card p-4 text-center space-y-3 border-primary-100 bg-primary-50/40">
+            <p className="text-sm text-surface-600">
+              ¿Quieres pedir un viaje o guardar tus lugares favoritos?{' '}
+              <span className="font-semibold text-surface-800">Crea tu cuenta o inicia sesión</span> — es gratis y
+              tardas menos de un minuto.
+            </p>
+            <button onClick={() => navigate('/login?redirect=/cliente')} className="btn-primary w-full">
+              <LogIn className="w-4 h-4" /> Iniciar sesión
+            </button>
+            <button onClick={() => navigate('/registro?redirect=/cliente')} className="btn-outline w-full">
+              <UserPlus className="w-4 h-4" /> Crear cuenta
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom sheet de destino — UNA sola interacción: sector + dirección integrados */}
