@@ -50,6 +50,7 @@ export interface PaymentMethodConfig {
   icon?: string
   is_active: boolean
   proof_required?: boolean
+  for_recharge?: boolean
   created_at: string
 }
 

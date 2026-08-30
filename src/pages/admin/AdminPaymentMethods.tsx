@@ -124,6 +124,17 @@ export function AdminPaymentMethods() {
     }
   }
 
+  const handleToggleRecharge = async (method: PaymentMethodConfig) => {
+    const { error } = await supabase
+      .from('payment_methods')
+      .update({ for_recharge: !method.for_recharge })
+      .eq('id', method.id)
+
+    if (!error) {
+      loadMethods()
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('¿Seguro que deseas eliminar este método de pago?')) return
 
@@ -316,6 +327,17 @@ export function AdminPaymentMethods() {
                       }`}
                     >
                       {method.is_active ? 'Activo' : 'Inactivo'}
+                    </button>
+                    <button
+                      onClick={() => handleToggleRecharge(method)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        method.for_recharge
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'bg-surface-100 text-surface-500'
+                      }`}
+                      title="Disponible para recargas de billetera"
+                    >
+                      {method.for_recharge ? 'Recargas ✓' : 'Recargas'}
                     </button>
                     <button
                       onClick={() => handleEdit(method)}

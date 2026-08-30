@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
+import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Copy, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -11,6 +11,15 @@ import { HexUnderline } from '@/components/ui/HexUnderline'
 import type { Wallet as WalletType, Transaction } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
+interface RechargeMethod {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  proof_required?: boolean
+  fields: { id: string; label: string; value: string }[]
+}
+
 export function ClientWallet() {
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -20,13 +29,35 @@ export function ClientWallet() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [rechargeMethods, setRechargeMethods] = useState<RechargeMethod[]>([])
+  const [selectedMethodId, setSelectedMethodId] = useState('')
+  const [copiedField, setCopiedField] = useState('')
   const { user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
     loadWallet()
     loadTransactions()
+    loadRechargeMethods()
   }, [])
+
+  const loadRechargeMethods = async () => {
+    const { data, error } = await supabase.rpc('get_recharge_payment_methods')
+    if (!error && data && Array.isArray(data)) {
+      setRechargeMethods(data as RechargeMethod[])
+      if (data.length > 0) {
+        setSelectedMethodId(data[0].id)
+      }
+    }
+  }
+
+  const selectedMethod = rechargeMethods.find((m) => m.id === selectedMethodId) || rechargeMethods[0] || null
+
+  const handleCopyField = (value: string) => {
+    navigator.clipboard?.writeText(value).catch(() => {})
+    setCopiedField(value)
+    setTimeout(() => setCopiedField(''), 2000)
+  }
 
   const loadWallet = async () => {
     if (!user) return
@@ -89,7 +120,8 @@ export function ClientWallet() {
       const { data, error: rpcError } = await supabase.rpc('request_wallet_recharge', {
         p_amount_usd: parseFloat(amount),
         p_proof_url: publicUrl,
-        p_reference: reference || null
+        p_reference: reference || null,
+        p_payment_method: selectedMethod?.name || null
       })
 
       if (rpcError) throw rpcError
@@ -148,8 +180,69 @@ export function ClientWallet() {
           <form onSubmit={handleRecharge} className="card space-y-4 animate-fade-in">
             <h2 className="font-semibold text-surface-800">Recargar saldo</h2>
             <p className="text-sm text-surface-500">
-              Realiza un Pago Móvil o Zelle y sube el comprobante. Un administrador lo aprobará.
+              Elige cómo pagar y sube el comprobante. Un administrador lo aprobará.
             </p>
+
+            {/* Método de pago para la recarga */}
+            {rechargeMethods.length > 0 && (
+              <>
+                {rechargeMethods.length > 1 && (
+                  <div>
+                    <label className="label">Método de pago</label>
+                    <div className="space-y-2">
+                      {rechargeMethods.map((m) => (
+                        <button
+                          type="button"
+                          key={m.id}
+                          onClick={() => setSelectedMethodId(m.id)}
+                          className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                            selectedMethodId === m.id
+                              ? 'border-primary-600 bg-primary-50 shadow-soft'
+                              : 'border-surface-200 hover:border-surface-300'
+                          }`}
+                        >
+                          <span className={`block text-sm font-medium ${selectedMethodId === m.id ? 'text-primary-700' : 'text-surface-700'}`}>
+                            {m.name}
+                          </span>
+                          {m.description && (
+                            <span className="block text-xs text-surface-400">{m.description}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Datos para pagar (dónde transferir) */}
+                {selectedMethod && selectedMethod.fields.length > 0 && (
+                  <div>
+                    <label className="label">Datos para pagar</label>
+                    <div className="space-y-2">
+                      {selectedMethod.fields.map((field) => (
+                        <div key={field.id} className="flex items-center justify-between bg-surface-50 rounded-lg p-2">
+                          <div className="min-w-0">
+                            <p className="text-xs text-surface-400">{field.label}</p>
+                            <p className="text-sm font-medium text-surface-700 truncate">{field.value}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyField(field.value)}
+                            className="ml-2 flex-shrink-0 p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
+                            aria-label={`Copiar ${field.label}`}
+                          >
+                            {copiedField === field.value ? (
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             <div>
               <label className="label">Monto en USD ($)</label>
