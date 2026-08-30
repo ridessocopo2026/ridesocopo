@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, LogOut, Star, MapPin, ChevronRight, MessageCircle } from 'lucide-react'
+import { User, LogOut, Star, MapPin, ChevronRight, MessageCircle, Car, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
+import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
 
 export function ClientProfile() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [showFavorites, setShowFavorites] = useState(false)
   const [favorites, setFavorites] = useState<any[]>([])
   const [supportPhone, setSupportPhone] = useState('')
+  const [driverLoading, setDriverLoading] = useState(false)
+  const [driverError, setDriverError] = useState('')
 
   useEffect(() => {
     supabase.rpc('get_my_support').then((res: any) => {
@@ -31,6 +34,25 @@ export function ClientProfile() {
     if (!error && data) {
       setFavorites(data)
       setShowFavorites(!showFavorites)
+    }
+  }
+
+  const handleBecomeDriver = async () => {
+    if (!window.confirm(
+      '¿Quieres solicitar ser conductor? Tu cuenta quedará pendiente de aprobación y podrás completar tus datos de conductor.'
+    )) return
+
+    setDriverError('')
+    setDriverLoading(true)
+    try {
+      const { error } = await supabase.rpc('become_driver')
+      if (error) throw error
+      await refreshProfile()
+      navigate('/conductor/onboarding')
+    } catch (err: any) {
+      setDriverError(err.message)
+    } finally {
+      setDriverLoading(false)
     }
   }
 
@@ -63,6 +85,33 @@ export function ClientProfile() {
             <span className="badge-primary mt-1">Cliente</span>
           </div>
         </div>
+
+        {/* Solicitar ser conductor (solo pasajeros) */}
+        {user?.role === 'cliente' && (
+          <div className="card p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-accent-50 rounded-full flex items-center justify-center">
+                <Car className="w-5 h-5 text-accent-600" />
+              </div>
+              <div>
+                <p className="font-medium text-surface-700">¿Quieres ser conductor?</p>
+                <p className="text-xs text-surface-400">Ofrece viajes y gana dinero en tu ciudad</p>
+              </div>
+            </div>
+            {driverError && <ErrorMessage message={driverError} onDismiss={() => setDriverError('')} />}
+            <button
+              onClick={handleBecomeDriver}
+              className="btn-outline w-full text-accent-600 border-accent-200 hover:border-accent-300"
+              disabled={driverLoading}
+            >
+              {driverLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <><Car className="w-4 h-4" /> Quiero ser conductor</>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Lugares guardados */}
         <div className="card">
