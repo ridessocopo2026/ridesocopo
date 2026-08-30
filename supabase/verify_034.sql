@@ -1,0 +1,1 @@
+SELECT proname FROM pg_proc WHERE proname IN ('get_pending_recharges','approve_recharge') ORDER BY proname;

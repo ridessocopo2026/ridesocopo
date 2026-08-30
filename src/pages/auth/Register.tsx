@@ -59,7 +59,7 @@ export function Register() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <AppLogo size="lg" rounded="rounded-2xl" className="mb-4 shadow-elevated" />
-          <h1 className="text-3xl font-bold text-surface-800">RiderFlasshi</h1>
+          <h1 className="text-3xl font-bold text-surface-800">BunRider</h1>
           <p className="text-sm text-surface-500 mt-1">Crea tu cuenta</p>
           <HexUnderline />
         </div>
@@ -89,7 +89,7 @@ export function Register() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Elección de rol al registrarse */}
           <div>
-            <label className="label">¿Cómo quieres usar RiderFlasshi?</label>
+            <label className="label">¿Cómo quieres usar BunRider?</label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"

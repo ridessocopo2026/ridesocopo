@@ -1,5 +1,5 @@
 // ============================================================
-// RIDERFLASSHI - Utilidades de Notificaciones Push
+// BUNRIDER - Utilidades de Notificaciones Push
 // ============================================================
 import { supabase } from '@/lib/supabase'
 

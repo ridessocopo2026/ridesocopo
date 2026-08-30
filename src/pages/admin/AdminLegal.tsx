@@ -16,7 +16,7 @@ interface LegalSection {
 const SECTIONS: { key: string; label: string; description: string }[] = [
   { key: 'politicas_privacidad', label: 'Políticas de Privacidad', description: 'Texto público de privacidad' },
   { key: 'terminos_condiciones', label: 'Términos y Condiciones', description: 'Texto público de términos de uso' },
-  { key: 'sobre_riderflash', label: 'Sobre RiderFlasshi', description: 'Información sobre la empresa/app' },
+  { key: 'sobre_riderflash', label: 'Sobre BunRider', description: 'Información sobre la empresa/app' },
 ]
 
 export function AdminLegal() {

@@ -143,7 +143,7 @@ export function AdminCoupons() {
               <input
                 type="text"
                 className="input uppercase"
-                placeholder="RIDERFLASSHI10"
+                placeholder="BUNRIDER10"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 required

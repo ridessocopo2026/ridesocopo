@@ -47,7 +47,7 @@ export function LegalPage({ pageKey }: LegalPageProps) {
     return () => { mounted = false }
   }, [pageKey])
 
-  usePageMeta(page?.title || 'RiderFlasshi', page?.content?.slice(0, 155))
+  usePageMeta(page?.title || 'BunRider', page?.content?.slice(0, 155))
 
   return (
     <div className="min-h-screen bg-surface-50">
@@ -62,7 +62,7 @@ export function LegalPage({ pageKey }: LegalPageProps) {
           </button>
           <AppLogo variant="dark" size="sm" />
           <h1 className="text-lg font-bold text-white flex-1 min-w-0 truncate">
-            {page?.title || 'RiderFlasshi'}
+            {page?.title || 'BunRider'}
           </h1>
         </div>
       </div>
@@ -91,7 +91,7 @@ export function LegalPage({ pageKey }: LegalPageProps) {
       <div className="max-w-md mx-auto px-4 pb-8 flex justify-center">
         <div className="flex items-center gap-2 text-xs text-surface-400">
           <FileText className="w-3.5 h-3.5" />
-          <span>RiderFlasshi — Transporte en Socopó, Barinas</span>
+          <span>BunRider — Transporte en Socopó, Barinas</span>
         </div>
       </div>
     </div>

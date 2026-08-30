@@ -17,8 +17,8 @@ export default defineConfig({
       includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
       manifest: {
         id: '/',
-        name: 'RiderFlasshi',
-        short_name: 'RiderFlasshi',
+        name: 'BunRider',
+        short_name: 'BunRider',
         description: 'Transporte de pasajeros en Socopó, Barinas, Venezuela',
         lang: 'es',
         theme_color: '#7c3aed',

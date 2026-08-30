@@ -14,11 +14,11 @@ export function Footer() {
           Términos y Condiciones
         </Link>
         <Link to="/sobre-riderflash" className="hover:text-primary-600 underline underline-offset-2">
-          Sobre RiderFlasshi
+          Sobre BunRider
         </Link>
       </nav>
       <p className="max-w-md mx-auto text-center text-[11px] text-surface-400 mt-3">
-        © {new Date().getFullYear()} RiderFlasshi. Hecho en Socopó, Barinas, Venezuela.
+        © {new Date().getFullYear()} BunRider. Hecho en Socopó, Barinas, Venezuela.
       </p>
     </footer>
   )

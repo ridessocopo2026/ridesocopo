@@ -124,27 +124,27 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   // SEO: título de la pestaña por ruta
   useEffect(() => {
     const titles: Record<string, string> = {
-      '/': 'RiderFlasshi — Pide tu transporte en Socopó, Barinas',
-      '/welcome': 'RiderFlasshi — Transporte de pasajeros en Socopó',
-      '/login': 'Iniciar sesión | RiderFlasshi',
-      '/registro': 'Regístrate | RiderFlasshi',
-      '/onboarding': 'Bienvenido | RiderFlasshi',
-      '/cliente': 'Solicitar viaje | RiderFlasshi',
-      '/cliente/historial': 'Historial de viajes | RiderFlasshi',
-      '/cliente/billetera': 'Mi billetera | RiderFlasshi',
-      '/cliente/perfil': 'Mi perfil | RiderFlasshi',
-      '/conductor': 'Panel del conductor | RiderFlasshi',
-      '/conductor/historial': 'Historial de viajes | RiderFlasshi',
-      '/conductor/billetera': 'Mi billetera | RiderFlasshi',
-      '/conductor/perfil': 'Mi perfil | RiderFlasshi',
-      '/conductor/metricas': 'Mis métricas | RiderFlasshi',
-      '/notificaciones': 'Notificaciones | RiderFlasshi',
-      '/admin': 'Panel Admin | RiderFlasshi',
-      '/politicas-de-privacidad': 'Políticas de Privacidad | RiderFlasshi',
-      '/terminos-y-condiciones': 'Términos y Condiciones | RiderFlasshi',
-      '/sobre-riderflash': 'Sobre RiderFlasshi',
+      '/': 'BunRider — Pide tu transporte en Socopó, Barinas',
+      '/welcome': 'BunRider — Transporte de pasajeros en Socopó',
+      '/login': 'Iniciar sesión | BunRider',
+      '/registro': 'Regístrate | BunRider',
+      '/onboarding': 'Bienvenido | BunRider',
+      '/cliente': 'Solicitar viaje | BunRider',
+      '/cliente/historial': 'Historial de viajes | BunRider',
+      '/cliente/billetera': 'Mi billetera | BunRider',
+      '/cliente/perfil': 'Mi perfil | BunRider',
+      '/conductor': 'Panel del conductor | BunRider',
+      '/conductor/historial': 'Historial de viajes | BunRider',
+      '/conductor/billetera': 'Mi billetera | BunRider',
+      '/conductor/perfil': 'Mi perfil | BunRider',
+      '/conductor/metricas': 'Mis métricas | BunRider',
+      '/notificaciones': 'Notificaciones | BunRider',
+      '/admin': 'Panel Admin | BunRider',
+      '/politicas-de-privacidad': 'Políticas de Privacidad | BunRider',
+      '/terminos-y-condiciones': 'Términos y Condiciones | BunRider',
+      '/sobre-riderflash': 'Sobre BunRider',
     }
-    document.title = titles[location.pathname] || 'RiderFlasshi'
+    document.title = titles[location.pathname] || 'BunRider'
   }, [location.pathname])
 
   if (isPublicPage || !user) {

@@ -89,17 +89,17 @@ export function InstallAppButton() {
       {/* Banner de aviso para instalar la app — siempre visible */}
       <div className="fixed bottom-20 left-4 right-4 z-[9999] max-w-md mx-auto animate-slide-up">
         <div className="bg-white rounded-2xl shadow-lg shadow-primary-600/20 border border-surface-100 p-4 flex items-center gap-3">
-          {/* Icono de la app */}
+          {/* Icono de la app — logo morado transparente */}
           <img
-            src="/icons/logo-az-192.png"
-            alt="RiderFlasshi"
+            src="/icons/logo-morado.png"
+            alt="BunRider"
             className="w-12 h-12 rounded-xl shadow-sm flex-shrink-0"
           />
 
           {/* Texto */}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-surface-800">
-              {isiOS ? 'Añade RiderFlasshi a tu inicio' : 'Instala RiderFlasshi'}
+              {isiOS ? 'Añade BunRider a tu inicio' : 'Instala BunRider'}
             </p>
             <p className="text-xs text-surface-500 leading-tight mt-0.5">
               {isiOS
@@ -133,7 +133,7 @@ export function InstallAppButton() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowIOSInstructions(false)}>
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-surface-800">Añade RiderFlasshi a tu inicio</h2>
+              <h2 className="text-lg font-bold text-surface-800">Añade BunRider a tu inicio</h2>
               <button onClick={() => setShowIOSInstructions(false)} className="p-2 text-surface-400 hover:text-surface-600">
                 <X className="w-5 h-5" />
               </button>
@@ -141,7 +141,7 @@ export function InstallAppButton() {
 
             <div className="space-y-3">
               <div className="bg-surface-50 rounded-xl p-4">
-                <p className="text-sm text-surface-700"><strong>1. Abre Safari</strong> y ve a la página de RiderFlasshi</p>
+                <p className="text-sm text-surface-700"><strong>1. Abre Safari</strong> y ve a la página de BunRider</p>
               </div>
               <div className="bg-surface-50 rounded-xl p-4">
                 <p className="text-sm text-surface-700"><strong>2. Toca el botón Compartir</strong> (cuadro con flecha ↑) en la parte inferior</p>

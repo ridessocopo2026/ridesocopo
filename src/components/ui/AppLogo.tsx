@@ -19,7 +19,7 @@ const logoSources = {
 }
 
 /**
- * Logo oficial de RiderFlasshi.
+ * Logo oficial de BunRider.
  * Usa la variante 'light' (logo a color) en fondos blancos y
  * 'dark' (logo blanco) en fondos oscuros (ej: pantalla de bienvenida).
  */
@@ -27,7 +27,7 @@ export function AppLogo({ size = 'md', className = '', rounded = 'rounded-xl', v
   return (
     <img
       src={logoSources[variant]}
-      alt="RiderFlasshi"
+      alt="BunRider"
       className={`${sizeClasses[size]} ${rounded} object-contain flex-shrink-0 ${className}`}
     />
   )

@@ -83,7 +83,7 @@ export function Onboarding() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <AppLogo size="lg" rounded="rounded-2xl" className="mb-4 shadow-elevated" />
-          <h1 className="text-2xl font-bold text-surface-800">Bienvenido a RiderFlasshi</h1>
+          <h1 className="text-2xl font-bold text-surface-800">Bienvenido a BunRider</h1>
           <p className="text-sm text-surface-500 mt-1">¿Cómo deseas usar la app?</p>
           <HexUnderline />
         </div>

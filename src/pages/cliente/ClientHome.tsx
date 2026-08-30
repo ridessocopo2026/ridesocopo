@@ -688,7 +688,7 @@ export function ClientHome() {
             <div className="flex items-center gap-3">
               <AppLogo variant="dark" />
               <div>
-                <h1 className="text-lg font-bold text-white">RiderFlasshi</h1>
+                <h1 className="text-lg font-bold text-white">BunRider</h1>
                 <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
               </div>
             </div>
@@ -775,7 +775,7 @@ export function ClientHome() {
           <div className="flex items-center gap-3">
             <AppLogo variant="dark" />
             <div>
-              <h1 className="text-lg font-bold text-white">RiderFlasshi</h1>
+              <h1 className="text-lg font-bold text-white">BunRider</h1>
               <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
             </div>
           </div>
