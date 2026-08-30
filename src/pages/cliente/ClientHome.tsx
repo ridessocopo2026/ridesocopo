@@ -1075,7 +1075,7 @@ export function ClientHome() {
             <button onClick={() => navigate('/login?redirect=/cliente')} className="btn-primary w-full">
               <LogIn className="w-4 h-4" /> Iniciar sesión
             </button>
-            <button onClick={() => navigate('/welcome')} className="btn-outline w-full">
+            <button onClick={() => navigate('/registro')} className="btn-outline w-full">
               <UserPlus className="w-4 h-4" /> Crear cuenta
             </button>
           </div>

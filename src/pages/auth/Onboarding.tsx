@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { User, Car, MapPin, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,7 +9,11 @@ import { AppLogo } from '@/components/ui/AppLogo'
 import type { Zone } from '@/types/database'
 
 export function Onboarding() {
-  const [role, setRole] = useState<'cliente' | 'conductor'>('cliente')
+  const [searchParams] = useSearchParams()
+  // Rol elegido en el formulario de registro (si viene ?role=) para preseleccionarlo
+  const [role, setRole] = useState<'cliente' | 'conductor'>(() =>
+    searchParams.get('role') === 'conductor' ? 'conductor' : 'cliente'
+  )
   const [zones, setZones] = useState<Zone[]>([])
   const [selectedZone, setSelectedZone] = useState('')
   const [error, setError] = useState('')

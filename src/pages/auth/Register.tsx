@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Mail, Lock, User, Phone, Loader2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Mail, Lock, User, Phone, Loader2, Car } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -12,12 +12,11 @@ export function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState<'cliente' | 'conductor'>('cliente')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/onboarding'
 
   const handleGoogle = async () => {
     setError('')
@@ -51,7 +50,8 @@ export function Register() {
       return
     }
 
-    navigate(redirectTo)
+    // Continuar al onboarding con el rol elegido ya preseleccionado
+    navigate(`/onboarding?role=${role}`)
   }
 
   return (
@@ -87,6 +87,43 @@ export function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Elección de rol al registrarse */}
+          <div>
+            <label className="label">¿Cómo quieres usar RiderFlasshi?</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRole('cliente')}
+                className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
+                  role === 'cliente'
+                    ? 'border-primary-600 bg-primary-50 shadow-soft'
+                    : 'border-surface-200 hover:border-surface-300'
+                }`}
+              >
+                <User className={`w-7 h-7 mx-auto mb-2 ${role === 'cliente' ? 'text-primary-600' : 'text-surface-400'}`} />
+                <span className={`block text-sm font-medium ${role === 'cliente' ? 'text-primary-700' : 'text-surface-600'}`}>
+                  Pasajero
+                </span>
+                <span className="block text-[11px] text-surface-400">Solicitar viajes</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('conductor')}
+                className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
+                  role === 'conductor'
+                    ? 'border-accent-600 bg-accent-50 shadow-soft'
+                    : 'border-surface-200 hover:border-surface-300'
+                }`}
+              >
+                <Car className={`w-7 h-7 mx-auto mb-2 ${role === 'conductor' ? 'text-accent-600' : 'text-surface-400'}`} />
+                <span className={`block text-sm font-medium ${role === 'conductor' ? 'text-accent-700' : 'text-surface-600'}`}>
+                  Conductor
+                </span>
+                <span className="block text-[11px] text-surface-400">Ofrecer viajes</span>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="label" htmlFor="fullName">Nombre completo</label>
             <div className="relative">
