@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
+import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
+import { RatingStars } from '@/components/ui/RatingStars'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { useRideRealtime, fetchRideById, useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
@@ -61,13 +63,35 @@ const disputeTypes: { value: IncidentType; label: string; emoji: string }[] = [
   { value: 'otro', label: 'Otro problema', emoji: '❓' }
 ]
 
+interface DriverInfo {
+  driver: {
+    id: string
+    full_name: string
+    phone: string | null
+    rating_avg: number | null
+    rating_count: number
+    rides_count: number
+  }
+  vehicle: {
+    id: string
+    category: string
+    brand: string
+    model: string
+    color: string
+    plate: string
+    photo_url: string | null
+  } | null
+}
+
+const categoryLabel = (cat: string): string =>
+  ({ moto: 'Moto', carro: 'Carro', camioneta: 'Camioneta' } as Record<string, string>)[cat] || cat
+
 export function ClientActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
   // Incidente/disputa del viaje (se refleja en vivo la resolución del admin)
   const incident = useRideIncident(rideId, ride?.incident_id)
-  const [driverName, setDriverName] = useState('')
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null)
+  const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSaveFavorite, setShowSaveFavorite] = useState(false)
@@ -109,6 +133,27 @@ export function ClientActiveRide() {
     }
   )
 
+  // Re-cargar info del conductor si cambia el conductor asignado (otro acepta)
+  useEffect(() => {
+    if (ride?.driver_id) {
+      (async () => {
+        try {
+          const { data } = await supabase.rpc('get_ride_driver_info', { p_ride_id: rideId })
+          if (data?.driver) setDriverInfo(data as DriverInfo)
+        } catch (_) { /* silencioso */ }
+      })()
+    } else {
+      setDriverInfo(null)
+    }
+  }, [ride?.driver_id, rideId])
+
+  // Abrir el mapa automáticamente cuando hay conductor, para verlo en vivo
+  useEffect(() => {
+    if (ride?.driver_id && (ride.status === 'aceptada' || ride.status === 'en_ruta')) {
+      setShowMap(true)
+    }
+  }, [ride?.driver_id, ride?.status])
+
   // Scroll automático (una sola vez) cuando el viaje pasa a completado,
   // para que el cliente vea la calificación sin tener que bajar.
   useEffect(() => {
@@ -135,27 +180,8 @@ export function ClientActiveRide() {
       setRide(data as Ride)
 
       if (data.driver_id) {
-        const { data: driverData } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', data.driver_id)
-          .maybeSingle()
-
-        if (driverData) {
-          setDriverName(driverData.full_name)
-        }
-
-        if (data.vehicle_id) {
-          const { data: vehicleData } = await supabase
-            .from('vehicles')
-            .select('*')
-            .eq('id', data.vehicle_id)
-            .maybeSingle()
-
-          if (vehicleData) {
-            setVehicle(vehicleData as Vehicle)
-          }
-        }
+        const { data: dInfo } = await supabase.rpc('get_ride_driver_info', { p_ride_id: rideId })
+        if (dInfo?.driver) setDriverInfo(dInfo as DriverInfo)
       }
 
       if (data.status === 'completada') {
@@ -508,18 +534,62 @@ export function ClientActiveRide() {
         )}
 
         {/* Conductor info */}
-        {ride.driver_id && (
+        {ride.driver_id && driverInfo?.driver && (
           <div className="card">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center">
-                <Navigation className="w-7 h-7 text-primary-600" />
+            <div className="flex items-start gap-4">
+              {/* Avatar con inicial del conductor */}
+              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center flex-shrink-0 text-primary-600 font-bold text-lg">
+                {(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1">
-                <h2 className="font-semibold text-surface-800">{driverName || 'Conductor'}</h2>
-                {vehicle && (
-                  <p className="text-sm text-surface-500">
-                    {vehicle.brand} {vehicle.model} • {vehicle.color} • {vehicle.plate}
-                  </p>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold text-surface-800 truncate">{driverInfo.driver.full_name || 'Conductor'}</h2>
+                  {driverInfo.driver.phone && whatsappNumber(driverInfo.driver.phone) && (
+                    <a
+                      href={`https://wa.me/${whatsappNumber(driverInfo.driver.phone)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Escribir por WhatsApp"
+                      className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+
+                {/* Estrellas del conductor */}
+                {driverInfo.driver.rating_avg ? (
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <RatingStars value={Math.round(driverInfo.driver.rating_avg)} onChange={() => {}} disabled size="sm" />
+                    <span className="text-xs font-semibold text-surface-700">{driverInfo.driver.rating_avg.toFixed(1)}</span>
+                    <span className="text-xs text-surface-400">
+                      ({driverInfo.driver.rating_count}) · {driverInfo.driver.rides_count} viajes
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-surface-400 mt-0.5">Sin calificaciones aún · {driverInfo.driver.rides_count} viajes</p>
+                )}
+
+                {/* Vehículo */}
+                {driverInfo.vehicle && (
+                  <div className="flex items-center gap-2 mt-2">
+                    {driverInfo.vehicle.photo_url && (
+                      <img
+                        src={driverInfo.vehicle.photo_url}
+                        alt="Vehículo"
+                        className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm text-surface-700 truncate">
+                        {driverInfo.vehicle.brand} {driverInfo.vehicle.model} · {driverInfo.vehicle.color}
+                      </p>
+                      <p className="text-xs text-surface-400 truncate">
+                        {categoryLabel(driverInfo.vehicle.category)} · Placa {driverInfo.vehicle.plate}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
