@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText, BarChart3 } from 'lucide-react'
+import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, Copy, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -8,6 +8,15 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Wallet as WalletType, Transaction, Payout, DriverEarningSummary } from '@/types/database'
+
+interface RechargeMethod {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  proof_required?: boolean
+  fields: { id: string; label: string; value: string }[]
+}
 
 export function DriverWallet() {
   const [wallet, setWallet] = useState<WalletType | null>(null)
@@ -18,6 +27,10 @@ export function DriverWallet() {
   const [showPayForm, setShowPayForm] = useState(false)
   const [payAmount, setPayAmount] = useState('')
   const [payProof, setPayProof] = useState<File | null>(null)
+  const [rechargeMethods, setRechargeMethods] = useState<RechargeMethod[]>([])
+  const [selectedMethodId, setSelectedMethodId] = useState('')
+  const [copiedField, setCopiedField] = useState('')
+  const [payReference, setPayReference] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [showWithdrawForm, setShowWithdrawForm] = useState(false)
@@ -64,7 +77,23 @@ export function DriverWallet() {
       setEarnings(earningData as DriverEarningSummary[])
     }
 
+    // Métodos disponibles para pagar a la plataforma (con sus datos de transferencia)
+    const { data: rmData, error: rmError } = await supabase.rpc('get_recharge_payment_methods')
+    if (!rmError && rmData && Array.isArray(rmData)) {
+      setRechargeMethods(rmData as RechargeMethod[])
+      if (rmData.length > 0) setSelectedMethodId(rmData[0].id)
+    }
+
     setLoading(false)
+  }
+
+  const selectedMethod = rechargeMethods.find((m) => m.id === selectedMethodId) || rechargeMethods[0] || null
+
+  const handleCopyField = (value: string) => {
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopiedField(value)
+      setTimeout(() => setCopiedField(''), 1500)
+    }).catch(() => {})
   }
 
   const handlePayToPlatform = async () => {
@@ -93,13 +122,16 @@ export function DriverWallet() {
 
       const { error } = await supabase.rpc('driver_pay_to_platform', {
         p_amount_usd: parseFloat(payAmount),
-        p_proof_url: publicUrl
+        p_proof_url: publicUrl,
+        p_payment_method: selectedMethod?.name || null,
+        p_reference: payReference || null
       })
       if (error) throw error
 
       setShowPayForm(false)
       setPayAmount('')
       setPayProof(null)
+      setPayReference('')
       loadWallet()
     } catch (err: any) {
       setError(err.message)
@@ -311,8 +343,65 @@ export function DriverWallet() {
           <div className="card space-y-3 animate-fade-in">
             <h2 className="font-semibold text-surface-800">Pagar a la plataforma</h2>
             <p className="text-xs text-surface-500">
-              Realiza el pago por Pago Móvil o Zelle y sube el comprobante para que el Admin lo apruebe.
+              Transfiere a uno de estos métodos y sube el comprobante. El Admin lo aprobará.
             </p>
+
+            {rechargeMethods.length > 0 && (
+              <>
+                {rechargeMethods.length > 1 && (
+                  <div>
+                    <label className="label">Método de pago</label>
+                    <div className="space-y-2">
+                      {rechargeMethods.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSelectedMethodId(m.id)}
+                          className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                            selectedMethodId === m.id
+                              ? 'border-primary-600 bg-primary-50'
+                              : 'border-surface-200 hover:border-surface-300'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-surface-700">{m.name}</span>
+                          {m.description && (
+                            <span className="block text-xs text-surface-500 mt-0.5">{m.description}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedMethod && selectedMethod.fields.length > 0 && (
+                  <div>
+                    <label className="label">Datos para pagar a {selectedMethod.name}</label>
+                    <div className="space-y-2">
+                      {selectedMethod.fields.map((field) => (
+                        <div key={field.id} className="flex items-center justify-between bg-surface-50 rounded-lg p-2">
+                          <div className="min-w-0">
+                            <p className="text-xs text-surface-400">{field.label}</p>
+                            <p className="text-sm font-medium text-surface-700 truncate">{field.value}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyField(field.value)}
+                            className="ml-2 flex-shrink-0 p-2 rounded-lg text-primary-600 hover:bg-primary-50 transition-colors"
+                            aria-label={`Copiar ${field.label}`}
+                          >
+                            {copiedField === field.value ? (
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <label className="label">Monto ($)</label>
               <input
@@ -323,6 +412,16 @@ export function DriverWallet() {
                 placeholder="0.00"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Referencia (opcional)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Número de referencia"
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
               />
             </div>
             <div>

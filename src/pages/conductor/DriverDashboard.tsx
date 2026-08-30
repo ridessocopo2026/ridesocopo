@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle } from 'lucide-react'
+import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle, HandCoins, Smartphone } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
@@ -39,6 +39,24 @@ const destIcon = L.divIcon({
   iconSize: [32, 32],
   iconAnchor: [16, 32]
 })
+
+// Insignia del método de pago: el conductor debe saber si cobra en efectivo
+// o si la plataforma ya cobró al pasajero digitalmente.
+const paymentBadge = (method?: string) => {
+  const m = (method || 'efectivo').toLowerCase()
+  if (m === 'efectivo') {
+    return (
+      <span className="badge-warning">
+        <HandCoins className="w-3 h-3" /> Efectivo · cobra tú al cliente
+      </span>
+    )
+  }
+  return (
+    <span className="badge-info">
+      <Smartphone className="w-3 h-3" /> {method} · la plataforma ya cobró
+    </span>
+  )
+}
 
 export function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(false)
@@ -336,9 +354,12 @@ export function DriverDashboard() {
                         {ride.origin_address || 'Origen no especificado'}
                       </p>
                     </div>
-                    <span className="text-lg font-bold text-primary-600">
-                      {ride.final_fare_usd.toFixed(2)}$
-                    </span>
+                    <div className="text-right">
+                      <span className="text-lg font-bold text-primary-600">
+                        {ride.final_fare_usd.toFixed(2)}$
+                      </span>
+                      <div className="mt-1 flex justify-end">{paymentBadge(ride.payment_method)}</div>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-surface-500 mb-3">
@@ -424,6 +445,11 @@ export function DriverDashboard() {
                     <span className="badge-primary mt-1">{mapRide.destination_barrio_name}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-surface-50 rounded-lg p-2">
+                <span className="text-xs text-surface-400">Método de pago</span>
+                {paymentBadge(mapRide.payment_method)}
               </div>
             </div>
 
