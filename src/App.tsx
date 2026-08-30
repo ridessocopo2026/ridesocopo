@@ -152,6 +152,8 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       <>
         {children}
         <Footer />
+        {/* El aviso de instalar la app sale SIEMPRE (invitados y todas las cuentas) */}
+        <InstallAppButton />
       </>
     )
   }
