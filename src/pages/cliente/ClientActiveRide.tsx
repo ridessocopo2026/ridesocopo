@@ -14,6 +14,7 @@ import { useRideRealtime, fetchRideById, useRideIncident } from '@/lib/rideRealt
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { resolvePhotoUrl } from '@/lib/photos'
 
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -68,6 +69,7 @@ interface DriverInfo {
     id: string
     full_name: string
     phone: string | null
+    avatar_url: string | null
     rating_avg: number | null
     rating_count: number
     rides_count: number
@@ -537,9 +539,13 @@ export function ClientActiveRide() {
         {ride.driver_id && driverInfo?.driver && (
           <div className="card">
             <div className="flex items-start gap-4">
-              {/* Avatar con inicial del conductor */}
-              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center flex-shrink-0 text-primary-600 font-bold text-lg">
-                {(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}
+              {/* Avatar del conductor (foto si tiene, si no inicial) */}
+              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {driverInfo.driver.avatar_url ? (
+                  <img src={resolvePhotoUrl(driverInfo.driver.avatar_url, 'avatars')} alt="Foto del conductor" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-primary-600 font-bold text-lg">{(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}</span>
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -576,7 +582,7 @@ export function ClientActiveRide() {
                   <div className="flex items-center gap-2 mt-2">
                     {driverInfo.vehicle.photo_url && (
                       <img
-                        src={driverInfo.vehicle.photo_url}
+                        src={resolvePhotoUrl(driverInfo.vehicle.photo_url)}
                         alt="Vehículo"
                         className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                       />

@@ -9,6 +9,7 @@ import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import type { Profile, DriverDocument, Vehicle } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { resolvePhotoUrl } from '@/lib/photos'
 
 export function AdminDrivers() {
   const [drivers, setDrivers] = useState<Profile[]>([])
@@ -201,7 +202,7 @@ export function AdminDrivers() {
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden">
                       {driver.avatar_url ? (
-                        <img src={driver.avatar_url} alt={driver.full_name} className="w-full h-full object-cover" />
+                        <img src={resolvePhotoUrl(driver.avatar_url, 'avatars')} alt={driver.full_name} className="w-full h-full object-cover" />
                       ) : (
                         <Users className="w-6 h-6 text-primary-600" />
                       )}
