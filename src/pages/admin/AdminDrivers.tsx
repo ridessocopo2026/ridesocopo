@@ -256,19 +256,19 @@ export function AdminDrivers() {
                   {statusBadge[driver.driver_status || 'pendiente']}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="space-y-2">
                   <button
                     onClick={() => loadDriverDetails(driver)}
-                    className="btn-outline flex-1"
+                    className="btn-outline w-full"
                   >
                     <Eye className="w-4 h-4" />
                     Ver detalles
                   </button>
                   {driver.driver_status === 'pendiente' && (
-                    <>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => handleReview(driver.id, true)}
-                        className="btn-success flex-1"
+                        className="btn-success"
                         disabled={actionLoading}
                       >
                         <Check className="w-4 h-4" />
@@ -276,13 +276,13 @@ export function AdminDrivers() {
                       </button>
                       <button
                         onClick={() => handleReview(driver.id, false)}
-                        className="btn-danger flex-1"
+                        className="btn-danger"
                         disabled={actionLoading}
                       >
                         <X className="w-4 h-4" />
                         Rechazar
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -434,7 +434,7 @@ export function AdminDrivers() {
                           <p><strong>{v.brand} {v.model}</strong> ({v.year})</p>
                           <p>Color: {v.color} • Placa: {v.plate}</p>
                           <p>Categoría: {v.category}</p>
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
                             <span className={`badge ${v.is_active_vehicle ? 'badge-success' : v.is_approved ? 'badge-info' : 'badge-warning'}`}>
                               {v.is_active_vehicle ? 'Activo' : v.is_approved ? 'Aprobado' : 'Pendiente'}
                             </span>
@@ -453,26 +453,26 @@ export function AdminDrivers() {
               )}
 
               {/* Botones de acción */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {selectedDriver.driver_status === 'pendiente' && (
                   <>
                     <button
                       onClick={() => handleReview(selectedDriver.id, true)}
-                      className="btn-success flex-1"
+                      className="btn-success"
                       disabled={actionLoading}
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Aprobar</>}
                     </button>
                     <button
                       onClick={() => handleReview(selectedDriver.id, false)}
-                      className="btn-danger flex-1"
+                      className="btn-danger"
                       disabled={actionLoading}
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4" /> Rechazar</>}
                     </button>
                   </>
                 )}
-                <button onClick={() => setSelectedDriver(null)} className="btn-outline flex-1">
+                <button onClick={() => setSelectedDriver(null)} className="btn-outline col-span-2">
                   Cerrar
                 </button>
               </div>

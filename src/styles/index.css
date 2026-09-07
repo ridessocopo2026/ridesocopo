@@ -222,6 +222,13 @@
   .progress-fill {
     @apply h-full bg-primary-600 rounded-full transition-all duration-500;
   }
+
+  /* Botones más compactos en pantallas muy pequeñas (evita que se corten) */
+  @media (max-width: 380px) {
+    .btn {
+      @apply px-3 py-2 gap-1.5;
+    }
+  }
 }
 
 /* ===== SCROLLBAR ===== */
