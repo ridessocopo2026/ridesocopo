@@ -163,6 +163,28 @@ export function AdminDrivers() {
     }
   }
 
+  const handleAvatarReview = async (approve: boolean) => {
+    if (!selectedDriver) return
+    setError('')
+    setActionLoading(true)
+
+    try {
+      const { error } = await supabase.rpc('review_avatar', {
+        p_driver_id: selectedDriver.id,
+        p_approve: approve
+      })
+
+      if (error) throw error
+
+      setSelectedDriver(null)
+      loadDrivers()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const statusBadge = {
     pendiente: <span className="badge-warning">Pendiente</span>,
     aprobado: <span className="badge-success">Aprobado</span>,
@@ -210,6 +232,9 @@ export function AdminDrivers() {
                     <div>
                       <p className="font-medium text-surface-700">{driver.full_name}</p>
                       <p className="text-xs text-surface-400">{driver.email}</p>
+                      {driver.avatar_pending_url && (
+                        <span className="badge-warning mt-1">Nueva foto pendiente</span>
+                      )}
                       {driver.phone && (
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-surface-500">{driver.phone}</span>
@@ -344,6 +369,52 @@ export function AdminDrivers() {
                   </>
                 )}
               </div>
+
+              {/* Cambio de foto de perfil pendiente de aprobación */}
+              {selectedDriver.avatar_pending_url && (
+                <div className="card">
+                  <h3 className="font-semibold text-surface-700 mb-3">Cambio de foto de perfil</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 text-center">
+                      <p className="text-[10px] text-surface-400 mb-1">Actual (en uso)</p>
+                      <div className="w-14 h-14 mx-auto rounded-full bg-primary-50 overflow-hidden flex items-center justify-center">
+                        {selectedDriver.avatar_url ? (
+                          <img src={resolvePhotoUrl(selectedDriver.avatar_url, 'avatars')} alt="Foto actual" className="w-full h-full object-cover" />
+                        ) : (
+                          <Users className="w-6 h-6 text-primary-600" />
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-surface-300 font-bold">→</span>
+                    <div className="flex-1 text-center">
+                      <p className="text-[10px] text-surface-400 mb-1">Nueva (por aprobar)</p>
+                      <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 overflow-hidden flex items-center justify-center border-2 border-amber-200">
+                        <img
+                          src={resolvePhotoUrl(selectedDriver.avatar_pending_url, 'avatars')}
+                          alt="Nueva foto"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => handleAvatarReview(true)}
+                      className="btn-success flex-1"
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Aprobar</>}
+                    </button>
+                    <button
+                      onClick={() => handleAvatarReview(false)}
+                      className="btn-danger flex-1"
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4" /> Rechazar</>}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Vehículo */}
               {vehicles.length > 0 && (

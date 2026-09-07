@@ -18,6 +18,7 @@ export interface Profile {
   phone?: string
   role: UserRole
   avatar_url?: string
+  avatar_pending_url?: string | null
   zone_id?: string
   driver_status?: DriverStatus
   is_online: boolean

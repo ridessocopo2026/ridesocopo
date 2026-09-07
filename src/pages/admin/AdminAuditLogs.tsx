@@ -29,6 +29,7 @@ const actionLabels: Record<string, string> = {
   APPROVE_RECHARGE: 'Recarga de billetera',
   SET_ZONE_SUPPORT: 'Soporte de ciudad',
   REVIEW_DRIVER: 'Revisión de conductor',
+  REVIEW_AVATAR: 'Cambio de foto de perfil',
   RESOLVE_INCIDENT: 'Resolución de incidente',
   PROMOTE_SUPER_ADMIN: 'Promoción a admin',
   REQUEST_RIDE: 'Solicitud de viaje',
@@ -48,6 +49,7 @@ const sensitiveActions = new Set([
   'APPROVE_RIDE_PROOF',
   'APPROVE_RECHARGE',
   'REVIEW_DRIVER',
+  'REVIEW_AVATAR',
   'RESOLVE_INCIDENT',
   'PROMOTE_SUPER_ADMIN',
   'SEND_BROADCAST'
