@@ -63,7 +63,10 @@ export function AdminFares() {
   const loadAvailableIds = async () => {
     const { data, error } = await supabase.rpc('get_available_vehicle_category_identifiers')
     if (error || !Array.isArray(data)) return
-    const ids = (data as string[]).filter(Boolean)
+    // La RPC devuelve filas {identifier} (RETURNS TABLE); se extrae el texto
+    const ids = (data as Array<{ identifier?: string } | string>)
+      .map((r) => (typeof r === 'string' ? r : (r?.identifier || '')))
+      .filter(Boolean)
     setAvailIds(ids)
     if (ids.length > 0) {
       setCustomMode(false)
