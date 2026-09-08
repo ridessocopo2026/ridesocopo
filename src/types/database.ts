@@ -44,6 +44,15 @@ export interface Barrio {
   updated_at: string
 }
 
+export interface BarrioSurcharge {
+  barrio_id: string
+  zone_id?: string
+  category: VehicleCategoryType
+  surcharge_usd: number
+  display_name?: string
+  icon?: string
+}
+
 export interface PaymentMethodConfig {
   id: string
   name: string

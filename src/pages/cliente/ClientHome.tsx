@@ -65,6 +65,7 @@ export function ClientHome() {
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryType | null>(null)
   const [categories, setCategories] = useState<VehicleCategory[]>([])
   const [barrios, setBarrios] = useState<Barrio[]>([])
+  const [barrioExtras, setBarrioExtras] = useState<Record<string, number>>({})
   const [cities, setCities] = useState<CityInfo[]>([])
   const [selectedCityId, setSelectedCityId] = useState('')
   const [favorites, setFavorites] = useState<FavoritePlace[]>([])
@@ -279,6 +280,28 @@ export function ClientHome() {
       setBarrios(data as Barrio[])
     }
   }
+
+  // Recargos efectivos (barrio × categoría) del destino elegido, desde la vista
+  useEffect(() => {
+    setBarrioExtras({})
+    if (!destBarrioId) return
+    let cancelled = false
+    supabase
+      .from('v_barrio_surcharges')
+      .select('category, surcharge_usd')
+      .eq('barrio_id', destBarrioId)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return
+        const map: Record<string, number> = {}
+        ;(data as Array<{ category: string; surcharge_usd: number }>).forEach((r) => {
+          map[r.category] = Number(r.surcharge_usd)
+        })
+        setBarrioExtras(map)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [destBarrioId])
 
   const loadCities = async () => {
     const { data, error } = await supabase.rpc('get_active_cities')
@@ -639,10 +662,9 @@ export function ClientHome() {
       : null
   const cityCenterTuple: [number, number] | null = cityCenter ? [cityCenter.lat, cityCenter.lng] : null
 
-  // Devuelve el recargo del barrio según el tipo de vehículo seleccionado
-  const getBarrioSurcharge = (barrio: Barrio): number => {
-    if (!selectedCategory) return barrio.surcharge_usd || 0
-    switch (selectedCategory) {
+  // Recargo histórico del barrio (misma regla de fallback que la vista del backend)
+  const legacyBarrioSurcharge = (barrio: Barrio, cat: VehicleCategoryType): number => {
+    switch (cat) {
       case 'moto': return barrio.surcharge_moto_usd ?? barrio.surcharge_usd ?? 0
       case 'carro': return barrio.surcharge_carro_usd ?? barrio.surcharge_usd ?? 0
       case 'camioneta': return barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd ?? 0
@@ -650,15 +672,21 @@ export function ClientHome() {
     }
   }
 
+  // Recargo efectivo del barrio para el vehículo seleccionado.
+  // La vista v_barrio_surcharges se carga al elegir el destino; el
+  // fallback histórico evita parpadeos mientras llega la respuesta.
+  const getBarrioSurcharge = (barrio: Barrio): number => {
+    if (!barrio) return 0
+    if (!selectedCategory) return barrio.surcharge_usd || 0
+    const eff = barrioExtras[selectedCategory]
+    return eff !== undefined ? eff : legacyBarrioSurcharge(barrio, selectedCategory)
+  }
+
   // Extra de un barrio para una categoría específica (para las tarjetas de vehículos)
   const getExtraForCategory = (barrio: Barrio | undefined, cat: VehicleCategoryType): number => {
     if (!barrio) return 0
-    switch (cat) {
-      case 'moto': return barrio.surcharge_moto_usd ?? barrio.surcharge_usd ?? 0
-      case 'carro': return barrio.surcharge_carro_usd ?? barrio.surcharge_usd ?? 0
-      case 'camioneta': return barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd ?? 0
-      default: return barrio.surcharge_usd ?? 0
-    }
+    const eff = barrioExtras[cat]
+    return eff !== undefined ? eff : legacyBarrioSurcharge(barrio, cat)
   }
 
   // Texto contextual del botón Continuar según qué paso falta

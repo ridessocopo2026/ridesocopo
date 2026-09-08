@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
-import type { Barrio } from '@/types/database'
+import type { Barrio, VehicleCategory } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
 const SOCOPO_CENTER: [number, number] = [8.23293, -70.82228]
@@ -39,9 +39,9 @@ export function AdminBarrios() {
   const [editing, setEditing] = useState<Barrio | null>(null)
   const [name, setName] = useState('')
   const [surcharge, setSurcharge] = useState('')
-  const [surchargeMoto, setSurchargeMoto] = useState('')
-  const [surchargeCarro, setSurchargeCarro] = useState('')
-  const [surchargeCamioneta, setSurchargeCamioneta] = useState('')
+  const [cats, setCats] = useState<VehicleCategory[]>([])
+  const [catVals, setCatVals] = useState<Record<string, string>>({})
+  const [extras, setExtras] = useState<Record<string, Record<string, number>>>({})
   const [description, setDescription] = useState('')
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -54,7 +54,11 @@ export function AdminBarrios() {
     loadCities()
   }, [])
 
-  // Al elegir ciudad: cargar sus barrios
+  useEffect(() => {
+    loadCats()
+  }, [])
+
+  // Al elegir ciudad: cargar sus barrios y los recargos efectivos por categoría
   useEffect(() => {
     if (selectedCityId) {
       loadBarrios(selectedCityId)
@@ -71,6 +75,17 @@ export function AdminBarrios() {
     setLoading(false)
   }
 
+  const loadCats = async () => {
+    const { data, error } = await supabase
+      .from('vehicle_categories')
+      .select('*')
+      .eq('is_active', true)
+      .order('base_fare_usd')
+    if (!error && data) {
+      setCats(data as VehicleCategory[])
+    }
+  }
+
   const loadBarrios = async (zoneId: string) => {
     const { data, error } = await supabase
       .from('barrios')
@@ -78,8 +93,39 @@ export function AdminBarrios() {
       .eq('zone_id', zoneId)
       .order('name')
 
-    if (!error && data) {
-      setBarrios(data as Barrio[])
+    if (error || !data) return
+
+    const list = data as Barrio[]
+    setBarrios(list)
+
+    // Recargos efectivos (vista) de todos los barrios de la ciudad
+    const ids = list.map((b) => b.id)
+    if (ids.length === 0) {
+      setExtras({})
+      return
+    }
+    const { data: rows, error: rowsError } = await supabase
+      .from('v_barrio_surcharges')
+      .select('barrio_id, category, surcharge_usd')
+      .in('barrio_id', ids)
+
+    const map: Record<string, Record<string, number>> = {}
+    if (!rowsError && rows) {
+      ;(rows as Array<{ barrio_id: string; category: string; surcharge_usd: number }>).forEach((r) => {
+        if (!map[r.barrio_id]) map[r.barrio_id] = {}
+        map[r.barrio_id][r.category] = Number(r.surcharge_usd)
+      })
+    }
+    setExtras(map)
+  }
+
+  // Valor que muestra la lista: fila explícita o el fallback del barrio
+  const legacyExtraOf = (barrio: Barrio, name: string): number => {
+    switch (name) {
+      case 'moto': return barrio.surcharge_moto_usd ?? barrio.surcharge_usd ?? 0
+      case 'carro': return barrio.surcharge_carro_usd ?? barrio.surcharge_usd ?? 0
+      case 'camioneta': return barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd ?? 0
+      default: return barrio.surcharge_usd ?? 0
     }
   }
 
@@ -87,25 +133,48 @@ export function AdminBarrios() {
     setEditing(null)
     setName('')
     setSurcharge('')
-    setSurchargeMoto('')
-    setSurchargeCarro('')
-    setSurchargeCamioneta('')
+    setCatVals({})
     setDescription('')
     setLat(null)
     setLng(null)
   }
 
-  const handleEdit = (barrio: Barrio) => {
+  const handleEdit = async (barrio: Barrio) => {
     setEditing(barrio)
     if (barrio.zone_id) setSelectedCityId(barrio.zone_id)
     setName(barrio.name)
     setSurcharge(barrio.surcharge_usd?.toString() || '0')
-    setSurchargeMoto((barrio.surcharge_moto_usd ?? barrio.surcharge_usd)?.toString() || '')
-    setSurchargeCarro((barrio.surcharge_carro_usd ?? barrio.surcharge_usd)?.toString() || '')
-    setSurchargeCamioneta((barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd)?.toString() || '')
     setDescription(barrio.description || '')
     setLat(barrio.lat || null)
     setLng(barrio.lng || null)
+
+    // Recargos ya guardados para este barrio (filas explícitas)
+    const { data: rows } = await supabase
+      .from('barrio_surcharges')
+      .select('category, surcharge_usd')
+      .eq('barrio_id', barrio.id)
+    const explicit: Record<string, number> = {}
+    if (rows) {
+      ;(rows as Array<{ category: string; surcharge_usd: number }>).forEach((r) => {
+        explicit[r.category] = Number(r.surcharge_usd)
+      })
+    }
+
+    // Prellenar cada vehículo: fila explícita o el valor histórico actual
+    const vals: Record<string, string> = {}
+    cats.forEach((c) => {
+      const expVal = explicit[c.name]
+      if (expVal !== undefined) {
+        vals[c.name] = String(expVal)
+        return
+      }
+      if (c.name === 'moto' || c.name === 'carro' || c.name === 'camioneta') {
+        vals[c.name] = String(legacyExtraOf(barrio, c.name))
+      } else {
+        vals[c.name] = ''
+      }
+    })
+    setCatVals(vals)
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -118,20 +187,33 @@ export function AdminBarrios() {
     }
 
     if (!name || !surcharge) {
-      setError('Completa el nombre y el precio')
+      setError('Completa el nombre y el recargo general')
       return
     }
 
     setSaving(true)
 
     try {
+      // Recargos explícitos por categoría: solo los que tengan valor.
+      // Un recargo vacío no se envía: esa categoría hereda (columna o general).
+      const surchargesJson = cats
+        .filter((c) => (catVals[c.name] ?? '').trim() !== '')
+        .map((c) => ({
+          category: c.name,
+          surcharge_usd: parseFloat(catVals[c.name])
+        }))
+
+      const parseNullable = (v: string | undefined) =>
+        v !== undefined && v.trim() !== '' ? parseFloat(v) : null
+
       const { data, error } = await supabase.rpc('upsert_barrio', {
         p_name: name,
         p_surcharge_usd: parseFloat(surcharge),
         p_zone_id: selectedCityId,
-        p_surcharge_moto_usd: surchargeMoto ? parseFloat(surchargeMoto) : null,
-        p_surcharge_carro_usd: surchargeCarro ? parseFloat(surchargeCarro) : null,
-        p_surcharge_camioneta_usd: surchargeCamioneta ? parseFloat(surchargeCamioneta) : null,
+        p_surcharge_moto_usd: parseNullable(catVals['moto']),
+        p_surcharge_carro_usd: parseNullable(catVals['carro']),
+        p_surcharge_camioneta_usd: parseNullable(catVals['camioneta']),
+        p_surcharges: surchargesJson,
         p_lat: lat,
         p_lng: lng,
         p_description: description || null,
@@ -201,10 +283,14 @@ export function AdminBarrios() {
               <div key={barrio.id} className="card flex items-center justify-between">
                 <div className="flex-1">
                   <p className="font-medium text-surface-700">{barrio.name}</p>
-                  <p className="text-xs text-surface-400 space-x-2">
-                    <span>🛵 {(barrio.surcharge_moto_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
-                    <span>🚗 {(barrio.surcharge_carro_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
-                    <span>🚚 {(barrio.surcharge_camioneta_usd ?? barrio.surcharge_usd).toFixed(2)}$</span>
+                  <p className="text-xs text-surface-400 flex flex-wrap gap-x-2">
+                    {cats.map((c) => {
+                      const eff = extras[barrio.id]?.[c.name]
+                      if (eff === undefined) return null
+                      return (
+                        <span key={c.name}>{c.icon} {eff.toFixed(2)}$</span>
+                      )
+                    })}
                     {barrio.lat && barrio.lng && ' • 📍'}
                   </p>
                 </div>
@@ -246,49 +332,50 @@ export function AdminBarrios() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="label">Precios del barrio por vehículo (USD $) *</label>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-xs text-surface-500 block mb-1">🛵 Moto</label>
+            <div className="space-y-3">
+              <label className="label">Recargos del barrio (USD $)</label>
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-surface-600 flex-1">Recargo general (base)</label>
                   <input
                     type="number"
-                    className="input"
+                    className="input w-24 text-right py-1.5"
                     step="0.50"
                     min="0"
                     placeholder="0.00"
-                    value={surchargeMoto || surcharge}
-                    onChange={(e) => { setSurchargeMoto(e.target.value); setSurcharge(e.target.value) }}
+                    value={surcharge}
+                    onChange={(e) => setSurcharge(e.target.value)}
                     required
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-surface-500 block mb-1">🚗 Carro</label>
-                  <input
-                    type="number"
-                    className="input"
-                    step="0.50"
-                    min="0"
-                    placeholder={surcharge || '0.00'}
-                    value={surchargeCarro}
-                    onChange={(e) => setSurchargeCarro(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-surface-500 block mb-1">🚚 Camioneta</label>
-                  <input
-                    type="number"
-                    className="input"
-                    step="0.50"
-                    min="0"
-                    placeholder={surcharge || '0.00'}
-                    value={surchargeCamioneta}
-                    onChange={(e) => setSurchargeCamioneta(e.target.value)}
-                  />
-                </div>
+                <div className="border-t border-surface-200" />
+                {cats.length === 0 ? (
+                  <p className="text-[11px] text-surface-400">Cargando tipos de vehículo…</p>
+                ) : cats.map((c) => {
+                  const v = catVals[c.name] ?? ''
+                  const ph = surcharge || '0.00'
+                  return (
+                    <div key={c.name} className="flex items-center gap-2">
+                      <label className="text-xs text-surface-600 flex-1 min-w-0 flex items-center gap-1.5">
+                        <span className="text-base leading-none">{c.icon}</span>
+                        <span className="truncate">{c.display_name}</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input w-24 text-right py-1.5"
+                        step="0.10"
+                        min="0"
+                        placeholder={ph}
+                        value={v}
+                        onChange={(e) => setCatVals((s) => ({ ...s, [c.name]: e.target.value }))}
+                      />
+                    </div>
+                  )
+                })}
               </div>
               <p className="text-[10px] text-surface-400">
-                Si carro o camioneta quedan vacíos, usarán el precio de moto.
+                El extra se suma a la tarifa base de cada vehículo. Vacío = usa el recargo general.
+                Así la Moto de Carga puede tener un extra mayor que la Moto Básica en este barrio.
               </p>
             </div>
 
