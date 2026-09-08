@@ -33,6 +33,10 @@ export function AdminFares() {
   const [desc, setDesc] = useState('')
   const [iconSel, setIconSel] = useState('')
 
+  // Identificadores internos disponibles para elegir al agregar
+  const [availIds, setAvailIds] = useState<string[]>([])
+  const [customMode, setCustomMode] = useState(false)
+
   // Eliminar (aviso + reasignacion)
   const [delTarget, setDelTarget] = useState<VehicleCategory | null>(null)
   const [delUsage, setDelUsage] = useState<Usage | null>(null)
@@ -56,6 +60,20 @@ export function AdminFares() {
     setLoading(false)
   }
 
+  const loadAvailableIds = async () => {
+    const { data, error } = await supabase.rpc('get_available_vehicle_category_identifiers')
+    if (error || !Array.isArray(data)) return
+    const ids = (data as string[]).filter(Boolean)
+    setAvailIds(ids)
+    if (ids.length > 0) {
+      setCustomMode(false)
+      setName(ids[0])
+    } else {
+      setCustomMode(true)
+      setName('')
+    }
+  }
+
   const openAdd = () => {
     setEditId(null)
     setName('')
@@ -64,8 +82,11 @@ export function AdminFares() {
     setPass('1')
     setDesc('')
     setIconSel('')
+    setAvailIds([])
+    setCustomMode(false)
     setFormOpen(true)
     setError('')
+    void loadAvailableIds()
   }
 
   const openEdit = (cat: VehicleCategory) => {
@@ -284,7 +305,44 @@ export function AdminFares() {
               {!editId && (
                 <div>
                   <label className="label">Identificador (interno)</label>
-                  <input className="input" placeholder="Ej: moto_lujo" value={name} onChange={(e) => setName(e.target.value)} />
+                  {!customMode && availIds.length > 0 ? (
+                    <select
+                      className="input"
+                      value={name}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '__new__') {
+                          setCustomMode(true)
+                          setName('')
+                        } else {
+                          setCustomMode(false)
+                          setName(v)
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Elige el identificador…</option>
+                      {availIds.map((id) => (
+                        <option key={id} value={id}>{id}</option>
+                      ))}
+                      <option value="__new__">✍️ Escribir uno nuevo…</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1">
+                      <input className="input" placeholder="Ej: moto_lujo" value={name} onChange={(e) => setName(e.target.value)} />
+                      {availIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomMode(false)
+                            if (availIds.length > 0) setName(availIds[0])
+                          }}
+                          className="text-[11px] text-primary-600 underline"
+                        >
+                          ← Volver a elegir de la lista
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <p className="text-[11px] text-surface-400 mt-1">Solo minúsculas, números y guion bajo. No se puede cambiar después.</p>
                 </div>
               )}
