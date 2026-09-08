@@ -1,6 +1,6 @@
 export type UserRole = 'cliente' | 'conductor' | 'encargado' | 'super_admin'
 export type DriverStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
-export type VehicleCategoryType = 'moto' | 'carro' | 'camioneta'
+export type VehicleCategoryType = 'moto' | 'carro' | 'camioneta' | (string & {})
 export type RideStatus = 'buscando' | 'aceptada' | 'en_ruta' | 'completada' | 'cancelada' | 'incidente'
 export type ReimbursementStatus = 'auto_completado' | 'pendiente_manual' | 'no_aplica'
 export type IncidentType = 'accidente' | 'falla_mecanica' | 'urgencia_medica' | 'clima' | 'otro' | 'viaje_no_realizado' | 'disputa_cobro'
