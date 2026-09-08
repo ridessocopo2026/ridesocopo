@@ -20,6 +20,7 @@ export function AdminDrivers() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [pendingVeh, setPendingVeh] = useState<Set<string>>(new Set())
   const { user } = useAuth()
 
   useEffect(() => {
@@ -36,6 +37,14 @@ export function AdminDrivers() {
     if (!error && data) {
       setDrivers(data as Profile[])
     }
+
+    // Conductores con al menos un vehículo sin aprobar (para la alerta roja)
+    const { data: vPending } = await supabase
+      .from('vehicles')
+      .select('driver_id')
+      .eq('is_approved', false)
+    setPendingVeh(new Set<string>((vPending || []).map((r: any) => r.driver_id)))
+
     setLoading(false)
   }
 
@@ -253,7 +262,12 @@ export function AdminDrivers() {
                       )}
                     </div>
                   </div>
-                  {statusBadge[driver.driver_status || 'pendiente']}
+                  <div className="flex flex-col items-end gap-1">
+                    {statusBadge[driver.driver_status || 'pendiente']}
+                    {(driver.driver_status === 'pendiente' || driver.avatar_pending_url || pendingVeh.has(driver.id)) && (
+                      <span className="badge-danger">⚠ En espera</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
