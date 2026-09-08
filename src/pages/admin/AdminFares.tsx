@@ -31,6 +31,7 @@ export function AdminFares() {
   const [base, setBase] = useState('1.00')
   const [pass, setPass] = useState('1')
   const [desc, setDesc] = useState('')
+  const [iconSel, setIconSel] = useState('')
 
   // Eliminar (aviso + reasignacion)
   const [delTarget, setDelTarget] = useState<VehicleCategory | null>(null)
@@ -62,6 +63,7 @@ export function AdminFares() {
     setBase('1.00')
     setPass('1')
     setDesc('')
+    setIconSel('')
     setFormOpen(true)
     setError('')
   }
@@ -73,6 +75,7 @@ export function AdminFares() {
     setBase(cat.base_fare_usd?.toString() || '1.00')
     setPass(cat.max_passengers?.toString() || '1')
     setDesc(cat.description || '')
+    setIconSel(cat.icon || '')
     setFormOpen(true)
     setError('')
   }
@@ -94,7 +97,7 @@ export function AdminFares() {
           p_base_fare_usd: baseNum,
           p_max_passengers: passNum,
           p_description: desc.trim() || null,
-          p_icon: null,
+          p_icon: iconSel || null,
           p_is_active: true
         })
         if (e) throw e
@@ -111,7 +114,7 @@ export function AdminFares() {
           p_base_fare_usd: baseNum,
           p_max_passengers: passNum,
           p_description: desc.trim() || null,
-          p_icon: slug
+          p_icon: iconSel || slug
         })
         if (e2) throw e2
       }
@@ -209,7 +212,7 @@ export function AdminFares() {
               <div key={cat.id} className="card">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-11 h-11 bg-primary-50 rounded-xl flex items-center justify-center text-xl">
-                    {catEmoji(cat.name)}
+                    {cat.icon || catEmoji(cat.name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-surface-700 truncate">{cat.display_name}</h3>
@@ -302,6 +305,23 @@ export function AdminFares() {
               <div>
                 <label className="label">Descripción</label>
                 <input className="input" placeholder="Opcional" value={desc} onChange={(e) => setDesc(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Icono</label>
+                <div className="flex flex-wrap gap-2">
+                  {['', '🛵', '🏍️', '🛺', '📦', '🚗', '🚚', '🚕', '🚙'].map((ic) => (
+                    <button
+                      key={ic || 'none'}
+                      type="button"
+                      onClick={() => setIconSel(ic)}
+                      className={`w-11 h-11 rounded-xl border-2 text-xl flex items-center justify-center transition-all ${
+                        iconSel === ic ? 'border-primary-600 bg-primary-50' : 'border-surface-200 hover:border-surface-300'
+                      }`}
+                    >
+                      {ic || '🚘'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setFormOpen(false)} className="btn-outline flex-1">Cancelar</button>

@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Upload, User, Car, FileText, Shield } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
-import type { VehicleCategoryType } from '@/types/database'
+import type { VehicleCategory, VehicleCategoryType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
+
+const ONBOARD_DEFAULT_CATS: VehicleCategory[] = [
+  { id: 'o-moto_basica', name: 'moto_basica', display_name: 'Moto Básica', base_fare_usd: 1, max_passengers: 1, icon: '🛵', is_active: true, created_at: '' },
+  { id: 'o-moto_lujo', name: 'moto_lujo', display_name: 'Moto de Lujo', base_fare_usd: 1.6, max_passengers: 1, icon: '🏍️', is_active: true, created_at: '' },
+  { id: 'o-trimoto', name: 'trimoto', display_name: 'Trimoto', base_fare_usd: 2, max_passengers: 3, icon: '🛺', is_active: true, created_at: '' },
+  { id: 'o-moto_carga', name: 'moto_carga', display_name: 'Moto de Carga', base_fare_usd: 1.3, max_passengers: 1, icon: '📦', is_active: true, created_at: '' },
+  { id: 'o-carro', name: 'carro', display_name: 'Carro', base_fare_usd: 5, max_passengers: 4, icon: '🚗', is_active: true, created_at: '' },
+  { id: 'o-camioneta', name: 'camioneta', display_name: 'Camioneta', base_fare_usd: 8, max_passengers: 6, icon: '🚚', is_active: true, created_at: '' }
+]
 
 export function DriverOnboarding() {
   const [step, setStep] = useState(1)
@@ -27,12 +36,34 @@ export function DriverOnboarding() {
   const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null)
 
   // Datos del vehículo
-  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategoryType>('moto')
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleCategory[]>([])
+  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategoryType>('')
   const [vehicleBrand, setVehicleBrand] = useState('')
   const [vehicleModel, setVehicleModel] = useState('')
   const [vehicleYear, setVehicleYear] = useState('')
   const [vehicleColor, setVehicleColor] = useState('')
   const [vehiclePlate, setVehiclePlate] = useState('')
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('vehicle_categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('base_fare_usd')
+        const list = (data || []) as VehicleCategory[]
+        setVehicleTypes(list)
+        if (list.length) {
+          setVehicleCategory((prev) => (list.some((c) => c.name === prev) ? prev : list[0].name))
+        } else {
+          setVehicleCategory('moto_basica')
+        }
+      } catch {
+        setVehicleCategory('moto_basica')
+      }
+    })()
+  }, [])
 
   const uploadFile = async (file: File, bucket: string, path: string): Promise<string> => {
     const { data, error } = await supabase.storage
@@ -129,7 +160,7 @@ export function DriverOnboarding() {
       }
     }
     if (step === 3) {
-      if (!vehicleBrand || !vehicleModel || !vehicleYear || !vehicleColor || !vehiclePlate) {
+      if (!vehicleCategory || !vehicleBrand || !vehicleModel || !vehicleYear || !vehicleColor || !vehiclePlate) {
         setError('Completa todos los datos del vehículo')
         return
       }
@@ -263,20 +294,21 @@ export function DriverOnboarding() {
               </div>
 
               <div>
-                <label className="label">Categoría *</label>
+                <label className="label">Tipo de vehículo *</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['moto', 'carro', 'camioneta'] as VehicleCategoryType[]).map((cat) => (
+                  {(vehicleTypes.length ? vehicleTypes : ONBOARD_DEFAULT_CATS).map((cat) => (
                     <button
-                      key={cat}
+                      key={cat.name}
                       type="button"
-                      onClick={() => setVehicleCategory(cat)}
+                      onClick={() => setVehicleCategory(cat.name)}
                       className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        vehicleCategory === cat
+                        vehicleCategory === cat.name
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
                           : 'border-surface-200 text-surface-600 hover:border-surface-300'
                       }`}
                     >
-                      {cat === 'moto' ? 'Moto' : cat === 'carro' ? 'Carro' : 'Camioneta'}
+                      <span className="block text-xl leading-none mb-1">{cat.icon || '🚗'}</span>
+                      <span className="block">{cat.display_name || cat.name}</span>
                     </button>
                   ))}
                 </div>

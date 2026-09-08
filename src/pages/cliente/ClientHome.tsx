@@ -1026,7 +1026,7 @@ export function ClientHome() {
                 }`}
               >
                 <div className={`mx-auto mb-2 ${selectedCategory === cat.name ? 'text-primary-600' : 'text-surface-400'}`}>
-                  {categoryIcons[cat.name as keyof typeof categoryIcons] || <Car className="w-8 h-8 mx-auto" />}
+                  {cat.icon ? <span className="text-3xl leading-none">{cat.icon}</span> : (categoryIcons[cat.name as keyof typeof categoryIcons] || <Car className="w-8 h-8 mx-auto" />)}
                 </div>
                 <span className={`block text-sm font-medium ${selectedCategory === cat.name ? 'text-primary-700' : 'text-surface-600'}`}>
                   {cat.display_name}
