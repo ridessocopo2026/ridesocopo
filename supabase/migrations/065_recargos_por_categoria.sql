@@ -1,6 +1,8 @@
 -- ============================================================
--- BUNRIDER - Migración 064: RECARGOS POR BARRIO Y POR CATEGORÍA
+-- BUNRIDER - Migración 065: RECARGOS POR BARRIO Y POR CATEGORÍA
 -- ------------------------------------------------------------
+-- REQUISITO: aplicar antes la migración 064 (agrega las etiquetas
+-- del enum vehicle_category en su propia transacción).
 -- Objetivo: que CADA tipo de vehículo del catálogo dinámico
 -- (Moto Básica, Moto de Lujo, Trimoto, Moto de Carga, Carro,
 -- Camioneta, Camión de Mudanza y los que el admin cree luego)
@@ -22,16 +24,7 @@
 -- ============================================================
 
 -- ============================================================
--- 1. ETIQUETAS INTERNAS GARANTIZADAS EN EL ENUM (idempotente)
--- ============================================================
-ALTER TYPE public.vehicle_category ADD VALUE IF NOT EXISTS 'moto_basica';
-ALTER TYPE public.vehicle_category ADD VALUE IF NOT EXISTS 'moto_lujo';
-ALTER TYPE public.vehicle_category ADD VALUE IF NOT EXISTS 'trimoto';
-ALTER TYPE public.vehicle_category ADD VALUE IF NOT EXISTS 'moto_carga';
-ALTER TYPE public.vehicle_category ADD VALUE IF NOT EXISTS 'camion_mudanza';
-
--- ============================================================
--- 2. CATÁLOGO: MOTO DE CARGA + CAMIÓN DE MUDANZA (y las otras
+-- 1. CATÁLOGO: MOTO DE CARGA + CAMIÓN DE MUDANZA (y las otras
 --    motos por si algún entorno no las tuviera). No pisa
 --    tarifas base ya editadas por el admin (solo icono/etiqueta).
 -- ============================================================
@@ -50,7 +43,7 @@ ON CONFLICT (name) DO UPDATE SET
   is_active = TRUE;
 
 -- ============================================================
--- 3. TABLA barrio_surcharges: recargo extra por barrio y tipo
+-- 2. TABLA barrio_surcharges: recargo extra por barrio y tipo
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.barrio_surcharges (
   barrio_id     UUID           NOT NULL REFERENCES public.barrios(id) ON DELETE CASCADE,
@@ -67,7 +60,7 @@ COMMENT ON TABLE public.barrio_surcharges IS
   'Recargos explícitos por barrio × categoría. Si no hay fila se usa la columna histórica del barrio (moto/carro/camioneta) o el recargo general.';
 
 -- ============================================================
--- 4. VISTA v_barrio_surcharges: recargo efectivo por barrio y
+-- 3. VISTA v_barrio_surcharges: recargo efectivo por barrio y
 --    categoría activa (fuente única para app y calculate_fare)
 -- ============================================================
 CREATE OR REPLACE VIEW public.v_barrio_surcharges AS
@@ -100,7 +93,7 @@ REVOKE ALL ON public.v_barrio_surcharges FROM anon, authenticated;
 GRANT SELECT ON public.v_barrio_surcharges TO anon, authenticated, service_role;
 
 -- ============================================================
--- 5. CALCULATE_FARE: el recargo del barrio sale de la vista
+-- 4. CALCULATE_FARE: el recargo del barrio sale de la vista
 --    (misma firma y mismo JSON de salida que antes)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.calculate_fare(
@@ -212,7 +205,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.calculate_fare TO anon, authenticated, service_role;
 
 -- ============================================================
--- 6. UPSERT_BARRIO: guarda también los recargos por categoría
+-- 5. UPSERT_BARRIO: guarda también los recargos por categoría
 --    (lista JSONB [{category, surcharge_usd}]). Si viene NULL no
 --    toca la tabla (compatibilidad con clientes antiguos); si
 --    viene como array, reemplaza el conjunto de filas del barrio.
