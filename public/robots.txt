@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://riderflasshi.com/sitemap.xml
+Sitemap: https://bunrider.com/sitemap.xml
