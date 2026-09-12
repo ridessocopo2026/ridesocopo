@@ -380,4 +380,20 @@ export interface FareCalculation {
   final_fare: number
   origin_zone_id: string
   destination_zone_id: string
+  destination_barrio_id?: string | null
+  destination_barrio_name?: string | null
+  coupon_id?: string | null
+  coupon_code?: string | null
+  coupon_reason?: string | null
+  coupon_message?: string | null
+}
+
+export interface CouponStats {
+  total_discount_usd: number
+  redemptions: number
+  viajes_con_cupon?: number
+  usuarios_unicos?: number
+  descuento_promedio?: number
+  cupones_activos?: number
+  top_cupones?: { code: string; redemptions: number; discount: number }[]
 }

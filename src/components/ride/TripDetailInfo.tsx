@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { XCircle, ShieldAlert, CalendarDays, Receipt } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import type { Ride, RideIncident, IncidentType, IncidentStatus } from '@/types/database'
 
 interface TripDetailInfoProps {
@@ -68,6 +70,24 @@ const fmtDate = (iso?: string): string | null => {
 
 export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdown = true }: TripDetailInfoProps) {
   const details = parseResolutionDetails(incident?.resolution_details)
+  const [couponCode, setCouponCode] = useState<string | null>(null)
+
+  // Código del cupón usado en el viaje (para que el cliente vea cuál aplicó)
+  useEffect(() => {
+    let cancelled = false
+    if (!ride.coupon_id || Number(ride.discount_usd) <= 0) {
+      setCouponCode(null)
+      return
+    }
+    supabase
+      .rpc('get_my_ride_coupon', { p_ride_id: ride.id })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return
+        const res = data as { found?: boolean; code?: string }
+        if (res.found && res.code) setCouponCode(res.code)
+      })
+    return () => { cancelled = true }
+  }, [ride.id, ride.coupon_id, ride.discount_usd])
   const incidentResolved = !!incident && (incident.status === 'resuelto' || incident.status === 'cerrado')
   const isDispute = !!incident && (
     incident.incident_type === 'viaje_no_realizado' ||
@@ -296,7 +316,7 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
           </div>
           {Number(ride.discount_usd) > 0 && (
             <div className="flex justify-between">
-              <span className="text-surface-500">Descuento aplicado</span>
+              <span className="text-surface-500">Cupón aplicado{couponCode ? ` (${couponCode})` : ''}</span>
               <span className="font-medium text-emerald-700">-{fmt(ride.discount_usd)}</span>
             </div>
           )}

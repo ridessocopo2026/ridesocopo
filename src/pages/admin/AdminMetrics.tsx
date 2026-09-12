@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
-import type { Profile } from '@/types/database'
+import type { Profile, CouponStats } from '@/types/database'
 
 interface WalletOverview {
   total_banco: number
@@ -75,7 +75,7 @@ export function AdminMetrics() {
   const [clienteId, setClienteId] = useState('')
   const [metodo, setMetodo] = useState('')
   const [applying, setApplying] = useState(false)
-  const [couponStats, setCouponStats] = useState<{ total_discount_usd: number; redemptions: number } | null>(null)
+  const [couponStats, setCouponStats] = useState<CouponStats | null>(null)
 
   useEffect(() => {
     loadProfiles()
@@ -90,11 +90,12 @@ export function AdminMetrics() {
   }
 
   const loadCouponStats = async () => {
-    const { data } = await supabase.rpc('get_coupon_stats', {
+    const { data } = await supabase.rpc('get_coupon_stats_detailed', {
       p_fecha_inicio: fechaInicioVE(fechaInicio),
-      p_fecha_fin: fechaFinVE(fechaFin)
+      p_fecha_fin: fechaFinVE(fechaFin),
+      p_zone_id: null
     })
-    if (data) setCouponStats(data as { total_discount_usd: number; redemptions: number })
+    if (data) setCouponStats(data as CouponStats)
   }
 
   const loadProfiles = async () => {
@@ -339,8 +340,23 @@ export function AdminMetrics() {
                 </p>
                 <p className="text-2xl font-bold text-purple-700 mt-1">−{fmt(couponStats.total_discount_usd)}</p>
                 <p className="text-[10px] text-purple-600">
-                  {couponStats.redemptions} canjes en el período
+                  {couponStats.redemptions} canjes • {couponStats.viajes_con_cupon ?? 0} viajes con cupón • {couponStats.usuarios_unicos ?? 0} clientes
                 </p>
+                <div className="flex flex-wrap gap-x-3 text-[10px] text-purple-600 mt-0.5">
+                  <span>Promedio: {fmt(couponStats.descuento_promedio ?? 0)}</span>
+                  <span>Cupones activos: {couponStats.cupones_activos ?? 0}</span>
+                </div>
+                {(couponStats.top_cupones?.length ?? 0) > 0 && (
+                  <div className="mt-2 pt-2 border-t border-purple-200 space-y-1">
+                    <p className="text-[10px] font-semibold text-purple-700">Top cupones</p>
+                    {couponStats.top_cupones!.map((c) => (
+                      <div key={c.code} className="flex justify-between text-[11px] text-purple-700">
+                        <span className="font-medium">{c.code}</span>
+                        <span>{c.redemptions} usos • −{fmt(c.discount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

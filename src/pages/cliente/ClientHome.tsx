@@ -73,6 +73,7 @@ export function ClientHome() {
   const [fare, setFare] = useState<FareCalculation | null>(null)
   const [couponCode, setCouponCode] = useState('')
   const [hasActiveCoupons, setHasActiveCoupons] = useState(false)
+  const [couponFeedback, setCouponFeedback] = useState<{ ok: boolean; message: string } | null>(null)
   const [exchangeRate, setExchangeRate] = useState(0)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('')
@@ -562,7 +563,15 @@ export function ClientHome() {
 
       if (error) throw error
 
-      setFare(data as FareCalculation)
+      const res = data as FareCalculation
+      setFare(res)
+      if (couponCode.trim()) {
+        setCouponFeedback(
+          res.coupon_id && res.discount > 0
+            ? { ok: true, message: `Cupón ${res.coupon_code} aplicado: ahorras ${fmt(res.discount)}` }
+            : { ok: false, message: res.coupon_message || 'Ese cupón no existe o no está disponible' }
+        )
+      }
       setShowFareSheet(true)
       // Cargar saldo de la billetera para avisar del saldo insuficiente sin esperar el fallo
       void loadWalletBalance()
@@ -688,6 +697,44 @@ export function ClientHome() {
     const eff = barrioExtras[cat]
     return eff !== undefined ? eff : legacyBarrioSurcharge(barrio, cat)
   }
+
+  // Total estimado (tarifa base + extra del barrio) para validar el cupón en vivo
+  const estimateTotalForCoupon = (): number => {
+    const cat = categories.find((c) => c.name === selectedCategory)
+    const barrio = barrios.find((b) => b.id === destBarrioId)
+    if (!cat || !barrio) return 0
+    return cat.base_fare_usd + getExtraForCategory(barrio, cat.name)
+  }
+
+  // Validación del cupón en vivo (con retardo) mientras el cliente escribe
+  useEffect(() => {
+    const code = couponCode.trim()
+    if (!code) {
+      setCouponFeedback(null)
+      return
+    }
+    if (!user) {
+      setCouponFeedback({ ok: false, message: 'Inicia sesión para usar cupones' })
+      return
+    }
+    const total = estimateTotalForCoupon()
+    if (total <= 0) {
+      setCouponFeedback(null)
+      return
+    }
+    const t = setTimeout(async () => {
+      const { data, error } = await supabase.rpc('validate_coupon', { p_code: code, p_total: total })
+      if (error || !data) return
+      const res = data as { valid: boolean; message?: string; discount?: number; code?: string }
+      setCouponFeedback(
+        res.valid
+          ? { ok: true, message: res.message || `Cupón ${code} aplicado` }
+          : { ok: false, message: res.message || 'El cupón no es válido' }
+      )
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [couponCode, user?.id, destBarrioId, selectedCategory, barrioExtras])
 
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
@@ -1081,6 +1128,11 @@ export function ClientHome() {
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
             />
+            {couponFeedback && (
+              <p className={`text-xs mt-1 ${couponFeedback.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                {couponFeedback.ok ? `🎟️ ${couponFeedback.message}` : `⚠️ ${couponFeedback.message}`}
+              </p>
+            )}
           </div>
         )}
 
@@ -1244,10 +1296,34 @@ export function ClientHome() {
 
             <div className="space-y-3 mb-6">
               {/* Solo el total: el desglose de la tarifa ya no se muestra al cliente */}
-              <div className="flex justify-between">
+              <div className="flex justify-between items-baseline">
                 <span className="font-semibold text-surface-800">Total</span>
-                <span className="text-2xl font-bold text-primary-600">{fare.final_fare.toFixed(2)}$</span>
+                <div className="text-right">
+                  {fare.coupon_id && fare.discount > 0 && (
+                    <span className="block text-xs text-surface-400 line-through">{fare.total_fare.toFixed(2)}$</span>
+                  )}
+                  <span className="text-2xl font-bold text-primary-600">{fare.final_fare.toFixed(2)}$</span>
+                </div>
               </div>
+
+              {/* Estado del cupón: aplicado o el motivo por el que no aplica */}
+              {fare.coupon_id && fare.discount > 0 ? (
+                <div className="rounded-xl p-3 bg-emerald-50 border-2 border-emerald-200 animate-fade-in" role="status">
+                  <p className="text-sm font-semibold text-emerald-700">
+                    🎟️ Cupón {fare.coupon_code} aplicado
+                  </p>
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    Ahorras {fmt(fare.discount)} en este viaje
+                  </p>
+                </div>
+              ) : couponCode.trim() ? (
+                <div className="rounded-xl p-3 bg-amber-50 border-2 border-amber-200 animate-fade-in" role="alert">
+                  <p className="text-sm font-semibold text-amber-700">Cupón no aplicado</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    {fare.coupon_message || 'Ese cupón no existe o no está disponible'}
+                  </p>
+                </div>
+              ) : null}
 
               {/* Total en bolívares si Pago Móvil está seleccionado */}
               {selectedPaymentMethod?.toLowerCase().includes('pago') && exchangeRate > 0 && (
