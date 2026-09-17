@@ -25,6 +25,25 @@ export interface Profile {
   created_at: string
   updated_at: string
   onboarding_completed: boolean
+  availability_auto?: boolean
+  available_from?: string | null
+  available_to?: string | null
+  available_days?: number[] | null
+  available_override_until?: string | null
+  availability_push?: boolean
+}
+
+export interface DriverAvailability {
+  is_online: boolean
+  auto: boolean
+  from?: string | null
+  to?: string | null
+  days?: number[]
+  in_schedule: boolean
+  override_until?: string | null
+  push: boolean
+  local_now?: string
+  dow?: number
 }
 
 export interface Barrio {

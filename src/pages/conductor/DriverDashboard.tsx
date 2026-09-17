@@ -14,7 +14,7 @@ import { SkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { useAvailableRidesPolling } from '@/lib/rideRealtime'
-import type { Ride, Wallet as WalletType, Vehicle } from '@/types/database'
+import type { Ride, Wallet as WalletType, Vehicle, DriverAvailability } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
 const clientIcon = L.divIcon({
@@ -73,6 +73,15 @@ export function DriverDashboard() {
 
   const [activeVehicle, setActiveVehicle] = useState<Vehicle | null>(null)
 
+  // Disponibilidad con horario
+  const [avail, setAvail] = useState<DriverAvailability | null>(null)
+  const [schedAuto, setSchedAuto] = useState(false)
+  const [schedFrom, setSchedFrom] = useState('13:00')
+  const [schedTo, setSchedTo] = useState('20:00')
+  const [schedDays, setSchedDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7])
+  const [schedPush, setSchedPush] = useState(true)
+  const [savingSched, setSavingSched] = useState(false)
+
   useEffect(() => {
     loadWallet()
     checkActiveRide()
@@ -95,7 +104,23 @@ export function DriverDashboard() {
     }
     loadVehicle()
     loadOnlineState()
+    loadAvailability()
   }, [user?.id])
+
+  // Refresco ligero de disponibilidad (recordatorios) cada 60s y al volver
+  useEffect(() => {
+    if (user?.driver_status !== 'aprobado') return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadAvailability()
+    }
+    const timer = setInterval(refresh, 60000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.driver_status])
 
   useEffect(() => {
     if (isOnline) {
@@ -197,6 +222,83 @@ export function DriverDashboard() {
     }
   }
 
+  const loadAvailability = async () => {
+    const { data, error } = await supabase.rpc('get_my_availability')
+    if (error || !data) return
+    const a = data as DriverAvailability
+    setAvail(a)
+    setSchedAuto(!!a.auto)
+    setSchedPush(a.push !== false)
+    if (a.from) setSchedFrom(String(a.from).slice(0, 5))
+    if (a.to) setSchedTo(String(a.to).slice(0, 5))
+    if (Array.isArray(a.days) && a.days.length > 0) setSchedDays(a.days as number[])
+    if (typeof a.is_online === 'boolean') setIsOnline(a.is_online)
+  }
+
+  const handleSaveSchedule = async () => {
+    setError('')
+    setSavingSched(true)
+    try {
+      if (schedAuto && (!schedFrom || !schedTo)) {
+        throw new Error('Define la hora de inicio y de cierre del horario')
+      }
+      const { data, error } = await supabase.rpc('set_my_availability', {
+        p_online: isOnline,
+        p_auto: schedAuto,
+        p_from: schedAuto ? schedFrom : null,
+        p_to: schedAuto ? schedTo : null,
+        p_days: schedAuto ? (schedDays.length === 7 ? null : schedDays) : null,
+        p_push: schedPush
+      })
+      if (error) throw error
+      if (data?.success) {
+        await loadAvailability()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSavingSched(false)
+    }
+  }
+
+  const handleOverride = async (minutes: number) => {
+    setError('')
+    setLoading(true)
+    try {
+      const { error } = await supabase.rpc('set_my_availability_override', { p_minutes: minutes })
+      if (error) throw error
+      setIsOnline(true)
+      await loadAvailability()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoOffline = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const auto = avail?.auto ?? schedAuto
+      const { error } = await supabase.rpc('set_my_availability', {
+        p_online: false,
+        p_auto: auto,
+        p_from: auto ? schedFrom : null,
+        p_to: auto ? schedTo : null,
+        p_days: auto ? (schedDays.length === 7 ? null : schedDays) : null,
+        p_push: schedPush
+      })
+      if (error) throw error
+      setIsOnline(false)
+      await loadAvailability()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleAcceptRide = async (rideId: string) => {
     setError('')
     setLoading(true)
@@ -282,6 +384,118 @@ export function DriverDashboard() {
               disabled={loading || user?.driver_status !== 'aprobado'}
               label="Disponible"
             />
+          </div>
+
+          {/* Aviso de horario: recordatorio para conectarse o desconectarse */}
+          {avail?.auto && (
+            avail.in_schedule ? (
+              !isOnline && (
+                <div className="mt-3 rounded-lg p-3 bg-emerald-50 border border-emerald-200">
+                  <p className="text-xs text-emerald-700">
+                    🟢 Estás en tu horario ({schedFrom}–{schedTo}). Conéctate para recibir viajes.
+                  </p>
+                  <button
+                    onClick={() => handleToggleOnline(true)}
+                    className="btn-primary w-full mt-2 text-xs py-1.5"
+                    disabled={loading}
+                  >
+                    Conectarme ahora
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="mt-3 rounded-lg p-3 bg-amber-50 border border-amber-200">
+                <p className="text-xs text-amber-700">
+                  🌙 Fuera de tu horario ({schedFrom}–{schedTo}). No recibirás ofertas de viaje.
+                </p>
+                {avail.override_until && new Date(avail.override_until) > new Date() ? (
+                  <p className="text-[11px] text-amber-600 mt-1">
+                    Conexión manual activa hasta las{' '}
+                    {new Date(avail.override_until).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}.
+                  </p>
+                ) : (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleOverride(60)} className="btn-outline flex-1 text-xs py-1.5" disabled={loading}>
+                      Activar 1 hora
+                    </button>
+                    <button onClick={() => handleOverride(0)} className="btn-outline flex-1 text-xs py-1.5" disabled={loading}>
+                      Hasta mañana
+                    </button>
+                  </div>
+                )}
+                {isOnline && (
+                  <button onClick={handleGoOffline} className="btn-danger w-full mt-2 text-xs py-1.5" disabled={loading}>
+                    Desactivarme ahora
+                  </button>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Horario automático */}
+          <div className="mt-4 pt-4 border-t border-surface-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-surface-700">Horario automático</p>
+                <p className="text-xs text-surface-400">Define tus horas de trabajo</p>
+              </div>
+              <Switch
+                checked={schedAuto}
+                onChange={setSchedAuto}
+                disabled={loading || user?.driver_status !== 'aprobado'}
+                label="Horario"
+              />
+            </div>
+
+            {schedAuto && (
+              <div className="mt-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-surface-500 block mb-1">Desde</label>
+                    <input type="time" className="input" value={schedFrom} onChange={(e) => setSchedFrom(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-surface-500 block mb-1">Hasta</label>
+                    <input type="time" className="input" value={schedTo} onChange={(e) => setSchedTo(e.target.value)} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-surface-500 block mb-1">Días</label>
+                  <div className="flex gap-1.5">
+                    {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((lbl, idx) => {
+                      const day = idx + 1
+                      const on = schedDays.includes(day)
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() =>
+                            setSchedDays((prev) =>
+                              prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => a - b)
+                            )
+                          }
+                          className={`w-8 h-8 rounded-full text-xs font-medium border transition-colors ${
+                            on ? 'bg-primary-600 text-white border-primary-600' : 'border-surface-200 text-surface-500'
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-surface-600">Avisarme por push al abrir/cerrar</p>
+                  <Switch checked={schedPush} onChange={setSchedPush} label="Avisos" />
+                </div>
+
+                <button onClick={handleSaveSchedule} className="btn-primary w-full text-sm" disabled={savingSched}>
+                  {savingSched ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar horario'}
+                </button>
+              </div>
+            )}
           </div>
 
           {user?.driver_status !== 'aprobado' && (

@@ -66,6 +66,7 @@ export function ClientHome() {
   const [categories, setCategories] = useState<VehicleCategory[]>([])
   const [barrios, setBarrios] = useState<Barrio[]>([])
   const [barrioExtras, setBarrioExtras] = useState<Record<string, number>>({})
+  const [driverCounts, setDriverCounts] = useState<Record<string, number>>({})
   const [cities, setCities] = useState<CityInfo[]>([])
   const [selectedCityId, setSelectedCityId] = useState('')
   const [favorites, setFavorites] = useState<FavoritePlace[]>([])
@@ -537,6 +538,12 @@ export function ClientHome() {
       return
     }
 
+    if (driverCounts[selectedCategory] === 0) {
+      const label = categories.find((c) => c.name === selectedCategory)?.display_name || 'ese vehículo'
+      setError(`🕐 No hay ${label} disponibles ahora. Elige otro vehículo o intenta más tarde.`)
+      return
+    }
+
     // Requiere autenticación ANTES de mostrar tarifa y métodos de pago
     if (!user) {
       setShowLoginPrompt(true)
@@ -594,6 +601,12 @@ export function ClientHome() {
   const handleRequestRide = async () => {
     if (!origin || !destBarrioId || !selectedCategory || !selectedPaymentMethod) return
     if (!user) return // Ya se valida en handleCalculateFare
+
+    if (driverCounts[selectedCategory] === 0) {
+      const label = categories.find((c) => c.name === selectedCategory)?.display_name || 'ese vehículo'
+      setError(`🕐 No hay ${label} disponibles ahora. Elige otro vehículo o intenta más tarde.`)
+      return
+    }
 
     setError('')
     setLoading(true)
@@ -735,6 +748,34 @@ export function ClientHome() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [couponCode, user?.id, destBarrioId, selectedCategory, barrioExtras])
+
+  // Disponibilidad real por categoría (polling barato: 1 request/min,
+  // solo con la pestaña visible y sin viaje activo)
+  const loadAvailability = async () => {
+    if (!selectedCityId) return
+    const { data, error } = await supabase.rpc('get_available_driver_counts', { p_zone_id: selectedCityId })
+    if (error || !data) return
+    const map: Record<string, number> = {}
+    ;(data as Array<{ category: string; available: number }>).forEach((r) => {
+      map[r.category] = Number(r.available) || 0
+    })
+    setDriverCounts(map)
+  }
+
+  useEffect(() => {
+    if (!selectedCityId) return
+    void loadAvailability()
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && !activeRide) void loadAvailability()
+    }
+    const timer = setInterval(refresh, 60000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCityId, activeRide])
 
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
@@ -1090,32 +1131,57 @@ export function ClientHome() {
         <div id="vehicles-select">
           <h2 className="text-lg font-semibold text-surface-800 mb-3">Elige tu vehículo</h2>
           <div className="grid grid-cols-3 gap-3">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.name)}
-                className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
-                  selectedCategory === cat.name
-                    ? 'border-primary-600 bg-primary-50 shadow-soft'
-                    : 'border-surface-200 bg-white hover:border-surface-300'
-                }`}
-              >
-                <div className={`mx-auto mb-2 ${selectedCategory === cat.name ? 'text-primary-600' : 'text-surface-400'}`}>
-                  {cat.icon ? <span className="text-3xl leading-none">{cat.icon}</span> : (categoryIcons[cat.name as keyof typeof categoryIcons] || <Car className="w-8 h-8 mx-auto" />)}
-                </div>
-                <span className={`block text-sm font-medium ${selectedCategory === cat.name ? 'text-primary-700' : 'text-surface-600'}`}>
-                  {cat.display_name}
-                </span>
-                <span className="block text-xs font-semibold text-primary-600 mt-1">
-                  {cat.base_fare_usd.toFixed(2)}$
-                </span>
-                {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name) > 0 && (
-                  <span className="block text-[10px] text-accent-600 mt-0.5">
-                    + {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name).toFixed(2)}$ extra por sector
+            {categories.map((cat) => {
+              const count = driverCounts[cat.name]
+              const noDisponible = count === 0
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    if (noDisponible) {
+                      setError(`🕐 No hay ${cat.display_name} disponibles ahora. Prueba con otro vehículo.`)
+                      return
+                    }
+                    setSelectedCategory(cat.name)
+                  }}
+                  disabled={noDisponible}
+                  aria-disabled={noDisponible}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
+                    noDisponible
+                      ? 'opacity-50 cursor-not-allowed border-surface-200 bg-surface-50'
+                      : selectedCategory === cat.name
+                        ? 'border-primary-600 bg-primary-50 shadow-soft'
+                        : 'border-surface-200 bg-white hover:border-surface-300'
+                  }`}
+                >
+                  <div className={`mx-auto mb-2 ${selectedCategory === cat.name && !noDisponible ? 'text-primary-600' : 'text-surface-400'}`}>
+                    {cat.icon ? <span className="text-3xl leading-none">{cat.icon}</span> : (categoryIcons[cat.name as keyof typeof categoryIcons] || <Car className="w-8 h-8 mx-auto" />)}
+                  </div>
+                  <span className={`block text-sm font-medium ${selectedCategory === cat.name && !noDisponible ? 'text-primary-700' : 'text-surface-600'}`}>
+                    {cat.display_name}
                   </span>
-                )}
-              </button>
-            ))}
+                  <span className="block text-xs font-semibold text-primary-600 mt-1">
+                    {cat.base_fare_usd.toFixed(2)}$
+                  </span>
+                  {noDisponible ? (
+                    <span className="block text-[10px] font-semibold text-amber-600 mt-0.5">
+                      No disponible ahora
+                    </span>
+                  ) : (
+                    typeof count === 'number' && (
+                      <span className="block text-[10px] text-emerald-600 mt-0.5">
+                        🟢 {count} disponible{count === 1 ? '' : 's'}
+                      </span>
+                    )
+                  )}
+                  {!noDisponible && getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name) > 0 && (
+                    <span className="block text-[10px] text-accent-600 mt-0.5">
+                      + {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name).toFixed(2)}$ extra por sector
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
