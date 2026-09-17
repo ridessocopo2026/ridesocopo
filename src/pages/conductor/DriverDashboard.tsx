@@ -72,6 +72,7 @@ export function DriverDashboard() {
   const watchIdRef = useRef<number | null>(null)
 
   const [activeVehicle, setActiveVehicle] = useState<Vehicle | null>(null)
+  const [vehicleLoaded, setVehicleLoaded] = useState(false)
 
   // Disponibilidad con horario
   const [avail, setAvail] = useState<DriverAvailability | null>(null)
@@ -90,7 +91,8 @@ export function DriverDashboard() {
       if (!user) return
       const { data } = await supabase.rpc('get_driver_vehicles')
       const veh = Array.isArray(data) ? data.find((x: Vehicle) => x.is_active_vehicle) : null
-      if (veh) setActiveVehicle(veh as Vehicle)
+      setActiveVehicle(veh ? (veh as Vehicle) : null)
+      setVehicleLoaded(true)
     }
     // Cargar el estado REAL de disponibilidad del perfil
     const loadOnlineState = async () => {
@@ -203,6 +205,13 @@ export function DriverDashboard() {
 
   const handleToggleOnline = async (checked: boolean) => {
     setError('')
+
+    // Solo puede conectarse con un vehículo aprobado y activo
+    if (checked && vehicleLoaded && !(activeVehicle && activeVehicle.is_approved === true)) {
+      setError('⚠️ No tienes un vehículo aprobado y activo. Ve a tu perfil para activarlo o espera la aprobación del administrador.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -506,11 +515,38 @@ export function DriverDashboard() {
             </div>
           )}
           {activeVehicle && (
-            <div className="mt-4 bg-surface-50 rounded-lg p-3 flex items-center gap-2">
-              <Car className="w-4 h-4 text-primary-600" />
-              <span className="text-xs text-surface-600">
-                <strong>Vehículo activo:</strong> {activeVehicle.brand} {activeVehicle.model} ({activeVehicle.category}) • {activeVehicle.plate}
-              </span>
+            <div className="mt-4 bg-surface-50 rounded-lg p-3 flex items-start gap-2">
+              <Car className="w-4 h-4 text-primary-600 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs text-surface-600">
+                  <strong>Vehículo activo:</strong> {activeVehicle.brand} {activeVehicle.model} ({activeVehicle.category}) • {activeVehicle.plate}
+                </p>
+                <span className={`badge mt-1 ${activeVehicle.is_approved ? 'badge-success' : 'badge-warning'}`}>
+                  {activeVehicle.is_approved ? 'Aprobado' : 'Pendiente de aprobación'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {vehicleLoaded && !activeVehicle && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-700">
+                ⚠️ No tienes un vehículo activo. Activa uno aprobado desde tu perfil para poder recibir viajes.
+              </p>
+              <button onClick={() => navigate('/conductor/perfil')} className="btn-outline w-full mt-2 text-xs py-1.5">
+                Ir a mi perfil
+              </button>
+            </div>
+          )}
+
+          {vehicleLoaded && activeVehicle && activeVehicle.is_approved !== true && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-700">
+                ⚠️ Tu vehículo activo está <strong>pendiente de aprobación</strong>: no aparecerás disponible ni recibirás ofertas hasta que el administrador lo apruebe.
+              </p>
+              <button onClick={() => navigate('/conductor/perfil')} className="btn-outline w-full mt-2 text-xs py-1.5">
+                Ir a mi perfil
+              </button>
             </div>
           )}
         </div>
