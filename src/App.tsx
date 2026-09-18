@@ -11,6 +11,7 @@ import { Welcome } from '@/pages/Welcome'
 import { Login } from '@/pages/auth/Login'
 import { Register } from '@/pages/auth/Register'
 import { Onboarding } from '@/pages/auth/Onboarding'
+import { ResetPassword } from '@/pages/auth/ResetPassword'
 import { DriverOnboarding } from '@/pages/conductor/DriverOnboarding'
 import { DriverPending } from '@/pages/conductor/DriverPending'
 import { DriverDashboard } from '@/pages/conductor/DriverDashboard'
@@ -115,7 +116,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const location = useLocation()
 
-  const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding'].includes(location.pathname)
+  const isPublicPage = ['/welcome', '/login', '/registro', '/onboarding', '/reset-password'].includes(location.pathname)
   const isFullScreen =
     ['/conductor/registro', '/conductor/pendiente'].includes(location.pathname) ||
     location.pathname.startsWith('/cliente/viaje/') ||
@@ -129,6 +130,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       '/login': 'Iniciar sesión | BunRider',
       '/registro': 'Regístrate | BunRider',
       '/onboarding': 'Bienvenido | BunRider',
+      '/reset-password': 'Restablecer contraseña | BunRider',
       '/cliente': 'Solicitar viaje | BunRider',
       '/cliente/historial': 'Historial de viajes | BunRider',
       '/cliente/billetera': 'Mi billetera | BunRider',
@@ -180,6 +182,7 @@ export default function App() {
       <AppLayout>
         <Routes>
           <Route path="/welcome" element={<GuestRoute><Welcome /></GuestRoute>} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/registro" element={<GuestRoute><Register /></GuestRoute>} />
           <Route path="/onboarding" element={

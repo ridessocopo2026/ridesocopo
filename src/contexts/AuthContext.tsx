@@ -10,6 +10,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>
   signInWithGoogle: () => Promise<{ error: string | null }>
+  resetPassword: (email: string) => Promise<{ error: string | null }>
+  updatePassword: (password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -178,6 +180,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message || null }
   }
 
+  // Enviar enlace de recuperación (sale por Resend vía SMTP de Supabase,
+  // con remitente "BunRider <no-reply@bunrider.com>")
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`
+    })
+    return { error: error?.message || null }
+  }
+
+  // Cambiar la contraseña usando la sesión de recuperación del enlace
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password })
+    return { error: error?.message || null }
+  }
+
   const signOut = async () => {
     // Desuscribir push ANTES de cerrar sesión (para no recibir notificaciones del usuario anterior)
     await unsubscribeUserFromPush()
@@ -200,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, resetPassword, updatePassword, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

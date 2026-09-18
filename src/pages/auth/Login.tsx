@@ -11,7 +11,9 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn, signInWithGoogle } = useAuth()
+  const [mode, setMode] = useState<'login' | 'recover'>('login')
+  const [sent, setSent] = useState(false)
+  const { signIn, signInWithGoogle, resetPassword } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/'
@@ -41,6 +43,24 @@ export function Login() {
     }
   }
 
+  const handleRecover = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!email.trim()) {
+      setError('Escribe tu correo electrónico')
+      return
+    }
+    setLoading(true)
+    const { error } = await resetPassword(email)
+    setLoading(false)
+    if (error) {
+      setError(error)
+      return
+    }
+    // Mensaje neutro: no revelamos si el correo existe o no
+    setSent(true)
+  }
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
@@ -53,13 +73,15 @@ export function Login() {
         </div>
 
         <h2 className="text-xl font-semibold text-surface-800 mb-6 text-center">
-          Iniciar sesión
+          {mode === 'login' ? 'Iniciar sesión' : 'Recuperar contraseña'}
         </h2>
 
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-        <button
-          onClick={handleGoogle}
+        {mode === 'login' && (
+          <>
+            <button
+              onClick={handleGoogle}
           className="btn-outline w-full"
           disabled={loading}
         >
@@ -76,9 +98,11 @@ export function Login() {
           <div className="flex-1 h-px bg-surface-200" />
           <span className="text-xs text-surface-400">o con tu correo</span>
           <div className="flex-1 h-px bg-surface-200" />
-        </div>
+            </div>
+          </>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={mode === 'login' ? handleSubmit : handleRecover} className="space-y-4">
           <div>
             <label className="label" htmlFor="email">Correo electrónico</label>
             <div className="relative">
@@ -95,33 +119,65 @@ export function Login() {
             </div>
           </div>
 
-          <div>
-            <label className="label" htmlFor="password">Contraseña</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-              <input
-                id="password"
-                type="password"
-                className="input pl-10"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+          {mode === 'login' && (
+            <div>
+              <label className="label" htmlFor="password">Contraseña</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                <input
+                  id="password"
+                  type="password"
+                  className="input pl-10"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Iniciar sesión'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (mode === 'login' ? 'Iniciar sesión' : 'Enviar enlace de recuperación')}
           </button>
         </form>
 
-        <p className="text-center text-sm text-surface-500 mt-6">
-          ¿No tienes cuenta?{' '}
-          <Link to="/registro" className="text-primary-600 font-medium hover:text-primary-700">
-            Regístrate
-          </Link>
-        </p>
+        {mode === 'login' ? (
+          <>
+            <button
+              type="button"
+              onClick={() => { setMode('recover'); setSent(false); setError('') }}
+              className="w-full text-center text-sm text-primary-600 font-medium mt-6 hover:text-primary-700"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+            <p className="text-center text-sm text-surface-500 mt-4">
+              ¿No tienes cuenta?{' '}
+              <Link to="/registro" className="text-primary-600 font-medium hover:text-primary-700">
+                Regístrate
+              </Link>
+            </p>
+          </>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {sent && (
+              <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-200">
+                <p className="text-sm text-emerald-700">
+                  ✅ Si ese correo está registrado, te enviamos un enlace para restablecer tu contraseña.
+                  Revisa también la carpeta de spam.
+                </p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setSent(false); setError('') }}
+              className="btn-outline w-full"
+            >
+              Volver a iniciar sesión
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
