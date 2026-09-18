@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { TurnstileWidget } from '@/components/ui/TurnstileWidget'
+import { turnstileEnabled } from '@/lib/turnstile'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -13,6 +15,9 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'login' | 'recover'>('login')
   const [sent, setSent] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaKey, setCaptchaKey] = useState(0)
+  const [captchaError, setCaptchaError] = useState('')
   const { signIn, signInWithGoogle, resetPassword } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -21,12 +26,21 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (turnstileEnabled() && !captchaToken) {
+      setError('Completa la verificación de seguridad para continuar')
+      return
+    }
+
     setLoading(true)
 
-    const { error } = await signIn(email, password)
+    const { error } = await signIn(email, password, captchaToken || undefined)
     if (error) {
       setError(error)
       setLoading(false)
+      // El token de Turnstile es de un solo uso: pedir uno nuevo
+      setCaptchaToken('')
+      setCaptchaKey((k) => k + 1)
       return
     }
 
@@ -50,11 +64,18 @@ export function Login() {
       setError('Escribe tu correo electrónico')
       return
     }
+    if (turnstileEnabled() && !captchaToken) {
+      setError('Completa la verificación de seguridad para continuar')
+      return
+    }
+
     setLoading(true)
-    const { error } = await resetPassword(email)
+    const { error } = await resetPassword(email, captchaToken || undefined)
     setLoading(false)
     if (error) {
       setError(error)
+      setCaptchaToken('')
+      setCaptchaKey((k) => k + 1)
       return
     }
     // Mensaje neutro: no revelamos si el correo existe o no
@@ -136,6 +157,17 @@ export function Login() {
                 />
               </div>
             </div>
+          )}
+
+          {turnstileEnabled() && (
+            <TurnstileWidget
+              onToken={setCaptchaToken}
+              onError={setCaptchaError}
+              resetKey={captchaKey}
+            />
+          )}
+          {captchaError && (
+            <p className="text-xs text-red-500 text-center">{captchaError}</p>
           )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>

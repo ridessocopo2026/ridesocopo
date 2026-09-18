@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { TurnstileWidget } from '@/components/ui/TurnstileWidget'
+import { turnstileEnabled } from '@/lib/turnstile'
 
 export function Register() {
   const [fullName, setFullName] = useState('')
@@ -15,6 +17,9 @@ export function Register() {
   const [role, setRole] = useState<'cliente' | 'conductor'>('cliente')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaKey, setCaptchaKey] = useState(0)
+  const [captchaError, setCaptchaError] = useState('')
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
 
@@ -42,11 +47,19 @@ export function Register() {
       return
     }
 
+    if (turnstileEnabled() && !captchaToken) {
+      setError('Completa la verificación de seguridad para continuar')
+      return
+    }
+
     setLoading(true)
-    const { error } = await signUp(email, password, fullName, phone)
+    const { error } = await signUp(email, password, fullName, phone, captchaToken || undefined)
     if (error) {
       setError(error)
       setLoading(false)
+      // El token de Turnstile es de un solo uso: pedir uno nuevo
+      setCaptchaToken('')
+      setCaptchaKey((k) => k + 1)
       return
     }
 
@@ -203,6 +216,17 @@ export function Register() {
               />
             </div>
           </div>
+
+          {turnstileEnabled() && (
+            <TurnstileWidget
+              onToken={setCaptchaToken}
+              onError={setCaptchaError}
+              resetKey={captchaKey}
+            />
+          )}
+          {captchaError && (
+            <p className="text-xs text-red-500 text-center">{captchaError}</p>
+          )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear cuenta'}
