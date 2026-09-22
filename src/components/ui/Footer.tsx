@@ -18,7 +18,7 @@ export function Footer() {
         </Link>
       </nav>
       <p className="max-w-md mx-auto text-center text-[11px] text-surface-400 mt-3">
-        © {new Date().getFullYear()} BunRider. Hecho en Socopó, Barinas, Venezuela.
+        © {new Date().getFullYear()} BunRider. Todos los derechos reservados.
       </p>
     </footer>
   )
