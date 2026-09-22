@@ -6,14 +6,27 @@ import { AppLogo } from '@/components/ui/AppLogo'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { usePageMeta } from '@/lib/seo'
 
+type LegalPageKey = 'politicas_privacidad' | 'terminos_condiciones' | 'sobre_bunrider' | 'sobre_riderflash'
+
 interface LegalPageProps {
-  pageKey: 'politicas_privacidad' | 'terminos_condiciones' | 'sobre_riderflash'
+  pageKey: LegalPageKey
 }
 
 interface LegalContent {
   title: string
   content: string
   updated_at?: string
+}
+
+/**
+ * La página "Sobre BunRider" cambió de clave (sobre_riderflash →
+ * sobre_bunrider). Se consulta la clave nueva y, si todavía no
+ * existe, la heredada: así la web funciona antes y después de la
+ * migración 072.
+ */
+const PAGE_KEY_ALIASES: Partial<Record<LegalPageKey, LegalPageKey>> = {
+  sobre_bunrider: 'sobre_riderflash',
+  sobre_riderflash: 'sobre_bunrider',
 }
 
 export function LegalPage({ pageKey }: LegalPageProps) {
@@ -27,22 +40,33 @@ export function LegalPage({ pageKey }: LegalPageProps) {
     setLoading(true)
     setError('')
 
-    supabase
-      .from('legal_pages')
-      .select('title, content, updated_at')
-      .eq('key', pageKey)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!mounted) return
-        if (error) {
-          setError('No se pudo cargar el contenido. Intenta de nuevo.')
-        } else if (data) {
-          setPage(data as LegalContent)
-        } else {
-          setError('Contenido no disponible por el momento.')
-        }
-        setLoading(false)
-      })
+    const fetchPage = async (key: LegalPageKey) => {
+      const { data, error } = await supabase
+        .from('legal_pages')
+        .select('title, content, updated_at')
+        .eq('key', key)
+        .maybeSingle()
+      return { data: (data as LegalContent | null) || null, error }
+    }
+
+    const load = async () => {
+      let result = await fetchPage(pageKey)
+      const alias = PAGE_KEY_ALIASES[pageKey]
+      if (!result.data && !result.error && alias) {
+        result = await fetchPage(alias)
+      }
+      if (!mounted) return
+      if (result.error) {
+        setError('No se pudo cargar el contenido. Intenta de nuevo.')
+      } else if (result.data) {
+        setPage(result.data)
+      } else {
+        setError('Contenido no disponible por el momento.')
+      }
+      setLoading(false)
+    }
+
+    load()
 
     return () => { mounted = false }
   }, [pageKey])

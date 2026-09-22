@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, UsersRound, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank, ScrollText } from 'lucide-react'
+import { Users, UsersRound, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank, ScrollText, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -82,6 +82,7 @@ export function AdminDashboard() {
     { to: '/admin/pagos', icon: <Wallet className="w-6 h-6" />, title: 'Métodos de pago', desc: 'Activa/desactiva métodos de pago' },
     { to: '/admin/banners', icon: <Image className="w-6 h-6" />, title: 'Banners', desc: 'Publicidad y promociones' },
     { to: '/admin/cupones', icon: <Ticket className="w-6 h-6" />, title: 'Cupones', desc: 'Códigos de descuento' },
+    { to: '/admin/legal', icon: <FileText className="w-6 h-6" />, title: 'Contenido legal', desc: 'Privacidad, términos y sobre la app' },
     { to: '/admin/config', icon: <Settings className="w-6 h-6" />, title: 'Configuración', desc: 'Comisiones y límites' },
     { to: '/admin/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Accidentes y reportes de viajes' },
     { to: '/admin/transacciones', icon: <Banknote className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero detallados' },

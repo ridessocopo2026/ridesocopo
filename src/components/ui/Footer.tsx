@@ -13,7 +13,7 @@ export function Footer() {
         <Link to="/terminos-y-condiciones" className="hover:text-primary-600 underline underline-offset-2">
           Términos y Condiciones
         </Link>
-        <Link to="/sobre-riderflash" className="hover:text-primary-600 underline underline-offset-2">
+        <Link to="/sobre-bunrider" className="hover:text-primary-600 underline underline-offset-2">
           Sobre BunRider
         </Link>
       </nav>

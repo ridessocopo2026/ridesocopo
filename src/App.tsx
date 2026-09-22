@@ -144,6 +144,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       '/admin': 'Panel Admin | BunRider',
       '/politicas-de-privacidad': 'Políticas de Privacidad | BunRider',
       '/terminos-y-condiciones': 'Términos y Condiciones | BunRider',
+      '/sobre-bunrider': 'Sobre BunRider',
       '/sobre-riderflash': 'Sobre BunRider',
     }
     document.title = titles[location.pathname] || 'BunRider'
@@ -196,6 +197,7 @@ export default function App() {
           {/* Páginas legales públicas */}
           <Route path="/politicas-de-privacidad" element={<LegalPage pageKey="politicas_privacidad" />} />
           <Route path="/terminos-y-condiciones" element={<LegalPage pageKey="terminos_condiciones" />} />
+          <Route path="/sobre-bunrider" element={<LegalPage pageKey="sobre_bunrider" />} />
           <Route path="/sobre-riderflash" element={<LegalPage pageKey="sobre_riderflash" />} />
 
           {/* Notificaciones (accesible para cualquier usuario autenticado) */}

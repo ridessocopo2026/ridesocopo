@@ -1163,16 +1163,10 @@ export function ClientHome() {
                   <span className="block text-xs font-semibold text-primary-600 mt-1">
                     {cat.base_fare_usd.toFixed(2)}$
                   </span>
-                  {noDisponible ? (
+                  {noDisponible && (
                     <span className="block text-[10px] font-semibold text-amber-600 mt-0.5">
                       No disponible ahora
                     </span>
-                  ) : (
-                    typeof count === 'number' && (
-                      <span className="block text-[10px] text-emerald-600 mt-0.5">
-                        🟢 {count} disponible{count === 1 ? '' : 's'}
-                      </span>
-                    )
                   )}
                   {!noDisponible && getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name) > 0 && (
                     <span className="block text-[10px] text-accent-600 mt-0.5">

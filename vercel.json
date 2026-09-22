@@ -5,10 +5,16 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
+  "redirects": [
+    { "source": "/sobre-riderflash", "destination": "/sobre-bunrider", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/(.*)",
-      "headers": [
+      "redirects": [
+    { "source": "/sobre-riderflash", "destination": "/sobre-bunrider", "permanent": true }
+  ],
+  "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
@@ -18,15 +24,24 @@
     },
     {
       "source": "/login",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "redirects": [
+    { "source": "/sobre-riderflash", "destination": "/sobre-bunrider", "permanent": true }
+  ],
+  "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {
       "source": "/registro",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "redirects": [
+    { "source": "/sobre-riderflash", "destination": "/sobre-bunrider", "permanent": true }
+  ],
+  "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {
       "source": "/reset-password",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "redirects": [
+    { "source": "/sobre-riderflash", "destination": "/sobre-bunrider", "permanent": true }
+  ],
+  "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     }
   ]
 }
