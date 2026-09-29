@@ -81,7 +81,9 @@ BEGIN
 END;
 $$;
 
--- Permisos: solo autenticados (la RPC valida que sea el conductor del viaje)
+-- Permisos: solo autenticados (la RPC valida que sea el conductor del viaje).
+-- Se revoca PUBLIC porque PostgreSQL concede EXECUTE a PUBLIC por defecto.
+REVOKE ALL ON FUNCTION public.get_ride_client_info(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_ride_client_info(uuid) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.get_ride_client_info FROM anon;
 
@@ -141,6 +143,7 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.set_my_avatar(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.set_my_avatar(text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.set_my_avatar FROM anon;
 
