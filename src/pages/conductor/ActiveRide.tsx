@@ -7,9 +7,11 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
+import { RatingStars } from '@/components/ui/RatingStars'
 import { useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
-import type { Ride, CancellationEstimate, IncidentType } from '@/types/database'
+import { resolvePhotoUrl } from '@/lib/photos'
+import type { Ride, CancellationEstimate, IncidentType, RideClientInfo } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
 // Iconos personalizados
@@ -65,7 +67,10 @@ export function ActiveRide() {
       {ride.tracking_code}
     </span>
   ) : null
-  const [clientName, setClientName] = useState('')
+  // Datos del cliente: solo se cargan DESPUÉS de aceptar el viaje (RPC validada)
+  const [clientInfo, setClientInfo] = useState<RideClientInfo | null>(null)
+  const clientName = clientInfo?.client.full_name || ''
+  const clientPhoto = resolvePhotoUrl(clientInfo?.client.avatar_url, 'avatars')
   const [vehiclePos, setVehiclePos] = useState<[number, number] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -109,18 +114,32 @@ export function ActiveRide() {
 
     if (!error && data) {
       setRide(data as Ride)
-      // Obtener nombre del cliente (solo visible durante viaje activo)
-      const { data: clientData } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', data.client_id)
-        .single()
-
-      if (clientData) {
-        setClientName(clientData.full_name)
-      }
     }
   }
+
+  // Nombre, foto y calificación del cliente. La RPC get_ride_client_info
+  // exige que el conductor ya haya ACEPTADO el viaje (driver_id = auth.uid()),
+  // por eso solo se pide una vez por viaje y no en cada actualización de realtime.
+  useEffect(() => {
+    if (!rideId || !ride?.driver_id || (user?.id && ride.driver_id !== user.id)) {
+      setClientInfo(null)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_ride_client_info', { p_ride_id: rideId })
+        if (!cancelled && !error && data) {
+          setClientInfo(data as RideClientInfo)
+        }
+      } catch {
+        // Silencioso: la tarjeta muestra "Cliente" si la RPC falla
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [rideId, ride?.driver_id, user?.id])
 
   // Iniciar seguimiento GPS del vehículo
   useEffect(() => {
@@ -370,7 +389,7 @@ export function ActiveRide() {
           )}
           {/* Ubicación del cliente */}
           <Marker position={origin} icon={clientIcon}>
-            <Popup>Cliente</Popup>
+            <Popup>{clientName || 'Cliente'}</Popup>
           </Marker>
           <Marker position={destination} icon={destIcon}>
             <Popup>Destino: {ride.destination_barrio_name || ''}</Popup>
@@ -432,14 +451,45 @@ export function ActiveRide() {
           </div>
         )}
 
-        {/* Info cliente */}
+        {/* Info cliente (nombre, foto y calificación: solo tras aceptar el viaje) */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-semibold text-surface-800">Cliente</h2>
-              <p className="text-sm text-surface-500">{clientName || 'Cargando...'}</p>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {clientPhoto ? (
+                  <img
+                    src={clientPhoto}
+                    alt="Foto del cliente"
+                    loading="lazy"
+                    decoding="async"
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-accent-600 font-bold text-lg">
+                    {(clientName || 'C').charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-surface-800 truncate">{clientName || 'Cliente'}</h2>
+                {clientInfo?.client.rating_avg ? (
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <RatingStars value={Math.round(clientInfo.client.rating_avg)} onChange={() => {}} disabled size="sm" />
+                    <span className="text-xs font-semibold text-surface-700">{clientInfo.client.rating_avg.toFixed(1)}</span>
+                    <span className="text-xs text-surface-400">
+                      ({clientInfo.client.rating_count}) · {clientInfo.client.rides_count} viajes
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-surface-400 mt-0.5">
+                    {clientInfo ? `Sin calificaciones aún · ${clientInfo.client.rides_count} viajes` : 'Cargando datos...'}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center flex-shrink-0">
               <Navigation className="w-6 h-6 text-accent-600" />
             </div>
           </div>

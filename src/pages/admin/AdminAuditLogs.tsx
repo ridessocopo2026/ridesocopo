@@ -30,6 +30,7 @@ const actionLabels: Record<string, string> = {
   SET_ZONE_SUPPORT: 'Soporte de ciudad',
   REVIEW_DRIVER: 'Revisión de conductor',
   REVIEW_AVATAR: 'Cambio de foto de perfil',
+  SET_AVATAR: 'Foto de perfil de cliente actualizada',
   CATEGORY_CREATE: 'Tipo de vehículo creado',
   CATEGORY_UPDATE: 'Tipo de vehículo editado',
   CATEGORY_DELETE: 'Tipo de vehículo eliminado',

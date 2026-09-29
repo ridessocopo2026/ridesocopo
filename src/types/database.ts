@@ -229,6 +229,22 @@ export interface Ride {
   updated_at: string
 }
 
+/**
+ * Datos del cliente que ve el conductor SOLO después de aceptar el viaje.
+ * Los devuelve la RPC `get_ride_client_info` (valida driver_id = auth.uid()).
+ */
+export interface RideClientInfo {
+  client: {
+    id: string
+    full_name: string
+    avatar_url: string | null
+    rating_avg: number | null
+    rating_count: number
+    rides_count: number
+  }
+  tracking_code?: string | null
+}
+
 export interface CancellationPolicy {
   id: string
   ride_status: 'buscando' | 'aceptada' | 'en_ruta'

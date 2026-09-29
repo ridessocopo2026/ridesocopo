@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, LogOut, Star, MapPin, ChevronRight, MessageCircle, Car, Loader2 } from 'lucide-react'
+import { User, LogOut, Star, MapPin, ChevronRight, MessageCircle, Car, Loader2, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { uploadToImgBB } from '@/lib/imgbb'
+import { resolvePhotoUrl } from '@/lib/photos'
+import { compressImage, formatKb } from '@/lib/imageCompress'
 
 export function ClientProfile() {
   const { user, signOut, refreshProfile } = useAuth()
@@ -34,6 +37,67 @@ export function ClientProfile() {
     if (!error && data) {
       setFavorites(data)
       setShowFavorites(!showFavorites)
+    }
+  }
+
+  // ── Foto de perfil (opcional) ──────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  const [photoMsg, setPhotoMsg] = useState('')
+
+  // Mantener la vista sincronizada con el perfil cargado
+  useEffect(() => {
+    setAvatarUrl(user?.avatar_url || null)
+  }, [user?.avatar_url])
+
+  const photo = resolvePhotoUrl(avatarUrl, 'avatars')
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite volver a elegir la misma imagen
+    if (!file) return
+
+    setPhotoError('')
+    setPhotoMsg('')
+    setPhotoBusy(true)
+
+    try {
+      // 1) Comprimir en el teléfono: 3-5 MB → ~25-60 KB
+      const optimized = await compressImage(file)
+      // 2) Subir a ImgBB (sin Storage ni egress de Supabase)
+      const url = await uploadToImgBB(optimized)
+      // 3) Guardar en el perfil (RPC: la RLS bloquea el UPDATE directo)
+      const { error } = await supabase.rpc('set_my_avatar', { p_url: url })
+      if (error) throw error
+
+      setAvatarUrl(url)
+      setPhotoMsg(`Foto guardada · ${formatKb(optimized.size)}`)
+      await refreshProfile()
+    } catch (err: any) {
+      setPhotoError(err?.message || 'No pudimos guardar tu foto. Intenta de nuevo.')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  const handleRemovePhoto = async () => {
+    if (!window.confirm('¿Quitar tu foto de perfil?')) return
+
+    setPhotoError('')
+    setPhotoMsg('')
+    setPhotoBusy(true)
+
+    try {
+      const { error } = await supabase.rpc('set_my_avatar', { p_url: null })
+      if (error) throw error
+      setAvatarUrl(null)
+      setPhotoMsg('Foto eliminada')
+    } catch (err: any) {
+      setPhotoError(err?.message || 'No pudimos quitar tu foto')
+    } finally {
+      setPhotoBusy(false)
     }
   }
 
@@ -75,15 +139,84 @@ export function ClientProfile() {
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-4">
         {/* Perfil */}
-        <div className="card flex items-center gap-4">
-          <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center">
-            <User className="w-8 h-8 text-primary-600" />
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden">
+                {photo ? (
+                  <img
+                    src={photo}
+                    alt="Tu foto de perfil"
+                    loading="lazy"
+                    decoding="async"
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-8 h-8 text-primary-600" />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={photoBusy}
+                title={photo ? 'Cambiar foto' : 'Agregar foto'}
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary-600 text-white flex items-center justify-center shadow-card hover:bg-primary-700 transition-colors disabled:opacity-60"
+              >
+                {photoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h2 className="font-semibold text-surface-800 truncate">{user?.full_name}</h2>
+              <p className="text-sm text-surface-500 truncate">{user?.email}</p>
+              <span className="badge-primary mt-1">Cliente</span>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="font-semibold text-surface-800">{user?.full_name}</h2>
-            <p className="text-sm text-surface-500">{user?.email}</p>
-            <span className="badge-primary mt-1">Cliente</span>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoSelected}
+          />
+
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoBusy}
+              className="btn-outline flex-1 text-sm"
+            >
+              {photoBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {photo ? 'Cambiar foto' : 'Agregar foto'}
+            </button>
+            {photo && (
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                disabled={photoBusy}
+                className="btn-outline text-sm text-red-600 border-red-200 hover:border-red-300"
+              >
+                <Trash2 className="w-4 h-4" />
+                Quitar
+              </button>
+            )}
           </div>
+
+          <p className="text-[11px] text-surface-400 mt-2">
+            Opcional. Solo la verá el conductor de tu viaje, después de aceptarlo. La foto se optimiza
+            automáticamente para no gastar tus datos.
+          </p>
+
+          {photoError && (
+            <div className="mt-2">
+              <ErrorMessage message={photoError} onDismiss={() => setPhotoError('')} />
+            </div>
+          )}
+          {photoMsg && <p className="text-xs text-emerald-600 mt-2">{photoMsg}</p>}
         </div>
 
         {/* Solicitar ser conductor (solo pasajeros) */}
