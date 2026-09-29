@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
+import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
@@ -11,6 +11,7 @@ import { RatingCard } from '@/components/ui/RatingCard'
 import { RatingStars } from '@/components/ui/RatingStars'
 import { useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
+import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import { resolvePhotoUrl } from '@/lib/photos'
 import type { Ride, CancellationEstimate, IncidentType, RideClientInfo } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
@@ -72,6 +73,8 @@ export function ActiveRide() {
   const [clientInfo, setClientInfo] = useState<RideClientInfo | null>(null)
   const clientName = clientInfo?.client.full_name || ''
   const clientPhoto = resolvePhotoUrl(clientInfo?.client.avatar_url, 'avatars')
+  // Visor de la foto del cliente a pantalla completa
+  const [photoViewer, setPhotoViewer] = useState<{ src: string; title?: string } | null>(null)
   const [vehiclePos, setVehiclePos] = useState<[number, number] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -459,21 +462,34 @@ export function ActiveRide() {
         <div className="card">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <div className="relative w-12 h-12 flex-shrink-0">
                 {clientPhoto ? (
-                  <img
-                    src={clientPhoto}
-                    alt="Foto del cliente"
-                    loading="lazy"
-                    decoding="async"
-                    width={48}
-                    height={48}
-                    className="w-full h-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhotoViewer({ src: clientPhoto ?? '', title: clientName || 'Cliente' })}
+                    aria-label="Ver foto del cliente"
+                    title="Toca para ver la foto en grande"
+                    className="relative w-12 h-12 rounded-full overflow-hidden bg-accent-50 flex items-center justify-center cursor-zoom-in active:scale-95 transition-transform"
+                  >
+                    <img
+                      src={clientPhoto}
+                      alt="Foto del cliente"
+                      loading="lazy"
+                      decoding="async"
+                      width={48}
+                      height={48}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-accent-600 text-white flex items-center justify-center border-2 border-white">
+                      <ZoomIn className="w-2.5 h-2.5" />
+                    </span>
+                  </button>
                 ) : (
-                  <span className="text-accent-600 font-bold text-lg">
-                    {(clientName || 'C').charAt(0).toUpperCase()}
-                  </span>
+                  <div className="w-12 h-12 bg-accent-50 rounded-full flex items-center justify-center overflow-hidden">
+                    <span className="text-accent-600 font-bold text-lg">
+                      {(clientName || 'C').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
                 )}
               </div>
               <div className="min-w-0">
@@ -518,6 +534,14 @@ export function ActiveRide() {
             </div>
           </div>
         </div>
+
+        {/* Visor de foto a pantalla completa (no renderiza nada si está cerrado) */}
+        <ImageLightbox
+          src={photoViewer?.src}
+          title={photoViewer?.title}
+          alt="Foto ampliada"
+          onClose={() => setPhotoViewer(null)}
+        />
 
         {/* Acciones */}
         <div className="space-y-3">

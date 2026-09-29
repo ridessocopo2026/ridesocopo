@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car } from 'lucide-react'
+import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { whatsappNumber } from '@/lib/format'
@@ -13,6 +13,7 @@ import { RatingStars } from '@/components/ui/RatingStars'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { useRideRealtime, fetchRideById, useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
+import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
@@ -106,6 +107,8 @@ export function ClientActiveRide() {
   const [incidentDesc, setIncidentDesc] = useState('')
   const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
   const [showMap, setShowMap] = useState(false)
+  // Visor de fotos a pantalla completa (conductor / vehículo)
+  const [photoViewer, setPhotoViewer] = useState<{ src: string; title?: string } | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
   // Ref al bloque de acciones post-viaje (calificar/reportar/guardar) para scroll automático
@@ -544,11 +547,27 @@ export function ClientActiveRide() {
           <div className="card">
             <div className="flex items-start gap-4">
               {/* Avatar del conductor (foto si tiene, si no inicial) */}
-              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <div className="relative w-14 h-14 flex-shrink-0">
                 {driverInfo.driver.avatar_url ? (
-                  <img src={resolvePhotoUrl(driverInfo.driver.avatar_url, 'avatars')} alt="Foto del conductor" loading="lazy" decoding="async" width={56} height={56} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setPhotoViewer({
+                      src: resolvePhotoUrl(driverInfo.driver?.avatar_url, 'avatars') || '',
+                      title: driverInfo.driver?.full_name || 'Conductor'
+                    })}
+                    aria-label="Ver foto del conductor"
+                    title="Toca para ver la foto en grande"
+                    className="relative w-14 h-14 rounded-full overflow-hidden bg-primary-50 flex items-center justify-center cursor-zoom-in active:scale-95 transition-transform"
+                  >
+                    <img src={resolvePhotoUrl(driverInfo.driver.avatar_url, 'avatars')} alt="Foto del conductor" loading="lazy" decoding="async" width={56} height={56} className="w-full h-full object-cover" />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary-600 text-white flex items-center justify-center border-2 border-white">
+                      <ZoomIn className="w-2.5 h-2.5" />
+                    </span>
+                  </button>
                 ) : (
-                  <span className="text-primary-600 font-bold text-lg">{(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}</span>
+                  <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden">
+                    <span className="text-primary-600 font-bold text-lg">{(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}</span>
+                  </div>
                 )}
               </div>
 
@@ -585,15 +604,29 @@ export function ClientActiveRide() {
                 {driverInfo.vehicle && (
                   <div className="flex items-center gap-2 mt-2">
                     {driverInfo.vehicle.photo_url && (
-                      <img
-                        src={resolvePhotoUrl(driverInfo.vehicle.photo_url)}
-                        alt="Vehículo"
-                        loading="lazy"
-                        decoding="async"
-                        width={36}
-                        height={36}
-                        className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setPhotoViewer({
+                          src: resolvePhotoUrl(driverInfo.vehicle?.photo_url) || '',
+                          title: `${driverInfo.vehicle?.brand ?? ''} ${driverInfo.vehicle?.model ?? ''} · Placa ${driverInfo.vehicle?.plate ?? ''}`
+                        })}
+                        aria-label="Ver foto del vehículo"
+                        title="Toca para ver la foto en grande"
+                        className="relative w-9 h-9 flex-shrink-0 cursor-zoom-in active:scale-95 transition-transform"
+                      >
+                        <img
+                          src={resolvePhotoUrl(driverInfo.vehicle.photo_url)}
+                          alt="Vehículo"
+                          loading="lazy"
+                          decoding="async"
+                          width={36}
+                          height={36}
+                          className="w-9 h-9 rounded-lg object-cover"
+                        />
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary-600 text-white flex items-center justify-center">
+                          <ZoomIn className="w-2 h-2" />
+                        </span>
+                      </button>
                     )}
                     <div className="min-w-0">
                       <p className="text-sm text-surface-700 truncate">
@@ -609,6 +642,14 @@ export function ClientActiveRide() {
             </div>
           </div>
         )}
+
+        {/* Visor de foto a pantalla completa (no renderiza nada si está cerrado) */}
+        <ImageLightbox
+          src={photoViewer?.src}
+          title={photoViewer?.title}
+          alt="Foto ampliada"
+          onClose={() => setPhotoViewer(null)}
+        />
 
         {/* Ruta */}
         <div className="card">
