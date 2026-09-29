@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { uploadImageToStorage } from '@/lib/uploadImage'
 import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -286,10 +287,13 @@ export function ClientActiveRide() {
 
       // Subir foto si hay una
       if (incidentPhoto && user) {
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('payments')
-          .upload(`${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`, incidentPhoto, { upsert: true })
-        if (uploadError) throw uploadError
+        // Foto de la incidencia comprimida (≈4 MB → ≈200 KB)
+        const uploadData = await uploadImageToStorage(
+          'payments',
+          `${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`,
+          incidentPhoto,
+          'incident'
+        )
 
         // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
         const storagePath = uploadData.path
@@ -542,7 +546,7 @@ export function ClientActiveRide() {
               {/* Avatar del conductor (foto si tiene, si no inicial) */}
               <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {driverInfo.driver.avatar_url ? (
-                  <img src={resolvePhotoUrl(driverInfo.driver.avatar_url, 'avatars')} alt="Foto del conductor" className="w-full h-full object-cover" />
+                  <img src={resolvePhotoUrl(driverInfo.driver.avatar_url, 'avatars')} alt="Foto del conductor" loading="lazy" decoding="async" width={56} height={56} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-primary-600 font-bold text-lg">{(driverInfo.driver.full_name || 'C').charAt(0).toUpperCase()}</span>
                 )}
@@ -584,6 +588,10 @@ export function ClientActiveRide() {
                       <img
                         src={resolvePhotoUrl(driverInfo.vehicle.photo_url)}
                         alt="Vehículo"
+                        loading="lazy"
+                        decoding="async"
+                        width={36}
+                        height={36}
                         className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                       />
                     )}

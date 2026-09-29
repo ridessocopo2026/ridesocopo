@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Copy, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
+import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -105,13 +106,15 @@ export function ClientWallet() {
     try {
       if (!user) throw new Error('Debes iniciar sesión')
 
-      // Subir comprobante
+      // Comprobante comprimido en el teléfono (≈4 MB → ≈200 KB):
+      // menos datos, menos Storage y menos egress en Supabase
       const timestamp = Date.now()
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('payments')
-        .upload(`${user.id}/proof-${timestamp}.jpg`, proofFile, { upsert: true })
-
-      if (uploadError) throw uploadError
+      const uploadData = await uploadImageToStorage(
+        'payments',
+        `${user.id}/proof-${timestamp}.jpg`,
+        proofFile,
+        'proof'
+      )
 
       // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
       const publicUrl = uploadData.path

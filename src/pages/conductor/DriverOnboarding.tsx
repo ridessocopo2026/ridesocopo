@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Upload, User, Car, FileText, Shield } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { uploadImageToStorage, type ImagePreset } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { VehicleCategory, VehicleCategoryType } from '@/types/database'
@@ -65,16 +66,18 @@ export function DriverOnboarding() {
     })()
   }, [])
 
+  // Comprime y sube el archivo (la foto de una cédula pasa de ~600 KB
+  // a ~200 KB, el vehículo de ~900 KB a ~120 KB) en vez de subir la
+  // imagen original de 3-5 MB de la cámara.
   const uploadFile = async (file: File, bucket: string, path: string): Promise<string> => {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, file, { upsert: true })
+    const preset: ImagePreset =
+      bucket === 'documents' ? 'document' : bucket === 'avatars' ? 'avatar' : 'vehicle'
 
-    if (error) throw error
+    const { path: ruta } = await uploadImageToStorage(bucket, path, file, preset)
 
     // Los buckets documents/avatars/vehicles son privados (o controlados por RLS).
     // Guardamos la ruta del storage; se resuelve con URL firmada al visualizar.
-    return data.path
+    return ruta
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { RatingCard } from '@/components/ui/RatingCard'
@@ -263,10 +264,13 @@ export function ActiveRide() {
 
       // Subir foto si hay una
       if (incidentPhoto && user) {
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('payments')
-          .upload(`${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`, incidentPhoto, { upsert: true })
-        if (uploadError) throw uploadError
+        // Foto de la incidencia comprimida (≈4 MB → ≈200 KB)
+        const uploadData = await uploadImageToStorage(
+          'payments',
+          `${user.id}/incidents/${Date.now()}-${incidentPhoto.name}`,
+          incidentPhoto,
+          'incident'
+        )
 
         // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
         const storagePath = uploadData.path

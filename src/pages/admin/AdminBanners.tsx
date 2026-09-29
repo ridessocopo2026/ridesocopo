@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Image, Plus, Trash2, Loader2, Upload, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { uploadToImgBB } from '@/lib/imgbb'
+import { uploadImageToExternalHost } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -87,7 +87,9 @@ export function AdminBanners() {
       // Si hay archivo nuevo → subir a ImgBB; si no, conservar la imagen actual
       let imageUrl = editingImage
       if (imageFile) {
-        imageUrl = await uploadToImgBB(imageFile)
+        // Banner comprimido (1.4 MB → ~120 KB): lo descarga CADA cliente
+        // al abrir el inicio, así que el ahorro de egress es el mayor de la app
+        imageUrl = (await uploadImageToExternalHost(imageFile, 'banner')).url
       }
 
       if (editingId) {

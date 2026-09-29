@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Wallet, Loader2, ArrowDownCircle, ArrowUpCircle, Upload, Check, Copy, ArrowUpRight, ArrowDownRight, HandCoins, Smartphone, CreditCard, ReceiptText, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
+import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -112,10 +113,13 @@ export function DriverWallet() {
     try {
       if (!user) throw new Error('Debes iniciar sesión')
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('payments')
-        .upload(`${user.id}/payments/${Date.now()}-${payProof.name}`, payProof, { upsert: true })
-      if (uploadError) throw uploadError
+      // Comprobante de pago comprimido (≈4 MB → ≈200 KB) antes de subirlo
+      const uploadData = await uploadImageToStorage(
+        'payments',
+        `${user.id}/payments/${Date.now()}-${payProof.name}`,
+        payProof,
+        'proof'
+      )
 
       // El bucket es privado; guardamos la ruta y se resuelve con URL firmada al visualizar
       const publicUrl = uploadData.path

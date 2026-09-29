@@ -7,9 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
-import { uploadToImgBB } from '@/lib/imgbb'
 import { resolvePhotoUrl } from '@/lib/photos'
-import { compressImage, formatKb } from '@/lib/imageCompress'
+import { uploadImageToExternalHost, describeSaving } from '@/lib/uploadImage'
 
 export function ClientProfile() {
   const { user, signOut, refreshProfile } = useAuth()
@@ -64,16 +63,15 @@ export function ClientProfile() {
     setPhotoBusy(true)
 
     try {
-      // 1) Comprimir en el teléfono: 3-5 MB → ~25-60 KB
-      const optimized = await compressImage(file)
-      // 2) Subir a ImgBB (sin Storage ni egress de Supabase)
-      const url = await uploadToImgBB(optimized)
-      // 3) Guardar en el perfil (RPC: la RLS bloquea el UPDATE directo)
+      // 1) Comprimir en el teléfono y subir a ImgBB (gratis, sin Storage
+      //    ni egress de Supabase): una foto de 4 MB baja a ~30 KB
+      const { url, size, originalSize } = await uploadImageToExternalHost(file, 'avatar')
+      // 2) Guardar en el perfil (RPC: la RLS bloquea el UPDATE directo)
       const { error } = await supabase.rpc('set_my_avatar', { p_url: url })
       if (error) throw error
 
       setAvatarUrl(url)
-      setPhotoMsg(`Foto guardada · ${formatKb(optimized.size)}`)
+      setPhotoMsg(`Foto guardada · ${describeSaving(originalSize, size)}`)
       await refreshProfile()
     } catch (err: any) {
       setPhotoError(err?.message || 'No pudimos guardar tu foto. Intenta de nuevo.')

@@ -8,6 +8,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
+import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -625,11 +626,13 @@ export function ClientHome() {
         if (!proofFile) {
           throw new Error('Debes subir el comprobante del pago')
         }
-        // Subir a Supabase Storage bucket payments
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('payments')
-          .upload(`${user.id}/proofs/${Date.now()}-${proofFile.name}`, proofFile, { upsert: true })
-        if (uploadError) throw uploadError
+        // Comprimir antes de subir (≈4 MB → ≈200 KB) al bucket payments
+        const uploadData = await uploadImageToStorage(
+          'payments',
+          `${user.id}/proofs/${Date.now()}-${proofFile.name}`,
+          proofFile,
+          'proof'
+        )
 
         // Guardar la ruta del archivo (el bucket es privado; se resuelve con URL firmada al visualizar)
         const publicUrl = uploadData.path

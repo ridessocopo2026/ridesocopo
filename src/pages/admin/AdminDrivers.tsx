@@ -233,7 +233,7 @@ export function AdminDrivers() {
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden">
                       {driver.avatar_url ? (
-                        <img src={resolvePhotoUrl(driver.avatar_url, 'avatars')} alt={driver.full_name} className="w-full h-full object-cover" />
+                        <img src={resolvePhotoUrl(driver.avatar_url, 'avatars')} alt={driver.full_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         <Users className="w-6 h-6 text-primary-600" />
                       )}
