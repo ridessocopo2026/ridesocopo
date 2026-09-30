@@ -30,6 +30,22 @@ Aplicación PWA para transporte de pasajeros en Socopó, Barinas, Venezuela.
 3. Pégalo en el editor y haz clic en **Run**
 4. Espera a que termine sin errores
 
+### Aplicar una migración suelta (sin abrir el dashboard)
+Las migraciones nuevas se aplican con el script `scripts/apply-sql.mjs`, que usa
+la Management API (lo mismo que hace el SQL Editor) y solo ejecuta el archivo
+que le indiques:
+
+```bash
+# Personal Access Token: dashboard → Account → Access Tokens → Generate new token
+$env:SUPABASE_ACCESS_TOKEN = 'sbp_...'
+node scripts/apply-sql.mjs supabase/migrations/076_restaurar_flujo_invitado.sql
+```
+
+> ⚠️ **No uses `supabase db push` en este proyecto.** El historial remoto de
+> migraciones está vacío (se aplicaron a mano por el SQL Editor), así que el CLI
+> intentaría re-ejecutar las 76 migraciones. Aplica siempre por el SQL Editor o
+> con `scripts/apply-sql.mjs`.
+
 ### Paso 3: Configurar Autenticación
 1. Ve a **Authentication → Providers**
 2. Habilita **Email** (deja las opciones por defecto)
