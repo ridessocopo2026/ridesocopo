@@ -25,6 +25,10 @@ interface AuditResponse {
 
 const actionLabels: Record<string, string> = {
   SET_USER_ROLE: 'Cambio de rol',
+  BLOCK_USER: 'Cuenta bloqueada',
+  UNBLOCK_USER: 'Cuenta reactivada',
+  PAUSE_USER: 'Cuenta pausada',
+  DELETE_USER: 'Cuenta eliminada',
   APPROVE_RIDE_PROOF: 'Comprobante de viaje',
   APPROVE_RECHARGE: 'Recarga de billetera',
   APPROVE_PAYOUT: 'Liquidación aprobada/rechazada',
@@ -54,6 +58,10 @@ const actionLabels: Record<string, string> = {
 // Acciones sensibles (rol/dinero) resaltadas para el admin
 const sensitiveActions = new Set([
   'SET_USER_ROLE',
+  'BLOCK_USER',
+  'UNBLOCK_USER',
+  'PAUSE_USER',
+  'DELETE_USER',
   'APPROVE_RIDE_PROOF',
   'APPROVE_RECHARGE',
   'APPROVE_PAYOUT',

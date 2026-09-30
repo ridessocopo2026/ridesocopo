@@ -10,6 +10,7 @@ export type PaymentMethod = string
 export type TransactionType = 'recarga' | 'comision' | 'debito' | 'credito' | 'ajuste'
 export type TransactionStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'completado'
 export type ZoneType = 'cobertura_general' | 'zona_especifica'
+export type AccountStatus = 'activo' | 'pausado' | 'bloqueado' | 'eliminado'
 
 export interface Profile {
   id: string
@@ -31,6 +32,10 @@ export interface Profile {
   available_days?: number[] | null
   available_override_until?: string | null
   availability_push?: boolean
+  // Estado de la cuenta (migración 079)
+  status?: AccountStatus
+  status_reason?: string | null
+  status_until?: string | null
 }
 
 export interface DriverAvailability {

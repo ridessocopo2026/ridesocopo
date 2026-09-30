@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Search, Loader2, MessageCircle, Receipt, Filter } from 'lucide-react'
+import { Users, Search, Loader2, MessageCircle, Receipt, Filter, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, whatsappNumber } from '@/lib/format'
@@ -16,6 +16,10 @@ interface AdminUserItem {
   phone: string | null
   role: 'cliente' | 'conductor' | 'encargado' | 'super_admin'
   driver_status: string | null
+  status: 'activo' | 'pausado' | 'bloqueado' | 'eliminado'
+  status_reason: string | null
+  status_until: string | null
+  activo: boolean
   is_online: boolean
   onboarding_completed: boolean
   created_at: string
@@ -41,6 +45,14 @@ const statusBadges: Record<string, { label: string; cls: string }> = {
   suspendido: { label: 'Suspendido', cls: 'badge-danger' }
 }
 
+// Estado de la CUENTA (pausar / bloquear / eliminar)
+const cuentaBadges: Record<string, { label: string; cls: string }> = {
+  activo: { label: 'Activa', cls: 'badge-success' },
+  pausado: { label: 'Pausada', cls: 'badge-warning' },
+  bloqueado: { label: 'Bloqueada', cls: 'badge-danger' },
+  eliminado: { label: 'Eliminada', cls: 'badge-danger' }
+}
+
 export function AdminUsers() {
   const [items, setItems] = useState<AdminUserItem[]>([])
   const [total, setTotal] = useState(0)
@@ -62,6 +74,16 @@ export function AdminUsers() {
   const [roleSaving, setRoleSaving] = useState(false)
   const [cities, setCities] = useState<{ id: string; name: string }[]>([])
 
+  // Estado de la cuenta (pausar / bloquear / reactivar / eliminar)
+  const [cuentaInput, setCuentaInput] = useState('')
+  const [appliedCuenta, setAppliedCuenta] = useState('')
+  const [cuentaTarget, setCuentaTarget] = useState<AdminUserItem | null>(null)
+  const [cuentaAccion, setCuentaAccion] = useState<'pausado' | 'bloqueado' | 'activo' | 'eliminar'>('bloqueado')
+  const [cuentaMotivo, setCuentaMotivo] = useState('')
+  const [cuentaHasta, setCuentaHasta] = useState('')
+  const [cuentaModo, setCuentaModo] = useState<'anonimizar' | 'borrar_real'>('anonimizar')
+  const [cuentaGuardando, setCuentaGuardando] = useState(false)
+
   const navigate = useNavigate()
 
   // Solo el super_admin puede cambiar roles (defensa en profundidad)
@@ -81,7 +103,8 @@ export function AdminUsers() {
         p_role: appliedRole || null,
         p_driver_status: appliedStatus || null,
         p_limit: pageSize,
-        p_offset: page * pageSize
+        p_offset: page * pageSize,
+        p_estado: appliedCuenta || null
       })
       if (error) throw error
       const res = data as AdminUsersResponse
@@ -92,7 +115,7 @@ export function AdminUsers() {
     } finally {
       setLoading(false)
     }
-  }, [appliedSearch, appliedRole, appliedStatus, page, pageSize])
+  }, [appliedSearch, appliedRole, appliedStatus, appliedCuenta, page, pageSize])
 
   useEffect(() => {
     load()
@@ -140,6 +163,46 @@ export function AdminUsers() {
     setAppliedSearch(searchInput)
     setAppliedRole(roleInput)
     setAppliedStatus(statusInput)
+    setAppliedCuenta(cuentaInput)
+  }
+
+  // Pausar / bloquear / reactivar / eliminar la cuenta (solo super_admin)
+  const handleCuenta = async () => {
+    if (!cuentaTarget) return
+    setCuentaGuardando(true)
+    setError('')
+    try {
+      if (cuentaAccion === 'eliminar') {
+        const aviso = cuentaModo === 'borrar_real'
+          ? 'Se borrarán TODOS sus datos. Solo es posible si la cuenta no tiene historial.'
+          : 'Se borrarán sus datos personales y se conservará el historial de viajes y dinero.'
+        if (!confirm(`¿Eliminar la cuenta de ${cuentaTarget.full_name}?\n\n${aviso}\n\nEsta acción no se puede deshacer.`)) return
+
+        const { error } = await supabase.rpc('admin_delete_account', {
+          p_user_id: cuentaTarget.id,
+          p_mode: cuentaModo,
+          p_reason: cuentaMotivo.trim() || null
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.rpc('admin_set_account_status', {
+          p_user_id: cuentaTarget.id,
+          p_status: cuentaAccion,
+          p_reason: cuentaMotivo.trim() || null,
+          p_until: cuentaAccion === 'pausado' && cuentaHasta ? new Date(cuentaHasta).toISOString() : null
+        })
+        if (error) throw error
+      }
+      setCuentaTarget(null)
+      setCuentaMotivo('')
+      setCuentaHasta('')
+      setCuentaModo('anonimizar')
+      load()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setCuentaGuardando(false)
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -163,7 +226,7 @@ export function AdminUsers() {
 
         {/* Filtros */}
         <div className="card p-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="md:col-span-2">
               <label className="label">Buscar</label>
               <div className="relative">
@@ -197,6 +260,16 @@ export function AdminUsers() {
                 <option value="suspendido">Suspendido</option>
               </select>
             </div>
+            <div>
+              <label className="label">Estado de cuenta</label>
+              <select className="input" value={cuentaInput} onChange={(e) => setCuentaInput(e.target.value)}>
+                <option value="">Todas</option>
+                <option value="activo">Activas</option>
+                <option value="pausado">Pausadas</option>
+                <option value="bloqueado">Bloqueadas</option>
+                <option value="eliminado">Eliminadas</option>
+              </select>
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-surface-400">
@@ -227,7 +300,8 @@ export function AdminUsers() {
                     <th className="px-4 py-3">Usuario</th>
                     <th className="px-4 py-3">Teléfono</th>
                     <th className="px-4 py-3">Rol</th>
-                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Estado conductor</th>
+                    <th className="px-4 py-3">Cuenta</th>
                     <th className="px-4 py-3">Saldo</th>
                     <th className="px-4 py-3">Registro</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
@@ -238,6 +312,9 @@ export function AdminUsers() {
                     const wa = whatsappNumber(u.phone)
                     const rol = rolBadges[u.role]
                     const st = u.driver_status ? statusBadges[u.driver_status] : null
+                    // Estado de la cuenta: si la pausa ya venció, vuelve a estar activa
+                    const acct = cuentaBadges[u.status]
+                    const pausaVencida = u.status === 'pausado' && u.activo
                     return (
                       <tr key={u.id} className="border-t border-surface-100 hover:bg-surface-50/50">
                         <td className="px-4 py-3">
@@ -278,6 +355,27 @@ export function AdminUsers() {
                           {st ? <span className={st.cls}>{st.label}</span> : <span className="text-xs text-surface-400">—</span>}
                         </td>
                         <td className="px-4 py-3">
+                          {acct ? (
+                            <div>
+                              <span className={pausaVencida ? 'badge-success' : acct.cls}>
+                                {pausaVencida ? 'Activa (pausa vencida)' : acct.label}
+                              </span>
+                              {u.status !== 'activo' && u.status_reason && (
+                                <p className="text-[10px] text-surface-400 mt-0.5 truncate max-w-[170px]" title={u.status_reason}>
+                                  {u.status_reason}
+                                </p>
+                              )}
+                              {u.status === 'pausado' && !u.activo && u.status_until && (
+                                <p className="text-[10px] text-surface-400">
+                                  hasta {new Date(u.status_until).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-surface-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           <span className={`text-xs font-semibold ${u.balance_usd < 0 ? 'text-red-500' : 'text-surface-600'}`}>
                             {fmt(u.balance_usd)}
                           </span>
@@ -286,6 +384,21 @@ export function AdminUsers() {
                           {new Date(u.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3 text-right">
+                          {user?.role === 'super_admin' && u.id !== user.id && u.role !== 'super_admin' && (
+                            <button
+                              onClick={() => {
+                                setCuentaTarget(u)
+                                setCuentaAccion(u.activo ? 'pausado' : 'activo')
+                                setCuentaMotivo('')
+                                setCuentaHasta('')
+                                setCuentaModo('anonimizar')
+                              }}
+                              className="btn-outline text-xs px-3 py-1.5 mr-1 text-amber-700 border-amber-200"
+                              title="Pausar, bloquear, reactivar o eliminar la cuenta"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5" /> Estado
+                            </button>
+                          )}
                           {user?.role === 'super_admin' && (
                             u.role === 'encargado' ? (
                               <button
@@ -365,6 +478,87 @@ export function AdminUsers() {
               </button>
               <button onClick={confirmRole} className="btn-primary flex-1" disabled={roleSaving || !roleZone}>
                 {roleSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: estado de la cuenta (pausar / bloquear / reactivar / eliminar) */}
+      {cuentaTarget && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated animate-slide-up max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-surface-800 text-center mb-1">Estado de la cuenta</h2>
+            <p className="text-sm text-surface-500 text-center mb-4">
+              {cuentaTarget.full_name}
+              <br />
+              <span className="text-xs">{cuentaTarget.email}</span>
+            </p>
+
+            <label className="label">Acción</label>
+            <select
+              className="input mb-3"
+              value={cuentaAccion}
+              onChange={(e) => setCuentaAccion(e.target.value as 'pausado' | 'bloqueado' | 'activo' | 'eliminar')}
+            >
+              <option value="pausado">Pausar (temporal: no opera, conserva su dinero)</option>
+              <option value="bloqueado">Bloquear (no puede operar nada)</option>
+              <option value="activo">Reactivar</option>
+              <option value="eliminar">Eliminar la cuenta</option>
+            </select>
+
+            {cuentaAccion !== 'activo' && (
+              <>
+                <label className="label">Motivo (obligatorio)</label>
+                <textarea
+                  className="input mb-3"
+                  rows={2}
+                  placeholder="Ej: uso indebido, cobros duplicados..."
+                  value={cuentaMotivo}
+                  onChange={(e) => setCuentaMotivo(e.target.value)}
+                />
+              </>
+            )}
+
+            {cuentaAccion === 'pausado' && (
+              <>
+                <label className="label">Fin de la pausa (opcional)</label>
+                <input
+                  type="datetime-local"
+                  className="input mb-3"
+                  value={cuentaHasta}
+                  onChange={(e) => setCuentaHasta(e.target.value)}
+                />
+                <p className="text-[11px] text-surface-400 mb-3">
+                  Si lo dejas vacío, dura hasta que la reactives a mano. Si pones fecha, se reactiva sola al vencer.
+                </p>
+              </>
+            )}
+
+            {cuentaAccion === 'eliminar' && (
+              <>
+                <label className="label">Tipo de eliminación</label>
+                <select
+                  className="input mb-3"
+                  value={cuentaModo}
+                  onChange={(e) => setCuentaModo(e.target.value as 'anonimizar' | 'borrar_real')}
+                >
+                  <option value="anonimizar">Anonimizar (conserva viajes y dinero)</option>
+                  <option value="borrar_real">Borrar de verdad (solo si no tiene historial)</option>
+                </select>
+              </>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setCuentaTarget(null)} className="btn-outline flex-1" disabled={cuentaGuardando}>
+                Cancelar
+              </button>
+              <button
+                onClick={handleCuenta}
+                className={cuentaAccion === 'eliminar' ? 'btn-danger flex-1' : 'btn-primary flex-1'}
+                disabled={cuentaGuardando || (cuentaAccion !== 'activo' && !cuentaMotivo.trim())}
+              >
+                {cuentaGuardando ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
               </button>
             </div>
           </div>

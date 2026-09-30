@@ -48,6 +48,7 @@ import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs'
 import { EncargadoDashboard } from '@/pages/encargado/EncargadoDashboard'
 import { EncargadoProfile } from '@/pages/encargado/EncargadoProfile'
 import { EncargadoUsers } from '@/pages/encargado/EncargadoUsers'
+import { AccountBlocked } from '@/pages/AccountBlocked'
 import { LegalPage } from '@/pages/LegalPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -149,6 +150,26 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     }
     document.title = titles[location.pathname] || 'BunRider'
   }, [location.pathname])
+
+  // Cuenta pausada / bloqueada / eliminada: solo ve el aviso.
+  // El backend ya le impide operar (get_user_role -> null y guard_rate_limit
+  // corta las RPC); aquí solo se le explica el motivo.
+  // Una pausa con fecha vencida vuelve a estar activa sola (mismo criterio
+  // que public.is_account_active).
+  const cuentaBloqueada =
+    !!user &&
+    !!user.status &&
+    user.status !== 'activo' &&
+    !(user.status === 'pausado' && user.status_until && new Date(user.status_until) <= new Date())
+
+  if (cuentaBloqueada) {
+    return (
+      <>
+        <AccountBlocked />
+        <InstallAppButton />
+      </>
+    )
+  }
 
   if (isPublicPage || !user) {
     return (
