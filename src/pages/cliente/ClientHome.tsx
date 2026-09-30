@@ -93,6 +93,9 @@ export function ClientHome() {
   const [barrios, setBarrios] = useState<Barrio[]>([])
   const [barrioExtras, setBarrioExtras] = useState<Record<string, number>>({})
   const [driverCounts, setDriverCounts] = useState<Record<string, number>>({})
+  // Conductores OCUPADOS por categoría: permite decir "todos en viaje"
+  // en vez del genérico "no hay disponibles"
+  const [driverBusy, setDriverBusy] = useState<Record<string, number>>({})
   const [cities, setCities] = useState<CityInfo[]>(readCitiesCache)
   const [citiesError, setCitiesError] = useState('')
   // Ciudad recordada: si ya hay una sola (aunque venga de la caché) se elige
@@ -674,7 +677,7 @@ export function ClientHome() {
 
     if (driverCounts[selectedCategory] === 0) {
       const label = categories.find((c) => c.name === selectedCategory)?.display_name || 'ese vehículo'
-      setError(`🕐 No hay ${label} disponibles ahora. Elige otro vehículo o intenta más tarde.`)
+      setError(mensajeSinDisponibles(selectedCategory, label))
       return
     }
 
@@ -738,7 +741,7 @@ export function ClientHome() {
 
     if (driverCounts[selectedCategory] === 0) {
       const label = categories.find((c) => c.name === selectedCategory)?.display_name || 'ese vehículo'
-      setError(`🕐 No hay ${label} disponibles ahora. Elige otro vehículo o intenta más tarde.`)
+      setError(mensajeSinDisponibles(selectedCategory, label))
       return
     }
 
@@ -892,10 +895,22 @@ export function ClientHome() {
     const { data, error } = await supabase.rpc('get_available_driver_counts', { p_zone_id: selectedCityId })
     if (error || !data) return
     const map: Record<string, number> = {}
-    ;(data as Array<{ category: string; available: number }>).forEach((r) => {
+    const busyMap: Record<string, number> = {}
+    ;(data as Array<{ category: string; available: number; busy?: number }>).forEach((r) => {
       map[r.category] = Number(r.available) || 0
+      busyMap[r.category] = Number(r.busy) || 0
     })
     setDriverCounts(map)
+    setDriverBusy(busyMap)
+  }
+
+  // Mensaje cuando no hay disponibles: si hay conductores de esa categoría
+  // pero todos están en viaje, se lo decimos claro.
+  const mensajeSinDisponibles = (catName: string, label: string) => {
+    const ocupados = driverBusy[catName] || 0
+    return ocupados > 0
+      ? `🚕 Todos los ${label} están en viaje ahora. Prueba en unos minutos o elige otro vehículo.`
+      : `🕐 No hay ${label} disponibles ahora. Elige otro vehículo o intenta más tarde.`
   }
 
   useEffect(() => {
@@ -1282,7 +1297,7 @@ export function ClientHome() {
                   key={cat.id}
                   onClick={() => {
                     if (noDisponible) {
-                      setError(`🕐 No hay ${cat.display_name} disponibles ahora. Prueba con otro vehículo.`)
+                      setError(mensajeSinDisponibles(cat.name, cat.display_name))
                       return
                     }
                     setSelectedCategory(cat.name)

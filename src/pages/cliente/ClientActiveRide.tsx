@@ -107,6 +107,9 @@ export function ClientActiveRide() {
   const [incidentDesc, setIncidentDesc] = useState('')
   const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
   const [showMap, setShowMap] = useState(false)
+  // Cuántos minutos lleva buscando conductor (para avisar y recordar que
+  // puede cancelar sin costo; a los 10 min el viaje se cancela solo)
+  const [minutosEspera, setMinutosEspera] = useState(0)
   // Visor de fotos a pantalla completa (conductor / vehículo)
   const [photoViewer, setPhotoViewer] = useState<{ src: string; title?: string } | null>(null)
   const { user } = useAuth()
@@ -122,6 +125,19 @@ export function ClientActiveRide() {
       loadRide()
     }
   }, [rideId])
+
+  // Contador mientras se busca conductor (no gasta datos: 1 tick cada 30s)
+  useEffect(() => {
+    if (ride?.status !== 'buscando') {
+      setMinutosEspera(0)
+      return
+    }
+    const inicio = new Date(ride.created_at).getTime()
+    const tick = () => setMinutosEspera(Math.floor((Date.now() - inicio) / 60000))
+    tick()
+    const timer = setInterval(tick, 30000)
+    return () => clearInterval(timer)
+  }, [ride?.status, ride?.created_at])
 
   // Tiempo real optimizado: Realtime + polling de respaldo cada 6s
   useRideRealtime(
@@ -494,6 +510,22 @@ export function ClientActiveRide() {
 
       {/* Detalles */}
       <div className="max-w-md mx-auto px-4 py-6 space-y-4">
+        {/* Aviso mientras se busca conductor */}
+        {ride.status === 'buscando' && minutosEspera >= 3 && (
+          <div className="card border-2 border-amber-100 bg-amber-50">
+            <p className="font-semibold text-amber-800 flex items-center gap-2 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              {minutosEspera >= 8 ? 'Está tardando más de lo normal' : 'Seguimos buscando conductor'}
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              {minutosEspera >= 8
+                ? 'Si ningún conductor acepta, el viaje se cancelará solo en un par de minutos. Si pagaste con billetera, el dinero se te devuelve automáticamente.'
+                : 'Puede tardar un poco según la demanda. Si prefieres, puedes cancelar sin costo.'}
+            </p>
+          </div>
+        )}
+
+
         {/* Confirmación mutua */}
         {ride.status === 'aceptada' && (
           <div className="card border-2 border-primary-100 bg-primary-50">
