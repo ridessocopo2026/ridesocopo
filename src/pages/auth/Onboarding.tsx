@@ -14,6 +14,8 @@ export function Onboarding() {
   const [role, setRole] = useState<'cliente' | 'conductor'>(() =>
     searchParams.get('role') === 'conductor' ? 'conductor' : 'cliente'
   )
+  // Volver al flujo del que venía el usuario (p. ej. /cliente como invitado)
+  const redirectTo = searchParams.get('redirect') || ''
   const [zones, setZones] = useState<Zone[]>([])
   const [selectedZone, setSelectedZone] = useState('')
   const [error, setError] = useState('')
@@ -74,7 +76,9 @@ export function Onboarding() {
     if (role === 'conductor') {
       navigate('/conductor/onboarding')
     } else {
-      navigate('/cliente')
+      // Si venía del flujo de invitado (/cliente) vuelve ahí; si no, al inicio.
+      // Solo rutas internas de /cliente para evitar redirects externos.
+      navigate(redirectTo.startsWith('/cliente') ? redirectTo : '/cliente')
     }
   }
 

@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
+import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
@@ -57,6 +58,30 @@ function MapCenterController({ target }: { target: { lat: number; lng: number } 
   return null
 }
 
+// Caché de ciudades en localStorage: el selector aparece al instante y el
+// invitado no arranca con la lista de sectores en blanco mientras responde
+// Supabase. La RPC siempre manda y sobreescribe la caché.
+const CITIES_CACHE_KEY = 'rider_cities_cache'
+
+function readCitiesCache(): CityInfo[] {
+  try {
+    const raw = localStorage.getItem(CITIES_CACHE_KEY)
+    if (!raw) return []
+    const list = JSON.parse(raw)
+    return Array.isArray(list) ? (list as CityInfo[]) : []
+  } catch (_) {
+    return []
+  }
+}
+
+function writeCitiesCache(list: CityInfo[]): void {
+  try {
+    localStorage.setItem(CITIES_CACHE_KEY, JSON.stringify(list))
+  } catch (_) {
+    // localStorage no disponible
+  }
+}
+
 export function ClientHome() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null)
   const [inCoverage, setInCoverage] = useState(false)
@@ -68,8 +93,20 @@ export function ClientHome() {
   const [barrios, setBarrios] = useState<Barrio[]>([])
   const [barrioExtras, setBarrioExtras] = useState<Record<string, number>>({})
   const [driverCounts, setDriverCounts] = useState<Record<string, number>>({})
-  const [cities, setCities] = useState<CityInfo[]>([])
-  const [selectedCityId, setSelectedCityId] = useState('')
+  const [cities, setCities] = useState<CityInfo[]>(readCitiesCache)
+  const [citiesError, setCitiesError] = useState('')
+  // Ciudad recordada: si ya hay una sola (aunque venga de la caché) se elige
+  // sola y, si había una guardada, se cargan sus sectores sin esperar a la RPC.
+  // La RPC siempre manda: si esa ciudad ya no está activa, se limpia.
+  const [selectedCityId, setSelectedCityId] = useState(() => {
+    const cached = readCitiesCache()
+    if (cached.length === 1) return cached[0].id
+    try {
+      return localStorage.getItem('rider_city') || ''
+    } catch (_) {
+      return ''
+    }
+  })
   const [favorites, setFavorites] = useState<FavoritePlace[]>([])
   const [banners, setBanners] = useState<Banner[]>([])
   const [fare, setFare] = useState<FareCalculation | null>(null)
@@ -95,12 +132,19 @@ export function ClientHome() {
   const [sheetAddress, setSheetAddress] = useState('')
   const [destSearch, setDestSearch] = useState('')
   const [destTab, setDestTab] = useState<'todos' | 'barrio' | 'urbanizacion' | 'sector'>('todos')
+  // Carga de sectores del panel de destino (para no mostrar una lista vacía sin explicación)
+  const [loadingBarrios, setLoadingBarrios] = useState(false)
+  const [barriosError, setBarriosError] = useState('')
   // Carrusel de banners: índice actual + pausa al interactuar
   const [bannerIndex, setBannerIndex] = useState(0)
   const [bannerPaused, setBannerPaused] = useState(false)
   const touchStartX = useRef<number | null>(null)
   // Ref para auto-focus de la dirección exacta al seleccionar un barrio
   const destAddressRef = useRef<HTMLTextAreaElement>(null)
+  // Caché de sectores por ciudad: al reabrir el panel no se repite la consulta
+  const barriosCache = useRef<Record<string, Barrio[]>>({})
+  // El borrador del invitado se restaura UNA sola vez (al volver del login)
+  const draftRestored = useRef(false)
   const { user } = useAuth()
   const navigate = useNavigate()
   // Viaje en curso: aviso en el inicio + bloqueo de nueva solicitud
@@ -114,15 +158,22 @@ export function ClientHome() {
     }
   }, [sheetBarrioId])
 
+  // Catálogo público (no depende de la sesión): una sola vez al montar
   useEffect(() => {
     loadCategories()
-    loadCities()
-    loadFavorites()
     loadBanners()
     loadPaymentMethods()
     loadCoupons()
     loadExchangeRate()
   }, [])
+
+  // Ciudad y favoritos SÍ dependen del usuario: se recargan al iniciar o cerrar
+  // sesión (clave al volver del login con ?redirect=/cliente, porque el
+  // componente no se desmonta al pasar por /login).
+  useEffect(() => {
+    loadCities()
+    loadFavorites()
+  }, [user?.id])
 
   // Al elegir ciudad: cargar sus barrios y limpiar el destino previo
   useEffect(() => {
@@ -130,8 +181,43 @@ export function ClientHome() {
       loadBarrios(selectedCityId)
       setDestBarrioId('')
       setDestAddress('')
+    } else {
+      // Sin ciudad no hay sectores que mostrar (evita la lista de otra ciudad)
+      setBarrios([])
     }
   }, [selectedCityId])
+
+  // Volver del login/registro: recuperar lo que el invitado ya había elegido
+  useEffect(() => {
+    if (draftRestored.current || !user) return
+    const draft = loadGuestDraft()
+    if (!draft) {
+      draftRestored.current = true
+      return
+    }
+    // 1) Primero la ciudad, para que se carguen sus sectores
+    if (draft.cityId && draft.cityId !== selectedCityId) {
+      setSelectedCityId(draft.cityId)
+      return // el resto se aplica en cuanto la ciudad esté activa
+    }
+    if (!selectedCityId) return
+    // 2) Destino, tipo de vehículo y ubicación de recogida
+    draftRestored.current = true
+    clearGuestDraft()
+    if (draft.destBarrioId && draft.destAddress) {
+      setDestBarrioId(draft.destBarrioId)
+      setDestAddress(draft.destAddress)
+    }
+    if (draft.category) setSelectedCategory(draft.category)
+    if (draft.origin) {
+      setOrigin(draft.origin)
+      if (draft.originAddress) setOriginAddress(draft.originAddress)
+      void detectCityAndCoverage(draft.origin.lat, draft.origin.lng).then((res) => {
+        if (res) setInCoverage(res.found)
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, selectedCityId])
 
   // ── Viaje en curso / confirmación pendiente: aviso en el inicio + bloqueo ──
   const needsConfirm = (r: Ride) =>
@@ -271,7 +357,17 @@ export function ClientHome() {
     }
   }
 
-  const loadBarrios = async (zoneId: string) => {
+  const loadBarrios = async (zoneId: string, force = false) => {
+    // Caché por ciudad: reabrir el panel no repite la consulta
+    if (!force && barriosCache.current[zoneId]) {
+      setBarrios(barriosCache.current[zoneId])
+      setBarriosError('')
+      return
+    }
+
+    setLoadingBarrios(true)
+    setBarriosError('')
+
     const { data, error } = await supabase
       .from('barrios')
       .select('*')
@@ -279,9 +375,17 @@ export function ClientHome() {
       .eq('zone_id', zoneId)
       .order('name')
 
-    if (!error && data) {
-      setBarrios(data as Barrio[])
+    if (error) {
+      // Nunca dejar la lista muda: el panel mostrará el aviso y el botón Reintentar
+      setBarrios([])
+      setBarriosError('No pudimos cargar los sectores. Revisa tu conexión e inténtalo de nuevo.')
+    } else {
+      const list = (data as Barrio[]) || []
+      barriosCache.current[zoneId] = list
+      setBarrios(list)
     }
+
+    setLoadingBarrios(false)
   }
 
   // Recargos efectivos (barrio × categoría) del destino elegido, desde la vista
@@ -306,22 +410,36 @@ export function ClientHome() {
     }
   }, [destBarrioId])
 
-  const loadCities = async () => {
+  const loadCities = async (retry = true) => {
     const { data, error } = await supabase.rpc('get_active_cities')
-    if (!error && data) {
-      const list = (data as CityInfo[]) || []
-      setCities(list)
-      const saved = localStorage.getItem('rider_city') || ''
-      let initial = ''
-      if (list.length === 1) {
-        initial = list[0].id
-      } else if (saved && list.some((c) => c.id === saved)) {
-        initial = saved
-      } else if (user?.zone_id && list.some((c) => c.id === user.zone_id)) {
-        initial = user.zone_id
-      }
-      if (initial) setSelectedCityId(initial)
+
+    if (error) {
+      // Un fallo puntual de red no debe dejar al invitado sin zonas
+      if (retry) return loadCities(false)
+      setCitiesError('No pudimos cargar las zonas disponibles. Revisa tu conexión e inténtalo de nuevo.')
+      return
     }
+
+    setCitiesError('')
+    const list = (data as CityInfo[]) || []
+    setCities(list)
+    writeCitiesCache(list)
+
+    const saved = localStorage.getItem('rider_city') || ''
+    let initial = ''
+    if (list.length === 1) {
+      // Una sola ciudad activa → se elige sola
+      initial = list[0].id
+    } else if (saved && list.some((c) => c.id === saved)) {
+      initial = saved
+    } else if (user?.zone_id && list.some((c) => c.id === user.zone_id)) {
+      initial = user.zone_id
+    } else if (selectedCityId && !list.some((c) => c.id === selectedCityId)) {
+      // La ciudad en uso ya no está activa → limpiar para que elija otra
+      setSelectedCityId('')
+    }
+
+    if (initial) setSelectedCityId(initial)
   }
 
   const handleSelectCity = (id: string) => {
@@ -331,6 +449,22 @@ export function ClientHome() {
     setOrigin(null)
     setOriginAddress('')
     setInCoverage(false)
+  }
+
+  // Ir a iniciar sesión o registrarse guardando antes lo que el invitado ya
+  // eligió (ciudad, destino, vehículo y ubicación) para restaurarlo al volver.
+  const goToAuth = (path: string) => {
+    if (!user) {
+      saveGuestDraft({
+        cityId: selectedCityId,
+        destBarrioId,
+        destAddress,
+        category: selectedCategory,
+        origin,
+        originAddress
+      })
+    }
+    navigate(path)
   }
 
   const loadFavorites = async () => {
@@ -403,23 +537,20 @@ export function ClientHome() {
     }
   }
 
-  const checkCoverage = async (lat: number, lng: number): Promise<boolean> => {
+  // Ciudad + cobertura en UNA sola llamada pública (find_city).
+  // Devuelve null si la RPC falla: en ese caso NO se bloquea al pasajero
+  // (antes un error de red lo dejaba "dentro" o "fuera" según el mensaje).
+  const detectCityAndCoverage = async (
+    lat: number,
+    lng: number
+  ): Promise<{ found: boolean; id?: string } | null> => {
     try {
-      const { data, error } = await supabase.rpc('calculate_fare', {
-        p_origin_lat: lat,
-        p_origin_lng: lng,
-        p_dest_lat: lat,
-        p_dest_lng: lng,
-        p_category: 'moto'
-      })
-
-      if (error) {
-        return !error.message.includes('fuera del área')
-      }
-
-      return data?.in_coverage !== false
+      const { data, error } = await supabase.rpc('find_city', { p_lat: lat, p_lng: lng })
+      if (error || !data) return null
+      const res = data as { found?: boolean; id?: string }
+      return { found: res.found !== false, id: res.id }
     } catch {
-      return true
+      return null
     }
   }
 
@@ -438,17 +569,19 @@ export function ClientHome() {
         setOrigin({ lat: latitude, lng: longitude })
         setGpsLoading(false)
 
-        // Auto-detectar la ciudad del pasajero por GPS
-        const { data: city } = await supabase.rpc('find_city', { p_lat: latitude, p_lng: longitude })
-        if (city?.found && city?.id) {
-          setSelectedCityId(city.id)
-          localStorage.setItem('rider_city', city.id)
+        // Ciudad + cobertura en una sola llamada pública (find_city):
+        // además selecciona la ciudad, lo que carga sus sectores
+        const detected = await detectCityAndCoverage(latitude, longitude)
+        if (detected?.found && detected.id) {
+          setSelectedCityId(detected.id)
+          localStorage.setItem('rider_city', detected.id)
         }
 
         const address = await reverseGeocode(latitude, longitude)
         setOriginAddress(address)
 
-        const coverage = await checkCoverage(latitude, longitude)
+        // Si no se pudo verificar (red), no se bloquea al pasajero
+        const coverage = detected ? detected.found : true
         setInCoverage(coverage)
 
         if (!coverage) {
@@ -779,6 +912,13 @@ export function ClientHome() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCityId, activeRide])
+
+  // Sectores del panel de destino: filtro por texto + tipo (barrio/urbanización/sector)
+  const barriosFiltrados = barrios.filter((b) => {
+    const coincideTexto = b.name.toLowerCase().includes(destSearch.trim().toLowerCase())
+    const coincideTipo = destTab === 'todos' || b.tipo === destTab
+    return coincideTexto && coincideTipo
+  })
 
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
@@ -1215,10 +1355,10 @@ export function ClientHome() {
               <span className="font-semibold text-surface-800">Crea tu cuenta o inicia sesión</span> — es gratis y
               tardas menos de un minuto.
             </p>
-            <button onClick={() => navigate('/login?redirect=/cliente')} className="btn-primary w-full">
+            <button onClick={() => goToAuth('/login?redirect=/cliente')} className="btn-primary w-full">
               <LogIn className="w-4 h-4" /> Iniciar sesión
             </button>
-            <button onClick={() => navigate('/registro')} className="btn-outline w-full">
+            <button onClick={() => goToAuth('/registro?redirect=/cliente')} className="btn-outline w-full">
               <UserPlus className="w-4 h-4" /> Crear cuenta
             </button>
           </div>
@@ -1231,39 +1371,119 @@ export function ClientHome() {
           <div className="bottom-sheet max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle" />
             <h2 className="text-xl font-bold text-surface-800 mb-3">¿A dónde quieres ir?</h2>
-            <input
-              type="text"
-              className="input mb-3"
-              placeholder="🔍 Buscar lugar..."
-              value={destSearch}
-              onChange={(e) => setDestSearch(e.target.value)}
-            />
+            {/* Invitado: se le dice claramente que puede curiosear sin cuenta */}
+            {!user && (
+              <p className="text-xs text-surface-500 bg-primary-50/60 border border-primary-100 rounded-xl px-3 py-2 mb-3">
+                Estás explorando como invitado: elige tu sector y escribe la dirección. Para pedir el viaje te
+                pediremos iniciar sesión.
+              </p>
+            )}
 
-            {/* Lista de lugares filtrados */}
-            <div className="space-y-2 mb-4 max-h-[32vh] overflow-y-auto">
-              {barrios
-                .filter(b => b.name.toLowerCase().includes(destSearch.toLowerCase()))
-                .map((barrio) => (
-                <button
-                  key={barrio.id}
-                  onClick={() => setSheetBarrioId(barrio.id)}
-                  className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
-                    sheetBarrioId === barrio.id
-                      ? 'border-primary-600 bg-primary-50 shadow-soft'
-                      : 'border-surface-200 bg-white hover:border-surface-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span>{barrio.tipo === 'urbanizacion' ? '🏢' : barrio.tipo === 'sector' ? '📍' : '🏘️'}</span>
-                      <span className={`text-sm font-medium truncate ${sheetBarrioId === barrio.id ? 'text-primary-700' : 'text-surface-700'}`}>
-                        {barrio.name}
-                      </span>
-                    </div>
-                  </div>
+            {/* Nunca una lista vacía sin salida: si falta la ciudad se elige aquí
+                mismo, y si falló la carga se ofrece Reintentar. */}
+            {!selectedCityId && cities.length > 1 ? (
+              <div className="space-y-2 mb-4">
+                <p className="text-sm text-surface-500 mb-1">Elige tu ciudad para ver sus sectores:</p>
+                {cities.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSelectCity(c.id)}
+                    className="w-full p-3 rounded-xl border-2 border-surface-200 bg-white text-left hover:border-primary-400 hover:bg-primary-50 transition-all"
+                  >
+                    <span className="font-medium text-surface-700">📍 {c.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : !selectedCityId && citiesError ? (
+              <div className="text-center py-4 mb-4 space-y-3">
+                <p className="text-sm text-red-500">{citiesError}</p>
+                <button onClick={() => loadCities()} className="btn-outline">
+                  Reintentar
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  className="input mb-3"
+                  placeholder="🔍 Buscar lugar..."
+                  value={destSearch}
+                  onChange={(e) => setDestSearch(e.target.value)}
+                />
+
+                {/* Filtro por tipo de sector */}
+                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                  {([
+                    { key: 'todos', label: 'Todos' },
+                    { key: 'barrio', label: '🏘️ Barrios' },
+                    { key: 'urbanizacion', label: '🏢 Urbanizaciones' },
+                    { key: 'sector', label: '📍 Sectores' }
+                  ] as const).map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setDestTab(t.key)}
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                        destTab === t.key
+                          ? 'border-primary-600 bg-primary-50 text-primary-700'
+                          : 'border-surface-200 bg-white text-surface-500 hover:border-surface-300'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Lista de lugares filtrados: con estados claros (cargando, error, vacío) */}
+                <div className="space-y-2 mb-4 max-h-[32vh] overflow-y-auto">
+                  {loadingBarrios ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-surface-500">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Cargando sectores…
+                    </div>
+                  ) : barriosError ? (
+                    <div className="text-center py-4 space-y-3">
+                      <p className="text-sm text-red-500">{barriosError}</p>
+                      <button
+                        onClick={() => (selectedCityId ? loadBarrios(selectedCityId, true) : loadCities())}
+                        className="btn-outline"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
+                  ) : barrios.length === 0 ? (
+                    <p className="text-center text-sm text-surface-500 py-6">
+                      {cities.length === 0
+                        ? 'No hay zonas disponibles por ahora.'
+                        : 'Esta ciudad todavía no tiene sectores cargados.'}
+                    </p>
+                  ) : barriosFiltrados.length === 0 ? (
+                    <p className="text-center text-sm text-surface-500 py-6">
+                      No hay resultados para tu búsqueda.
+                    </p>
+                  ) : (
+                    barriosFiltrados.map((barrio) => (
+                      <button
+                        key={barrio.id}
+                        onClick={() => setSheetBarrioId(barrio.id)}
+                        className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                          sheetBarrioId === barrio.id
+                            ? 'border-primary-600 bg-primary-50 shadow-soft'
+                            : 'border-surface-200 bg-white hover:border-surface-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span>{barrio.tipo === 'urbanizacion' ? '🏢' : barrio.tipo === 'sector' ? '📍' : '🏘️'}</span>
+                            <span className={`text-sm font-medium truncate ${sheetBarrioId === barrio.id ? 'text-primary-700' : 'text-surface-700'}`}>
+                              {barrio.name}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Campo de dirección — aparece en el mismo panel al seleccionar sector */}
             {sheetBarrioId && (
@@ -1288,6 +1508,9 @@ export function ClientHome() {
               </div>
             )}
 
+            {/* Se oculta mientras el usuario debe elegir ciudad o reintentar:
+                así nunca se ve un botón deshabilitado sin explicación */}
+            {!selectedCityId && (cities.length > 1 || !!citiesError) ? null : (
             <button
               id="confirm-destino-btn"
               onClick={() => {
@@ -1311,6 +1534,7 @@ export function ClientHome() {
             >
               Confirmar destino
             </button>
+            )}
           </div>
         </div>
       )}
@@ -1336,13 +1560,13 @@ export function ClientHome() {
               </p>
             </div>
             <button
-              onClick={() => navigate('/login?redirect=/cliente')}
+              onClick={() => goToAuth('/login?redirect=/cliente')}
               className="btn-primary w-full"
             >
               Iniciar sesión
             </button>
             <button
-              onClick={() => navigate('/registro?redirect=/cliente')}
+              onClick={() => goToAuth('/registro?redirect=/cliente')}
               className="btn-outline w-full mt-2"
             >
               Crear cuenta

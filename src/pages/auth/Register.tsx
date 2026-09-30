@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Lock, User, Phone, Loader2, Car } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -27,6 +27,9 @@ export function Register() {
   const pendingRef = useRef(false)
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Al venir del flujo de invitado (?redirect=/cliente) se conserva el destino
+  const redirectTo = searchParams.get('redirect') || ''
 
   const handleGoogle = async () => {
     setError('')
@@ -62,7 +65,10 @@ export function Register() {
     }
 
     // Continuar al onboarding con el rol elegido ya preseleccionado
-    navigate(`/onboarding?role=${role}`)
+    // (y el redirect del flujo de invitado, si venía de /cliente)
+    const params = new URLSearchParams({ role })
+    if (redirectTo) params.set('redirect', redirectTo)
+    navigate(`/onboarding?${params.toString()}`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
