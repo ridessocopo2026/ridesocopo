@@ -28,11 +28,15 @@ export function AdminDrivers() {
   }, [])
 
   const loadDrivers = async () => {
-    const { data, error } = await supabase
+    // El encargado ve SOLO los conductores de su ciudad (el backend lo impone con RLS)
+    const driversQuery = supabase
       .from('profiles')
       .select('*')
       .eq('role', 'conductor')
       .order('created_at', { ascending: false })
+    const { data, error } = user?.role === 'encargado' && user.zone_id
+      ? await driversQuery.eq('zone_id', user.zone_id)
+      : await driversQuery
 
     if (!error && data) {
       setDrivers(data as Profile[])

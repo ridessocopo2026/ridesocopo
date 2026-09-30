@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket } from 'lucide-react'
+import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -8,6 +8,8 @@ import { AppLogo } from '@/components/ui/AppLogo'
 import type { CouponStats } from '@/types/database'
 
 const modules = [
+  { to: '/encargado/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Dinero', desc: 'Montos y métricas de mi ciudad' },
+  { to: '/encargado/liquidaciones', icon: <HandCoins className="w-6 h-6" />, title: 'Liquidaciones', desc: 'Pagar y cobrar a conductores' },
   { to: '/encargado/comprobantes', icon: <ClipboardCheck className="w-6 h-6" />, title: 'Comprobantes', desc: 'Verificar pagos y recargas' },
   { to: '/encargado/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Atender incidentes de viajes' },
   { to: '/encargado/conductores', icon: <Users className="w-6 h-6" />, title: 'Conductores', desc: 'Aprobar y gestionar' },
@@ -15,11 +17,23 @@ const modules = [
   { to: '/encargado/transacciones', icon: <Receipt className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero' }
 ]
 
+interface ResumenCiudad {
+  ingresos_plataforma: number
+  deuda_con_conductores: number
+  deuda_conductores: number
+  efectivo_conductores: number
+  total_recargas: number
+  total_viajes: number
+  viajes_completados: number
+}
+
 export function EncargadoDashboard() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [zoneName, setZoneName] = useState('')
   const [couponStats, setCouponStats] = useState<CouponStats | null>(null)
+  const [resumen, setResumen] = useState<ResumenCiudad | null>(null)
+  const [efectivoCiudad, setEfectivoCiudad] = useState<number | null>(null)
 
   useEffect(() => {
     if (user?.zone_id) {
@@ -44,6 +58,34 @@ export function EncargadoDashboard() {
       })
       .then(({ data, error }) => {
         if (!error && data) setCouponStats(data as CouponStats)
+      })
+  }, [user?.zone_id])
+
+  // Dinero de MI ciudad (últimos 30 días) + efectivo recibido
+  // El backend fuerza la zona del encargado: no puede pedir otra.
+  useEffect(() => {
+    const now = new Date()
+    const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    supabase
+      .rpc('get_admin_metrics', {
+        p_fecha_inicio: from.toISOString(),
+        p_fecha_fin: now.toISOString()
+      })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const d = data as { resumen: ResumenCiudad }
+          setResumen(d.resumen)
+        }
+      })
+
+    supabase
+      .rpc('get_wallet_overview')
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const d = data as { total_banco: number }
+          setEfectivoCiudad(d.total_banco)
+        }
       })
   }, [user?.zone_id])
 
@@ -72,6 +114,59 @@ export function EncargadoDashboard() {
       </div>
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-4">
+        {/* 💰 Dinero de MI ciudad (el backend fuerza la zona) */}
+        <div className="card p-4 bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold flex items-center gap-1 text-white/90">
+              <TrendingUp className="w-4 h-4" /> Dinero de mi ciudad (30 días)
+            </p>
+            <button onClick={() => navigate('/encargado/metricas')} className="text-[11px] underline text-white/90">
+              Ver métricas
+            </button>
+          </div>
+          <p className="text-2xl font-bold">{resumen ? fmt(resumen.ingresos_plataforma) : '—'}</p>
+          <p className="text-[10px] text-white/70">Ingresos generados en {zoneName || 'mi ciudad'}</p>
+
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="bg-white/10 rounded-lg px-2 py-1.5">
+              <p className="text-[10px] text-white/70">Efectivo recibido</p>
+              <p className="text-sm font-semibold">{efectivoCiudad == null ? '—' : fmt(efectivoCiudad)}</p>
+            </div>
+            <div className="bg-white/10 rounded-lg px-2 py-1.5">
+              <p className="text-[10px] text-white/70">Recargas</p>
+              <p className="text-sm font-semibold">{resumen ? fmt(resumen.total_recargas) : '—'}</p>
+            </div>
+            <div className="bg-white/10 rounded-lg px-2 py-1.5">
+              <p className="text-[10px] text-white/70">Viajes completados</p>
+              <p className="text-sm font-semibold">{resumen ? `${resumen.viajes_completados}/${resumen.total_viajes}` : '—'}</p>
+            </div>
+            <div className="bg-white/10 rounded-lg px-2 py-1.5">
+              <p className="text-[10px] text-white/70">Debo a conductores</p>
+              <p className="text-sm font-semibold">{resumen ? fmt(resumen.deuda_con_conductores) : '—'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 🔴 Por cobrar: conductores que deben a la app */}
+        {resumen && resumen.deuda_conductores > 0 && (
+          <button
+            onClick={() => navigate('/encargado/liquidaciones')}
+            className="w-full card p-3 bg-red-50 border-red-200 flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <div>
+                <p className="text-xs font-semibold text-red-700">Por cobrar a conductores</p>
+                <p className="text-[10px] text-red-600">Comisiones pendientes en mi ciudad</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-bold text-red-700">{fmt(resumen.deuda_conductores)}</span>
+              <ChevronRight className="w-4 h-4 text-red-400" />
+            </div>
+          </button>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {modules.map((m) => (
             <button

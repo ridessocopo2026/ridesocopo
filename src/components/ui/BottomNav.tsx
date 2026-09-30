@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Car, Wallet, User, History, Bell, MapPin, Settings } from 'lucide-react'
+import { Home, Car, Wallet, User, History, Bell, MapPin, Settings, BarChart3 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
 interface NavItem {
@@ -32,8 +32,8 @@ export function BottomNav({ role }: BottomNavProps) {
   } else if (role === 'encargado') {
     items.push(
       { to: '/encargado', label: 'Panel', icon: <Home className="nav-icon" /> },
+      { to: '/encargado/metricas', label: 'Dinero', icon: <BarChart3 className="nav-icon" /> },
       { to: '/encargado/comprobantes', label: 'Pagos', icon: <Wallet className="nav-icon" /> },
-      { to: '/encargado/incidentes', label: 'Incidentes', icon: <Settings className="nav-icon" /> },
       { to: '/encargado/perfil', label: 'Perfil', icon: <User className="nav-icon" /> }
     )
   } else if (role === 'super_admin') {

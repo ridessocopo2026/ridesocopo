@@ -27,6 +27,20 @@ export function AdminPayouts() {
   const [payDesc, setPayDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const { user } = useAuth()
+  const isEncargado = user?.role === 'encargado'
+  const [zoneName, setZoneName] = useState('')
+
+  // El encargado trabaja SOLO con su ciudad (el backend también lo impone)
+  useEffect(() => {
+    if (isEncargado && user?.zone_id) {
+      supabase
+        .from('zones')
+        .select('name')
+        .eq('id', user.zone_id)
+        .single()
+        .then(({ data }) => { if (data) setZoneName(data.name) })
+    }
+  }, [isEncargado, user?.zone_id])
 
   // Resolver URLs firmadas de comprobantes (bucket payments es privado)
   const resolveProofs = async (items: Payout[]) => {
@@ -52,13 +66,16 @@ export function AdminPayouts() {
       resolveProofs(payoutData as Payout[])
     }
 
-    // Cargar conductores con saldo
-    const { data: driversData } = await supabase
+    // Cargar conductores con saldo (el encargado solo los de su ciudad)
+    const driversQuery = supabase
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'conductor')
       .eq('driver_status', 'aprobado')
       .order('full_name')
+    const { data: driversData } = isEncargado && user?.zone_id
+      ? await driversQuery.eq('zone_id', user.zone_id)
+      : await driversQuery
 
     if (driversData) {
       // Cargar wallets de cada conductor
@@ -166,7 +183,11 @@ export function AdminPayouts() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-surface-800">Liquidaciones</h1>
-              <p className="text-xs text-surface-500">Pagos entre conductores y plataforma</p>
+              <p className="text-xs text-surface-500">
+                {isEncargado
+                  ? `${zoneName || 'Mi ciudad'} — pagos entre tus conductores y la plataforma`
+                  : 'Pagos entre conductores y plataforma'}
+              </p>
             </div>
           </div>
           <button

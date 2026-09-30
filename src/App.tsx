@@ -408,6 +408,17 @@ export default function App() {
               <AdminTransactions />
             </RoleRoute>
           } />
+          {/* Dinero y métricas: solo de SU ciudad (el backend fuerza la zona) */}
+          <Route path="/encargado/metricas" element={
+            <RoleRoute role="encargado">
+              <AdminMetrics />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/liquidaciones" element={
+            <RoleRoute role="encargado">
+              <AdminPayouts />
+            </RoleRoute>
+          } />
           <Route path="/encargado/perfil" element={
             <RoleRoute role="encargado">
               <EncargadoProfile />

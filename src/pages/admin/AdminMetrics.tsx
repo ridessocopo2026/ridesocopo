@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp, Ticket } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp, Ticket, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import type { Profile, CouponStats } from '@/types/database'
 
+interface ZonaInfo {
+  zone_id: string | null
+  es_global: boolean
+  forzada_por_rol: boolean
+}
+
 interface WalletOverview {
+  zona?: ZonaInfo
   total_banco: number
   deuda_wallets: number
   patrimonio_app: number
@@ -19,6 +27,7 @@ interface WalletOverview {
 }
 
 interface AdminMetricsData {
+  zona?: ZonaInfo
   resumen: {
     ingresos_plataforma: number
     comisiones_pendientes: number
@@ -63,6 +72,8 @@ interface AdminMetricsData {
 }
 
 export function AdminMetrics() {
+  const { user } = useAuth()
+  const isEncargado = user?.role === 'encargado'
   const [data, setData] = useState<AdminMetricsData | null>(null)
   const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null)
   const [conductores, setConductores] = useState<Profile[]>([])
@@ -76,6 +87,28 @@ export function AdminMetrics() {
   const [metodo, setMetodo] = useState('')
   const [applying, setApplying] = useState(false)
   const [couponStats, setCouponStats] = useState<CouponStats | null>(null)
+  // Ciudad: el encargado queda fijo en la suya; el super_admin puede elegir ('' = todas)
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
+  const [zoneId, setZoneId] = useState('')
+  const [zoneName, setZoneName] = useState('')
+
+  useEffect(() => {
+    if (isEncargado) {
+      // El encargado solo ve su ciudad: se muestra el nombre, sin selector
+      if (user?.zone_id) {
+        supabase
+          .from('zones')
+          .select('name')
+          .eq('id', user.zone_id)
+          .single()
+          .then(({ data }) => { if (data) setZoneName(data.name) })
+      }
+    } else {
+      supabase.rpc('get_active_cities').then(({ data }) => {
+        if (data) setCities(data as { id: string; name: string }[])
+      })
+    }
+  }, [isEncargado, user?.zone_id])
 
   useEffect(() => {
     loadProfiles()
@@ -84,8 +117,11 @@ export function AdminMetrics() {
     loadCouponStats()
   }, [])
 
+  // El super_admin ve todo; el encargado queda forzado a su ciudad en el backend
+  const zoneParam = isEncargado ? null : (zoneId || null)
+
   const loadWalletOverview = async () => {
-    const { data } = await supabase.rpc('get_wallet_overview')
+    const { data } = await supabase.rpc('get_wallet_overview', { p_zone_id: zoneParam })
     if (data) setWalletOverview(data as WalletOverview)
   }
 
@@ -93,24 +129,32 @@ export function AdminMetrics() {
     const { data } = await supabase.rpc('get_coupon_stats_detailed', {
       p_fecha_inicio: fechaInicioVE(fechaInicio),
       p_fecha_fin: fechaFinVE(fechaFin),
-      p_zone_id: null
+      p_zone_id: zoneParam
     })
     if (data) setCouponStats(data as CouponStats)
   }
 
   const loadProfiles = async () => {
-    const { data: driversData } = await supabase
+    let driversQuery = supabase
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'conductor')
       .order('full_name')
-    if (driversData) setConductores(driversData as Profile[])
-
-    const { data: clientsData } = await supabase
+    let clientsQuery = supabase
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'cliente')
       .order('full_name')
+    // El super_admin puede acotar los desplegables a una ciudad
+    if (zoneId) {
+      driversQuery = driversQuery.eq('zone_id', zoneId)
+      clientsQuery = clientsQuery.eq('zone_id', zoneId)
+    }
+
+    const { data: driversData } = await driversQuery
+    if (driversData) setConductores(driversData as Profile[])
+
+    const { data: clientsData } = await clientsQuery
     if (clientsData) setClientes(clientsData as Profile[])
   }
 
@@ -123,7 +167,8 @@ export function AdminMetrics() {
         p_fecha_fin: fechaFinVE(fechaFin),
         p_conductor_id: conductorId || null,
         p_cliente_id: clienteId || null,
-        p_metodo: metodo || null
+        p_metodo: metodo || null,
+        p_zone_id: zoneParam
       })
       if (error) throw error
       setData(data as AdminMetricsData)
@@ -136,7 +181,9 @@ export function AdminMetrics() {
 
   const handleApply = async () => {
     setApplying(true)
+    await loadProfiles()
     await loadMetrics()
+    await loadWalletOverview()
     await loadCouponStats()
     setApplying(false)
   }
@@ -151,7 +198,13 @@ export function AdminMetrics() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-surface-800">Métricas y Finanzas</h1>
-            <p className="text-xs text-surface-500">Administración de la plataforma</p>
+            <p className="text-xs text-surface-500 flex items-center gap-1">
+              {isEncargado ? (
+                <><MapPin className="w-3 h-3" /> {zoneName || 'Mi ciudad'} — solo tu ciudad</>
+              ) : (
+                'Administración de la plataforma'
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -164,6 +217,18 @@ export function AdminMetrics() {
           <h2 className="font-semibold text-surface-800 flex items-center gap-2">
             <Filter className="w-4 h-4 text-primary-600" /> Filtros
           </h2>
+          {/* Ciudad: el encargado NO puede cambiarla (su ciudad la impone el servidor) */}
+          {!isEncargado && (
+            <div>
+              <label className="label">Ciudad</label>
+              <select className="input" value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                <option value="">Todas las ciudades (global)</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="label">Desde</label>
@@ -220,7 +285,7 @@ export function AdminMetrics() {
                 <div className="flex items-center gap-2 mb-3">
                   <Landmark className="w-5 h-5" />
                   <h2 className="font-semibold text-white flex items-center gap-2">
-                    Dinero en banco / Patrimonio
+                    {isEncargado ? 'Efectivo de mi ciudad' : 'Dinero en banco / Patrimonio'}
                   </h2>
                 </div>
 
@@ -229,7 +294,9 @@ export function AdminMetrics() {
                   <div className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-white/80" />
-                      <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
+                      <span className="text-xs text-white/80">
+                        {isEncargado ? 'Efectivo recibido en mi ciudad' : 'Total en banco (pago móvil/Zelle)'}
+                      </span>
                     </div>
                     <p className="text-lg font-bold">{fmt(walletOverview.total_banco)}</p>
                   </div>
@@ -238,12 +305,15 @@ export function AdminMetrics() {
                   <div className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2">
                       <ArrowDownUp className="w-4 h-4 text-white/80" />
-                      <span className="text-xs text-white/80">Debe a clientes y conductores</span>
+                      <span className="text-xs text-white/80">
+                        {isEncargado ? 'Debe a usuarios de mi ciudad' : 'Debe a clientes y conductores'}
+                      </span>
                     </div>
                     <p className="text-lg font-bold">{fmt(walletOverview.deuda_wallets)}</p>
                   </div>
 
-                  {/* Patrimonio */}
+                  {/* Patrimonio (solo global: para el encargado es un dato de todo el negocio) */}
+                  {!isEncargado && (
                   <div className="flex items-center justify-between bg-yellow-400/20 rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2">
                       <PiggyBank className="w-5 h-5 text-yellow-300" />
@@ -251,6 +321,7 @@ export function AdminMetrics() {
                     </div>
                     <p className="text-2xl font-bold text-yellow-300">{fmt(walletOverview.patrimonio_app)}</p>
                   </div>
+                  )}
 
                   {/* Desglose detallado */}
                   {walletOverview.detalle && (
@@ -303,7 +374,7 @@ export function AdminMetrics() {
                   Salidas: −{fmt(data.resumen.reembolsos_clientes)} reembolsos − {fmt(data.resumen.compensaciones_conductores)} compensaciones − {fmt(data.resumen.pagos_plataforma_conductores)} pagos a conductores
                 </p>
                 <a
-                  href="/admin/transacciones"
+                  href={isEncargado ? '/encargado/transacciones' : '/admin/transacciones'}
                   className="inline-flex items-center gap-1 text-xs text-emerald-700 underline mt-1 hover:text-emerald-800"
                 >
                   <Receipt className="w-3 h-3" /> Ver detalle de transacciones
