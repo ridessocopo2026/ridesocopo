@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Lock, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
-import { TurnstileWidget } from '@/components/ui/TurnstileWidget'
+import { TurnstileWidget, type TurnstileStatus } from '@/components/ui/TurnstileWidget'
 import { turnstileEnabled } from '@/lib/turnstile'
 
 export function Login() {
@@ -17,26 +17,53 @@ export function Login() {
   const [sent, setSent] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaKey, setCaptchaKey] = useState(0)
-  const [captchaError, setCaptchaError] = useState('')
+  // Estado VISIBLE de la verificación de Cloudflare (loading | ready | error)
+  const [captchaStatus, setCaptchaStatus] = useState<TurnstileStatus>('loading')
+  // Aviso informativo mientras verifica (no es un error)
+  const [captchaNotice, setCaptchaNotice] = useState('')
+  // Si el usuario toca el botón antes de que la verificación termine, se
+  // guarda la intención y el envío se hace solo al llegar el token.
+  const pendingRef = useRef<'login' | 'recover' | null>(null)
   const { signIn, signInWithGoogle, resetPassword } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/'
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+  // La verificación es invisible: en vez de bloquear con un aviso confuso,
+  // se espera y se envía solo en cuanto llegue el token.
+  const waitForCaptcha = (intent: 'login' | 'recover') => {
+    pendingRef.current = intent
+    setCaptchaNotice('Un momento, estamos verificando que eres humano…')
+  }
 
-    if (turnstileEnabled() && !captchaToken) {
-      setError('Completa la verificación de seguridad para continuar')
-      return
+  const captchaBlocked = (intent: 'login' | 'recover'): boolean => {
+    if (!turnstileEnabled() || captchaToken) return false
+    if (captchaStatus === 'loading') {
+      waitForCaptcha(intent)
+    } else {
+      pendingRef.current = intent
+      setError('No pudimos completar la verificación de seguridad. Toca "Reintentar" en la casilla de verificación (o entra con Google mientras tanto).')
     }
+    return true
+  }
 
+  const handleCaptchaToken = (token: string) => {
+    setCaptchaToken(token)
+    if (token) setCaptchaNotice('')
+  }
+
+  const handleCaptchaStatus = (status: TurnstileStatus) => {
+    setCaptchaStatus(status)
+    // Si falla, el aviso "Un momento…" ya no aplica: lo explica el widget
+    if (status === 'error') setCaptchaNotice('')
+  }
+
+  const runLogin = async () => {
     setLoading(true)
 
-    const { error } = await signIn(email, password, captchaToken || undefined)
-    if (error) {
-      setError(error)
+    const { error: signInError } = await signIn(email, password, captchaToken || undefined)
+    if (signInError) {
+      setError(signInError)
       setLoading(false)
       // El token de Turnstile es de un solo uso: pedir uno nuevo
       setCaptchaToken('')
@@ -45,6 +72,15 @@ export function Login() {
     }
 
     navigate(redirectTo)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (captchaBlocked('login')) return
+
+    await runLogin()
   }
 
   const handleGoogle = async () => {
@@ -57,23 +93,12 @@ export function Login() {
     }
   }
 
-  const handleRecover = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!email.trim()) {
-      setError('Escribe tu correo electrónico')
-      return
-    }
-    if (turnstileEnabled() && !captchaToken) {
-      setError('Completa la verificación de seguridad para continuar')
-      return
-    }
-
+  const runRecover = async () => {
     setLoading(true)
-    const { error } = await resetPassword(email, captchaToken || undefined)
+    const { error: resetError } = await resetPassword(email, captchaToken || undefined)
     setLoading(false)
-    if (error) {
-      setError(error)
+    if (resetError) {
+      setError(resetError)
       setCaptchaToken('')
       setCaptchaKey((k) => k + 1)
       return
@@ -81,6 +106,30 @@ export function Login() {
     // Mensaje neutro: no revelamos si el correo existe o no
     setSent(true)
   }
+
+  const handleRecover = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!email.trim()) {
+      setError('Escribe tu correo electrónico')
+      return
+    }
+    if (captchaBlocked('recover')) return
+
+    await runRecover()
+  }
+
+  // Envío automático en cuanto llega el token (si tocó antes de tiempo)
+  useEffect(() => {
+    if (!captchaToken || !pendingRef.current || loading) return
+    const intent = pendingRef.current
+    pendingRef.current = null
+    setCaptchaNotice('')
+    setError('')
+    if (intent === 'login') void runLogin()
+    else void runRecover()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captchaToken, loading])
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
@@ -161,13 +210,16 @@ export function Login() {
 
           {turnstileEnabled() && (
             <TurnstileWidget
-              onToken={setCaptchaToken}
-              onError={setCaptchaError}
+              onToken={handleCaptchaToken}
+              onStatus={handleCaptchaStatus}
               resetKey={captchaKey}
             />
           )}
-          {captchaError && (
-            <p className="text-xs text-red-500 text-center">{captchaError}</p>
+          {captchaNotice && (
+            <p className="flex items-center justify-center gap-1.5 text-xs text-surface-500" role="status">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {captchaNotice}
+            </p>
           )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, User, Phone, Loader2, Car } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
-import { TurnstileWidget } from '@/components/ui/TurnstileWidget'
+import { TurnstileWidget, type TurnstileStatus } from '@/components/ui/TurnstileWidget'
 import { turnstileEnabled } from '@/lib/turnstile'
 
 export function Register() {
@@ -19,7 +19,12 @@ export function Register() {
   const [loading, setLoading] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaKey, setCaptchaKey] = useState(0)
-  const [captchaError, setCaptchaError] = useState('')
+  // Estado VISIBLE de la verificación de Cloudflare (loading | ready | error)
+  const [captchaStatus, setCaptchaStatus] = useState<TurnstileStatus>('loading')
+  // Aviso informativo mientras verifica (no es un error)
+  const [captchaNotice, setCaptchaNotice] = useState('')
+  // Si toca el botón antes de que la verificación termine, se encola el envío
+  const pendingRef = useRef(false)
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
 
@@ -31,6 +36,33 @@ export function Register() {
       setError(error)
       setLoading(false)
     }
+  }
+
+  const handleCaptchaToken = (token: string) => {
+    setCaptchaToken(token)
+    if (token) setCaptchaNotice('')
+  }
+
+  const handleCaptchaStatus = (status: TurnstileStatus) => {
+    setCaptchaStatus(status)
+    // Si falla, el aviso "Un momento…" ya no aplica: lo explica el widget
+    if (status === 'error') setCaptchaNotice('')
+  }
+
+  const runSignUp = async () => {
+    setLoading(true)
+    const { error: signUpError } = await signUp(email, password, fullName, phone, captchaToken || undefined)
+    if (signUpError) {
+      setError(signUpError)
+      setLoading(false)
+      // El token de Turnstile es de un solo uso: pedir uno nuevo
+      setCaptchaToken('')
+      setCaptchaKey((k) => k + 1)
+      return
+    }
+
+    // Continuar al onboarding con el rol elegido ya preseleccionado
+    navigate(`/onboarding?role=${role}`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,25 +79,31 @@ export function Register() {
       return
     }
 
+    // La verificación es invisible: en vez de bloquear con un aviso confuso,
+    // se espera y se envía solo en cuanto llegue el token.
     if (turnstileEnabled() && !captchaToken) {
-      setError('Completa la verificación de seguridad para continuar')
+      if (captchaStatus === 'loading') {
+        pendingRef.current = true
+        setCaptchaNotice('Un momento, estamos verificando que eres humano…')
+      } else {
+        pendingRef.current = true
+        setError('No pudimos completar la verificación de seguridad. Toca "Reintentar" en la casilla de verificación (o entra con Google mientras tanto).')
+      }
       return
     }
 
-    setLoading(true)
-    const { error } = await signUp(email, password, fullName, phone, captchaToken || undefined)
-    if (error) {
-      setError(error)
-      setLoading(false)
-      // El token de Turnstile es de un solo uso: pedir uno nuevo
-      setCaptchaToken('')
-      setCaptchaKey((k) => k + 1)
-      return
-    }
-
-    // Continuar al onboarding con el rol elegido ya preseleccionado
-    navigate(`/onboarding?role=${role}`)
+    await runSignUp()
   }
+
+  // Envío automático en cuanto llega el token (si tocó antes de tiempo)
+  useEffect(() => {
+    if (!captchaToken || !pendingRef.current || loading) return
+    pendingRef.current = false
+    setCaptchaNotice('')
+    setError('')
+    void runSignUp()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captchaToken, loading])
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
@@ -219,13 +257,16 @@ export function Register() {
 
           {turnstileEnabled() && (
             <TurnstileWidget
-              onToken={setCaptchaToken}
-              onError={setCaptchaError}
+              onToken={handleCaptchaToken}
+              onStatus={handleCaptchaStatus}
               resetKey={captchaKey}
             />
           )}
-          {captchaError && (
-            <p className="text-xs text-red-500 text-center">{captchaError}</p>
+          {captchaNotice && (
+            <p className="flex items-center justify-center gap-1.5 text-xs text-surface-500" role="status">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {captchaNotice}
+            </p>
           )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
