@@ -23,7 +23,10 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
-const POLL_INTERVAL_MS = 60_000 // 1 minuto
+// 💰 COSTO: 2 minutos (antes 1). Las push ya llegan al instante; el polling
+// in-app solo mantiene el badge al día. Además se salta cuando la app está en
+// segundo plano (ver effect de polling) → menos requests/egress.
+const POLL_INTERVAL_MS = 120_000
 const PAGE_SIZE = 25
 const MORE_PAGE_SIZE = 20
 
@@ -110,7 +113,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     document.addEventListener('visibilitychange', onVisible)
 
-    timerRef.current = window.setInterval(refreshNotifications, POLL_INTERVAL_MS)
+    // 💰 COSTO: no pollear en segundo plano (menos egress). Al volver a
+    // primer plano, el listener de arriba refresca de inmediato.
+    const poll = () => {
+      if (document.visibilityState === 'visible') refreshNotifications()
+    }
+    timerRef.current = window.setInterval(poll, POLL_INTERVAL_MS)
 
     return () => {
       document.removeEventListener('visibilitychange', onVisible)

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -90,6 +90,22 @@ interface DriverInfo {
 const categoryLabel = (cat: string): string =>
   ({ moto: 'Moto', carro: 'Carro', camioneta: 'Camioneta' } as Record<string, string>)[cat] || cat
 
+// Ajusta el encuadre del mapa para mostrar auto + origen + destino.
+// Se dispara cuando cambia `fitKey` (auto al aparecer el conductor o al pulsar "Centrar").
+function FitBounds({ points, fitKey }: { points: [number, number][]; fitKey: number }) {
+  const map = useMap()
+  useEffect(() => {
+    if (fitKey <= 0 || points.length < 2) return
+    try {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 })
+    } catch {
+      // puntos inválidos: se ignora
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitKey])
+  return null
+}
+
 export function ClientActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -119,6 +135,22 @@ export function ClientActiveRide() {
   // Evita repetir el scroll en cada actualización de realtime/polling
   const autoScrolledRef = useRef(false)
 
+  // 🗺️ Trayectoria recorrida por el conductor (breadcrumb). Se arma con las
+  // posiciones que llegan (Realtime + watchdog). Tope de 200 puntos.
+  const [trail, setTrail] = useState<[number, number][]>([])
+  // Encuadre: se incrementa para pedir a FitBounds que recuadre el mapa.
+  const [fitKey, setFitKey] = useState(0)
+  const autoFitDoneRef = useRef(false)
+
+  const pushTrailPoint = useCallback((lat: number, lng: number) => {
+    setTrail((prev) => {
+      const last = prev[prev.length - 1]
+      if (last && Math.abs(last[0] - lat) < 1e-6 && Math.abs(last[1] - lng) < 1e-6) return prev
+      const next = [...prev, [lat, lng] as [number, number]]
+      return next.length > 200 ? next.slice(next.length - 200) : next
+    })
+  }, [])
+
   useEffect(() => {
     if (rideId) {
       autoScrolledRef.current = false
@@ -145,6 +177,9 @@ export function ClientActiveRide() {
     (newRide) => {
       const ride = newRide as Ride
       setRide(ride)
+      if (ride.driver_location_lat != null && ride.driver_location_lng != null) {
+        pushTrailPoint(ride.driver_location_lat, ride.driver_location_lng)
+      }
       if (ride.status === 'completada') {
         setShowSaveFavorite(true)
       }
@@ -175,6 +210,62 @@ export function ClientActiveRide() {
       setShowMap(true)
     }
   }, [ride?.driver_id, ride?.status])
+
+  // 🐶 Watchdog: además de Realtime, refrescar la posición del conductor cada
+  // 15 s SOLO durante el viaje activo (consulta mínima de 4 columnas). Garantiza
+  // que el pasajero vea al conductor aunque Realtime falle.
+  useEffect(() => {
+    if (!rideId) return
+    const active = ride?.status === 'aceptada' || ride?.status === 'en_ruta'
+    if (!active) return
+
+    let cancelled = false
+    let busy = false
+    const tick = async () => {
+      if (busy || cancelled) return
+      busy = true
+      try {
+        const { data } = await supabase
+          .from('rides')
+          .select('driver_location_lat, driver_location_lng, driver_last_update, status')
+          .eq('id', rideId)
+          .single()
+        if (!cancelled && data) {
+          const lat = data.driver_location_lat as number | null
+          const lng = data.driver_location_lng as number | null
+          setRide((prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              ...(data.status ? { status: data.status as Ride['status'] } : {}),
+              ...(lat != null ? { driver_location_lat: lat } : {}),
+              ...(lng != null ? { driver_location_lng: lng } : {})
+            }
+          })
+          if (lat != null && lng != null) pushTrailPoint(lat, lng)
+        }
+      } catch {
+        // silencioso (red)
+      } finally {
+        busy = false
+      }
+    }
+    void tick()
+    const t = window.setInterval(tick, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(t)
+    }
+  }, [rideId, ride?.status, pushTrailPoint])
+
+  // Auto-encuadre la primera vez que aparece la posición del conductor.
+  useEffect(() => {
+    if (autoFitDoneRef.current) return
+    if (ride?.driver_location_lat != null && ride?.driver_location_lng != null) {
+      autoFitDoneRef.current = true
+      setFitKey((k) => k + 1)
+    }
+  }, [ride?.driver_location_lat, ride?.driver_location_lng])
 
   // Scroll automático (una sola vez) cuando el viaje pasa a completado,
   // para que el cliente vea la calificación sin tener que bajar.
@@ -477,6 +568,16 @@ export function ClientActiveRide() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
+              <FitBounds points={driverPos ? [origin, destination, driverPos] : [origin, destination]} fitKey={fitKey} />
+              {/* Trayectoria real recorrida por el conductor */}
+              {trail.length >= 2 && (
+                <Polyline positions={trail} pathOptions={{ color: '#0284c7', weight: 4 }} />
+              )}
+              {/* Referencia hacia el destino */}
+              <Polyline
+                positions={[origin, destination]}
+                pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+              />
               <Marker position={origin} icon={originIcon}>
                 <Popup>Tu ubicación</Popup>
               </Marker>
@@ -488,11 +589,25 @@ export function ClientActiveRide() {
                   <Popup>Conductor</Popup>
                 </Marker>
               )}
-              <Polyline
-                positions={[origin, destination]}
-                pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
-              />
             </MapContainer>
+
+            {/* Leyenda */}
+            <div className="absolute top-2 left-2 z-[1000] bg-white/90 rounded-lg shadow-card px-2.5 py-1.5 text-[11px] text-surface-600 space-y-0.5">
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary-600 inline-block" /> Conductor</div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-accent-600 inline-block" /> Tú</div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Destino</div>
+            </div>
+
+            {/* Centrar mapa */}
+            <button
+              type="button"
+              onClick={() => setFitKey((k) => k + 1)}
+              className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
+              aria-label="Centrar mapa"
+              title="Centrar en el viaje"
+            >
+              <Navigation className="w-5 h-5" />
+            </button>
           </div>
           <div className="max-w-md mx-auto px-4 mt-2">
             <button onClick={() => setShowMap(false)} className="btn-outline w-full">

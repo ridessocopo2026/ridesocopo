@@ -70,6 +70,8 @@ export function DriverDashboard() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const watchIdRef = useRef<number | null>(null)
+  // 💰 COSTO: marca de tiempo del último envío de ubicación (throttle 12 s)
+  const lastLocationSentRef = useRef(0)
 
   const [activeVehicle, setActiveVehicle] = useState<Vehicle | null>(null)
   const [vehicleLoaded, setVehicleLoaded] = useState(false)
@@ -182,8 +184,11 @@ export function DriverDashboard() {
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        // Solo transmitir si hay viaje activo
-        if (activeRide) {
+        // Solo transmitir si hay viaje activo, y como máximo 1 vez cada 12 s
+        // 💰 COSTO: antes se enviaba en CADA lectura GPS (muchos requests).
+        const now = Date.now()
+        if (activeRide && now - lastLocationSentRef.current >= 12000) {
+          lastLocationSentRef.current = now
           supabase.rpc('update_driver_location', {
             p_ride_id: activeRide.id,
             p_lat: position.coords.latitude,
@@ -319,7 +324,7 @@ export function DriverDashboard() {
 
       if (data?.success) {
         setShowRideAlert(false)
-        setActiveRide(data.ride_id)
+        setActiveRide({ id: data.ride_id } as Ride)
         navigate(`/conductor/viaje/${data.ride_id}`)
       } else if (data?.error === 'SALDO_INSUFICIENTE' || data?.error === 'DEUDA_EXCEDIDA') {
         setError(data.message)
@@ -345,9 +350,13 @@ export function DriverDashboard() {
   // Deuda que supera el límite permitido (bloqueo real en toggle_driver_online / accept_ride)
   const debtExceeded = !!wallet && wallet.balance_usd < -wallet.debt_limit_usd
 
-  // Si hay viaje activo, redirigir
-  if (activeRide) {
-    navigate(`/conductor/viaje/${activeRide.id}`)
+  // Si hay viaje activo, redirigir (defensivo: `activeRide` puede llegar como
+  // objeto Ride o, tras aceptar, como id → nunca navegar a 'undefined')
+  const activeRideId = activeRide
+    ? (typeof activeRide === 'object' ? activeRide.id : String(activeRide))
+    : null
+  if (activeRideId && activeRideId !== 'undefined') {
+    navigate(`/conductor/viaje/${activeRideId}`)
     return null
   }
 

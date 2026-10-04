@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -59,6 +59,21 @@ const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
   { value: 'otro', label: 'Otro incidente', emoji: '❓' }
 ]
 
+// Ajusta el encuadre del mapa para mostrar auto + origen + destino.
+function FitBounds({ points, fitKey }: { points: [number, number][]; fitKey: number }) {
+  const map = useMap()
+  useEffect(() => {
+    if (fitKey <= 0 || points.length < 2) return
+    try {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 })
+    } catch {
+      // puntos inválidos: se ignora
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitKey])
+  return null
+}
+
 export function ActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -86,6 +101,22 @@ export function ActiveRide() {
   const [incidentPhoto, setIncidentPhoto] = useState<File | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+  // 💰 COSTO: marca de tiempo del último envío de ubicación al servidor (throttle 12 s)
+  const lastLocationSentRef = useRef(0)
+
+  // 🗺️ Trayectoria recorrida (breadcrumb, local) y encuadre del mapa
+  const [trail, setTrail] = useState<[number, number][]>([])
+  const [fitKey, setFitKey] = useState(0)
+  const autoFitDoneRef = useRef(false)
+
+  const pushTrailPoint = useCallback((lat: number, lng: number) => {
+    setTrail((prev) => {
+      const last = prev[prev.length - 1]
+      if (last && Math.abs(last[0] - lat) < 1e-6 && Math.abs(last[1] - lng) < 1e-6) return prev
+      const next = [...prev, [lat, lng] as [number, number]]
+      return next.length > 200 ? next.slice(next.length - 200) : next
+    })
+  }, [])
 
   useEffect(() => {
     if (rideId) {
@@ -155,8 +186,16 @@ export function ActiveRide() {
       (position) => {
         const pos: [number, number] = [position.coords.latitude, position.coords.longitude]
         setVehiclePos(pos)
+        // Ruta recorrida (local, sin escrituras extra a la BD)
+        pushTrailPoint(pos[0], pos[1])
 
-        // Enviar ubicación al servidor con throttling (solo en viaje activo)
+        // 💰 COSTO: enviar ubicación al servidor como máximo 1 vez cada 12 s
+        // (antes: en CADA lectura GPS). El servidor vuelve a filtrar por
+        // tiempo (12 s) y distancia (25 m), así que no se pierde precisión.
+        const now = Date.now()
+        if (now - lastLocationSentRef.current < 12000) return
+        lastLocationSentRef.current = now
+
         supabase.rpc('update_driver_location', {
           p_ride_id: rideId,
           p_lat: position.coords.latitude,
@@ -168,7 +207,16 @@ export function ActiveRide() {
     )
 
     return () => navigator.geolocation.clearWatch(watchId)
-  }, [ride?.status, rideId])
+  }, [ride?.status, rideId, pushTrailPoint])
+
+  // Auto-encuadre la primera vez que hay posición del vehículo.
+  useEffect(() => {
+    if (autoFitDoneRef.current) return
+    if (vehiclePos) {
+      autoFitDoneRef.current = true
+      setFitKey((k) => k + 1)
+    }
+  }, [vehiclePos])
 
   const handleConfirmStart = async () => {
     setError('')
@@ -388,6 +436,16 @@ export function ActiveRide() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
+          <FitBounds points={driverPos ? [origin, destination, driverPos] : [origin, destination]} fitKey={fitKey} />
+          {/* Trayectoria real recorrida */}
+          {trail.length >= 2 && (
+            <Polyline positions={trail} pathOptions={{ color: '#0284c7', weight: 4 }} />
+          )}
+          {/* Referencia hacia el destino */}
+          <Polyline
+            positions={[origin, destination]}
+            pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+          />
           {/* Vehículo del conductor */}
           {driverPos && (
             <Marker position={driverPos} icon={vehicleIcon}>
@@ -401,11 +459,18 @@ export function ActiveRide() {
           <Marker position={destination} icon={destIcon}>
             <Popup>Destino: {ride.destination_barrio_name || ''}</Popup>
           </Marker>
-          <Polyline
-            positions={[origin, destination]}
-            pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
-          />
         </MapContainer>
+
+        {/* Centrar mapa */}
+        <button
+          type="button"
+          onClick={() => setFitKey((k) => k + 1)}
+          className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
+          aria-label="Centrar mapa"
+          title="Centrar en el viaje"
+        >
+          <Navigation className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Detalles del viaje */}

@@ -1,0 +1,28 @@
+-- ============================================================
+-- BUNRIDER - Migración 082: spatial_ref_sys (documentada)
+-- ------------------------------------------------------------
+-- INTENTO DE ENDURECER spatial_ref_sys (catálogo de SRIDs de
+-- PostGIS) → NO POSIBLE desde el rol del proyecto.
+--
+-- Diagnóstico verificado en vivo:
+--   · propietario = supabase_admin
+--   · ALTER TABLE ... ENABLE ROW LEVEL SECURITY →
+--     "must be owner of table spatial_ref_sys"
+--   · REVOKE ALL ... FROM anon, authenticated → no surte efecto
+--   · SET ROLE supabase_admin →
+--     "permission denied to set role"
+--   (El rol del proyecto NO es dueño ni puede suplantar al dueño.)
+--
+-- IMPACTO: BAJO. spatial_ref_sys es un catálogo estático de
+-- sistemas de referencia; no contiene datos de usuarios ni de
+-- negocio y la app NO usa ST_Transform. El peor caso teórico es
+-- que alguien con la anon key corrompa SRIDs de conversión.
+--
+-- ACCIÓN RECOMENDADA (fuera del SQL del proyecto):
+--   Abrir un ticket a soporte de Supabase para activar RLS /
+--   revocar la escritura en public.spatial_ref_sys para anon y
+--   authenticated, o mover la extensión postgis a otro esquema.
+--
+-- Este archivo queda como NO-OP intencional (no ejecuta DDL).
+-- ============================================================
+SELECT '⚠️ spatial_ref_sys: no modificable desde el proyecto (ver comentarios)' AS aviso;
