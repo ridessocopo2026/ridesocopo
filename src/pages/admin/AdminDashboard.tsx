@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, UsersRound, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank, ScrollText, FileText } from 'lucide-react'
+import { Activity, Users, UsersRound, Car, DollarSign, TrendingUp, LogOut, MapPin, Settings, Ticket, Image, Wallet, ClipboardCheck, Banknote, Bell, ShieldAlert, BarChart3, Landmark, ArrowDownUp, PiggyBank, ScrollText, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -87,6 +87,7 @@ export function AdminDashboard() {
     { to: '/admin/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Accidentes y reportes de viajes' },
     { to: '/admin/transacciones', icon: <Banknote className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero detallados' },
     { to: '/admin/viajes', icon: <Car className="w-6 h-6" />, title: 'Viajes', desc: 'Buscar por tracking y ver detalle' },
+    { to: '/admin/operacion', icon: <Activity className="w-6 h-6" />, title: 'Operacion en vivo', desc: 'Conductores y viajes en tiempo real' },
     { to: '/admin/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Métricas', desc: 'Finanzas, filtros y estadísticas' },
     { to: '/admin/auditoria', icon: <ScrollText className="w-6 h-6" />, title: 'Auditoría', desc: 'Historial de acciones sensibles' }
   ]

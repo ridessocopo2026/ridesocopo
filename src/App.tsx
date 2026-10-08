@@ -48,6 +48,7 @@ import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs'
 import { EncargadoDashboard } from '@/pages/encargado/EncargadoDashboard'
 import { EncargadoProfile } from '@/pages/encargado/EncargadoProfile'
 import { EncargadoUsers } from '@/pages/encargado/EncargadoUsers'
+import { LiveOps } from '@/pages/admin/LiveOps'
 import { AccountBlocked } from '@/pages/AccountBlocked'
 import { LegalPage } from '@/pages/LegalPage'
 
@@ -387,6 +388,11 @@ export default function App() {
               <AdminRides />
             </RoleRoute>
           } />
+          <Route path="/admin/operacion" element={
+            <RoleRoute role="super_admin">
+              <LiveOps />
+            </RoleRoute>
+          } />
           <Route path="/admin/legal" element={
             <RoleRoute role="super_admin">
               <AdminLegal />
@@ -453,6 +459,11 @@ export default function App() {
           <Route path="/encargado/notificaciones" element={
             <RoleRoute role="encargado">
               <AdminNotifications />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/operacion" element={
+            <RoleRoute role="encargado">
+              <LiveOps />
             </RoleRoute>
           } />
 

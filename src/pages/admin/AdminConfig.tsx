@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings, Percent, AlertTriangle, Loader2, Save, Trash2 } from 'lucide-react'
+import { Settings, Percent, AlertTriangle, Loader2, Save, Trash2, Bell } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -20,6 +20,7 @@ export function AdminConfig() {
     proofs?: number
   } | null>(null)
   const [cleanError, setCleanError] = useState('')
+  const [newRideAlerts, setNewRideAlerts] = useState(true)
   const { user } = useAuth()
 
   useEffect(() => {
@@ -36,6 +37,8 @@ export function AdminConfig() {
     if (!error && data && data.length > 0) {
       setDebtLimit(data[0].debt_limit_usd.toString())
     }
+    const { data: settings } = await supabase.rpc('get_admin_settings')
+    if (settings) setNewRideAlerts(!!(settings as { new_ride_alerts?: boolean }).new_ride_alerts)
     setLoading(false)
   }
 
@@ -61,6 +64,11 @@ export function AdminConfig() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const toggleNewRideAlerts = async (enabled: boolean) => {
+    setNewRideAlerts(enabled)
+    await supabase.rpc('set_new_ride_alerts', { p_enabled: enabled })
   }
 
   const handleCleanup = async () => {
@@ -191,6 +199,29 @@ export function AdminConfig() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Guardar configuración</>}
             </button>
           </form>
+
+          {/* Avisos de viajes nuevos */}
+          <div className="card space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                <Bell className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-surface-700">Avisos de viajes nuevos</h3>
+                <p className="text-xs text-surface-400">Avisar al admin/encargado cada viaje nuevo</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => toggleNewRideAlerts(!newRideAlerts)}
+              className={'w-full px-4 py-3 rounded-xl text-sm font-semibold transition-colors ' + (newRideAlerts ? 'bg-emerald-50 text-emerald-700' : 'bg-surface-100 text-surface-500')}
+            >
+              {newRideAlerts ? 'Activado - avisa cada viaje nuevo' : 'Desactivado'}
+            </button>
+            <p className="text-xs text-surface-500">
+              Al activarlo, cada viaje nuevo notifica (push + campana) al super admin y al encargado de la ciudad.
+            </p>
+          </div>
 
           {/* Limpieza de datos */}
           <div className="card space-y-3">

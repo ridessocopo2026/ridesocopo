@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell } from 'lucide-react'
+import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell, Activity } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -16,7 +16,8 @@ const modules = [
   { to: '/encargado/usuarios', icon: <UserCheck className="w-6 h-6" />, title: 'Usuarios', desc: 'Pasajeros y conductores' },
   { to: '/encargado/transacciones', icon: <Receipt className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero' },
   { to: '/encargado/banners', icon: <Image className="w-6 h-6" />, title: 'Banners', desc: 'Publicidad de mi ciudad' },
-  { to: '/encargado/notificaciones', icon: <Bell className="w-6 h-6" />, title: 'Notificaciones', desc: 'Enviar a mi ciudad' }
+  { to: '/encargado/notificaciones', icon: <Bell className="w-6 h-6" />, title: 'Notificaciones', desc: 'Enviar a mi ciudad' },
+  { to: '/encargado/operacion', icon: <Activity className="w-6 h-6" />, title: 'Operacion en vivo', desc: 'Conductores y viajes en tiempo real' }
 ]
 
 interface ResumenCiudad {

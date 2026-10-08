@@ -29,6 +29,8 @@ const typeIcons: Record<string, React.ReactNode> = {
   payout_confirmed: <Banknote className="w-4 h-4" />,
   debt_adjustment: <Wallet className="w-4 h-4" />,
   admin_broadcast: <Bell className="w-4 h-4" />,
+  admin_new_ride: <Bell className="w-4 h-4" />,
+  ride_unattended: <Info className="w-4 h-4" />,
 }
 
 const typeColors: Record<string, string> = {
@@ -53,6 +55,8 @@ const typeColors: Record<string, string> = {
   payout_confirmed: 'bg-emerald-100 text-emerald-600',
   debt_adjustment: 'bg-amber-100 text-amber-600',
   admin_broadcast: 'bg-primary-100 text-primary-600',
+  admin_new_ride: 'bg-primary-100 text-primary-600',
+  ride_unattended: 'bg-amber-100 text-amber-600',
 }
 
 function getNotificationUrl(n: Notification): string {
