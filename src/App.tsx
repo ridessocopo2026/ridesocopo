@@ -445,6 +445,16 @@ export default function App() {
               <EncargadoProfile />
             </RoleRoute>
           } />
+          <Route path="/encargado/banners" element={
+            <RoleRoute role="encargado">
+              <AdminBanners />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/notificaciones" element={
+            <RoleRoute role="encargado">
+              <AdminNotifications />
+            </RoleRoute>
+          } />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

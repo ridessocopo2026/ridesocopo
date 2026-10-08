@@ -170,6 +170,12 @@ export function ClientHome() {
     loadExchangeRate()
   }, [])
 
+  // Los banners dependen de la ciudad: se recargan al cambiarla o al iniciar sesion.
+  useEffect(() => {
+    loadBanners()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCityId, user?.zone_id])
+
   // Ciudad y favoritos SÍ dependen del usuario: se recargan al iniciar o cerrar
   // sesión (clave al volver del login con ?redirect=/cliente, porque el
   // componente no se desmonta al pasar por /login).
@@ -529,12 +535,16 @@ export function ClientHome() {
   }
 
   const loadBanners = async () => {
-    const { data, error } = await supabase
+    // Banners por ciudad: ciudad en uso + globales (zone_id null).
+    const city = selectedCityId || user?.zone_id || null
+    let query = supabase
       .from('banners')
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
+    query = city ? query.or(`zone_id.eq.${city},zone_id.is.null`) : query.is('zone_id', null)
 
+    const { data, error } = await query
     if (!error && data) {
       setBanners(data as Banner[])
     }

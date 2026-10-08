@@ -341,6 +341,7 @@ export interface Banner {
   sort_order: number
   starts_at?: string
   ends_at?: string
+  zone_id?: string | null
   created_by?: string
   created_at: string
   updated_at: string

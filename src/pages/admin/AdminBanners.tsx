@@ -22,7 +22,11 @@ export function AdminBanners() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Ciudad del banner (vacio = todas) + lista de ciudades
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
+  const [zoneId, setZoneId] = useState('')
   const { user } = useAuth()
+  const isEncargado = user?.role === 'encargado'
 
   useEffect(() => {
     loadBanners()
@@ -32,6 +36,14 @@ export function AdminBanners() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Ciudades para el selector + ciudad fija del encargado
+  useEffect(() => {
+    supabase.rpc('get_active_cities').then(({ data }) => {
+      if (data) setCities(data as { id: string; name: string }[])
+    })
+    if (user?.role === 'encargado' && user.zone_id) setZoneId(user.zone_id)
+  }, [user?.role, user?.zone_id])
 
   const loadBanners = async () => {
     const { data, error } = await supabase
@@ -53,6 +65,7 @@ export function AdminBanners() {
     setPreviewUrl(null)
     setEditingImage(null)
     setEditingId(null)
+    if (!isEncargado) setZoneId('')
   }
 
   const handleFileChange = (file: File | null) => {
@@ -68,6 +81,7 @@ export function AdminBanners() {
     setImageFile(null)
     setPreviewUrl(null)
     setEditingImage(banner.image_url || null)
+    setZoneId(banner.zone_id || '')
     setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -99,6 +113,7 @@ export function AdminBanners() {
             title,
             subtitle: subtitle || null,
             image_url: imageUrl,
+            zone_id: isEncargado ? (user?.zone_id ?? null) : (zoneId || null),
           })
           .eq('id', editingId)
         if (error) throw error
@@ -108,7 +123,8 @@ export function AdminBanners() {
           p_subtitle: subtitle || null,
           p_image_url: imageUrl,
           p_link_url: null,
-          p_sort_order: banners.length
+          p_sort_order: banners.length,
+          p_zone_id: isEncargado ? (user?.zone_id ?? null) : (zoneId || null)
         })
         if (error) throw error
       }
@@ -270,6 +286,20 @@ export function AdminBanners() {
               )}
             </div>
 
+            <div>
+              <label className="label">Ciudad</label>
+              {isEncargado ? (
+                <p className="text-sm text-surface-600 bg-surface-50 rounded-lg px-3 py-2">Solo en tu ciudad</p>
+              ) : (
+                <select className="input" value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                  <option value="">Todas las ciudades</option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             <button type="submit" className="btn-primary w-full" disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? 'Guardar cambios' : 'Crear banner')}
             </button>
@@ -300,6 +330,9 @@ export function AdminBanners() {
                     {banner.subtitle && (
                       <p className="text-sm text-surface-500 mt-1">{banner.subtitle}</p>
                     )}
+                    <p className="text-xs text-primary-600 mt-1">
+                      {banner.zone_id ? (cities.find((c) => c.id === banner.zone_id)?.name || 'Ciudad') : 'Todas las ciudades'}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex flex-col gap-0.5">

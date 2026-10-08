@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bell, Send, Users, Loader2, CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -19,8 +19,18 @@ export function AdminNotifications() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState<{ count: number; target: string } | null>(null)
   const [error, setError] = useState('')
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([])
+  const [zoneId, setZoneId] = useState('')
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const isEncargado = user?.role === 'encargado'
+
+  useEffect(() => {
+    supabase.rpc('get_active_cities').then(({ data }) => {
+      if (data) setCities(data as { id: string; name: string }[])
+    })
+    if (user?.role === 'encargado' && user.zone_id) setZoneId(user.zone_id)
+  }, [user?.role, user?.zone_id])
 
   const handleSend = async () => {
     if (!title.trim()) {
@@ -41,6 +51,7 @@ export function AdminNotifications() {
         p_title: title.trim(),
         p_body: body.trim(),
         p_target: target,
+        p_zone_id: isEncargado ? (user?.zone_id ?? null) : (zoneId || null),
       })
 
       if (error) throw error
@@ -70,7 +81,7 @@ export function AdminNotifications() {
       <div className="bg-white border-b border-surface-100 px-6 py-4">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/admin')} className="p-2 text-surface-400 hover:text-surface-600">
+            <button onClick={() => navigate(isEncargado ? '/encargado' : '/admin')} className="p-2 text-surface-400 hover:text-surface-600">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
@@ -148,6 +159,20 @@ export function AdminNotifications() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="label">Ciudad</label>
+            {isEncargado ? (
+              <p className="text-sm text-surface-600 bg-surface-50 rounded-lg px-3 py-2">Solo en tu ciudad</p>
+            ) : (
+              <select className="input" value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                <option value="">Todas las ciudades</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <button
