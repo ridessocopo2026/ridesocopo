@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Activity, RefreshCw, Phone, Car, Bike, Truck, Clock, Loader2, ChevronLeft } from 'lucide-react'
+import { Activity, RefreshCw, Phone, Car, Bike, Truck, Clock, Loader2, ChevronLeft, Gauge } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, whatsappNumber } from '@/lib/format'
@@ -30,6 +30,17 @@ interface LivePending {
   waiting_minutes: number
 }
 
+interface OpsUsage {
+  rides_today: number
+  rides_month: number
+  last7: { d: string; n: number }[]
+  drivers_online: number
+  realtime_per_ride: number
+  msgs_month_est: number
+  pro_limit: number
+  pct_of_pro: number
+}
+
 const catLabel = (c: string): string => ({ moto: 'Moto', carro: 'Carro', camioneta: 'Camioneta' } as Record<string, string>)[c] || c
 const catIcon = (c: string) => c === 'moto' ? <Bike className="w-4 h-4" /> : c === 'camioneta' ? <Truck className="w-4 h-4" /> : <Car className="w-4 h-4" />
 
@@ -48,18 +59,23 @@ export function LiveOps() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const [usage, setUsage] = useState<OpsUsage | null>(null)
   const busyRef = useRef(false)
 
   const load = useCallback(async () => {
     if (busyRef.current) return
     busyRef.current = true
     try {
-      const { data, error } = await supabase.rpc('get_live_ops', { p_zone_id: isEncargado ? null : (cityId || null) })
-      if (error) throw error
-      const d = (data || {}) as { counts?: LiveCount[]; drivers?: LiveDriver[]; pending_rides?: LivePending[] }
+      const [liveRes, usageRes] = await Promise.all([
+        supabase.rpc('get_live_ops', { p_zone_id: isEncargado ? null : (cityId || null) }),
+        supabase.rpc('get_ops_usage', { p_realtime_per_ride: 150 })
+      ])
+      if (liveRes.error) throw liveRes.error
+      const d = (liveRes.data || {}) as { counts?: LiveCount[]; drivers?: LiveDriver[]; pending_rides?: LivePending[] }
       setCounts(d.counts || [])
       setDrivers(d.drivers || [])
       setPending(d.pending_rides || [])
+      if (!usageRes.error && usageRes.data) setUsage(usageRes.data as OpsUsage)
       setUpdatedAt(new Date())
       setError('')
     } catch (err: any) {
@@ -97,6 +113,10 @@ export function LiveOps() {
 
   const totalAvailable = counts.reduce((a, c) => a + Number(c.available || 0), 0)
   const totalBusy = counts.reduce((a, c) => a + Number(c.busy || 0), 0)
+  const maxDay = usage && usage.last7.length ? Math.max(1, ...usage.last7.map((d) => d.n)) : 1
+  const usagePct = usage ? Math.min(100, usage.pct_of_pro) : 0
+  const gaugeColor = usagePct >= 80 ? 'text-red-600' : usagePct >= 50 ? 'text-amber-600' : 'text-emerald-600'
+  const gaugeBar = usagePct >= 80 ? 'bg-red-500' : usagePct >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
 
   const statusOf = (d: LiveDriver): { label: string; cls: string } => {
     if (d.busy) return { label: 'Ocupado', cls: 'bg-amber-100 text-amber-700' }
@@ -156,6 +176,40 @@ export function LiveOps() {
                 {catIcon(c.category)} {catLabel(c.category)}: {c.available} / {c.busy}
               </span>
             ))}
+          </div>
+        )}
+
+        {usage && (
+          <div className="card p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-surface-700 flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-primary-600" /> Consumo del mes
+              </h2>
+              <span className="text-[11px] text-surface-400">Plan Pro ($25)</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div><p className="text-[11px] text-surface-400">Pedidos hoy</p><p className="text-lg font-bold text-surface-800">{usage.rides_today}</p></div>
+              <div><p className="text-[11px] text-surface-400">Del mes</p><p className="text-lg font-bold text-surface-800">{usage.rides_month}</p></div>
+              <div><p className="text-[11px] text-surface-400">Online</p><p className="text-lg font-bold text-surface-800">{usage.drivers_online}</p></div>
+            </div>
+            <div>
+              <p className="text-[11px] text-surface-400 mb-1">Ultimos 7 dias</p>
+              <div className="flex items-end gap-1 h-12">
+                {usage.last7.map((d) => (
+                  <div key={d.d} className="flex-1 bg-primary-500 rounded-t" style={{ height: Math.max(6, (d.n / maxDay) * 100) + '%' }} title={d.n + ' pedidos'} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-surface-500">Mensajes Realtime (est.)</span>
+                <span className={'font-semibold ' + gaugeColor}>{usage.msgs_month_est.toLocaleString('es-VE')} / 5M ({usagePct}%)</span>
+              </div>
+              <div className="h-2 rounded-full bg-surface-100 overflow-hidden">
+                <div className={'h-full ' + gaugeBar} style={{ width: usagePct + '%' }} />
+              </div>
+              <p className="text-[11px] text-surface-400 mt-1">~{usage.realtime_per_ride} mensajes por pedido. Limite Pro: 5M/mes.</p>
+            </div>
           </div>
         )}
 
