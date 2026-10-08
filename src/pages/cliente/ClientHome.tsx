@@ -186,6 +186,7 @@ export function ClientHome() {
 
   // Al elegir ciudad: cargar sus barrios y limpiar el destino previo
   useEffect(() => {
+    void loadCategories(selectedCityId || null)
     if (selectedCityId) {
       loadBarrios(selectedCityId)
       setDestBarrioId('')
@@ -354,7 +355,16 @@ export function ClientHome() {
     }
   }
 
-  const loadCategories = async () => {
+  const loadCategories = async (zoneId?: string | null) => {
+    // Precio base por ciudad: si hay ciudad, usa el precio efectivo de esa
+    // ciudad (con respaldo al global si no tiene override).
+    if (zoneId) {
+      const { data, error } = await supabase.rpc('get_city_categories', { p_zone_id: zoneId })
+      if (!error && data) {
+        setCategories(data as VehicleCategory[])
+        return
+      }
+    }
     const { data, error } = await supabase
       .from('vehicle_categories')
       .select('*')

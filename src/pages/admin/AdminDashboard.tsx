@@ -88,6 +88,7 @@ export function AdminDashboard() {
     { to: '/admin/transacciones', icon: <Banknote className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero detallados' },
     { to: '/admin/viajes', icon: <Car className="w-6 h-6" />, title: 'Viajes', desc: 'Buscar por tracking y ver detalle' },
     { to: '/admin/operacion', icon: <Activity className="w-6 h-6" />, title: 'Operacion en vivo', desc: 'Conductores y viajes en tiempo real' },
+    { to: '/admin/precios-ciudad', icon: <DollarSign className="w-6 h-6" />, title: 'Precios por ciudad', desc: 'Precio base por ciudad' },
     { to: '/admin/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Métricas', desc: 'Finanzas, filtros y estadísticas' },
     { to: '/admin/auditoria', icon: <ScrollText className="w-6 h-6" />, title: 'Auditoría', desc: 'Historial de acciones sensibles' }
   ]

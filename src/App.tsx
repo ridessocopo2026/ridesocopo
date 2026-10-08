@@ -49,6 +49,7 @@ import { EncargadoDashboard } from '@/pages/encargado/EncargadoDashboard'
 import { EncargadoProfile } from '@/pages/encargado/EncargadoProfile'
 import { EncargadoUsers } from '@/pages/encargado/EncargadoUsers'
 import { LiveOps } from '@/pages/admin/LiveOps'
+import { CityFares } from '@/pages/admin/CityFares'
 import { AccountBlocked } from '@/pages/AccountBlocked'
 import { LegalPage } from '@/pages/LegalPage'
 
@@ -393,6 +394,11 @@ export default function App() {
               <LiveOps />
             </RoleRoute>
           } />
+          <Route path="/admin/precios-ciudad" element={
+            <RoleRoute role="super_admin">
+              <CityFares />
+            </RoleRoute>
+          } />
           <Route path="/admin/legal" element={
             <RoleRoute role="super_admin">
               <AdminLegal />
@@ -464,6 +470,11 @@ export default function App() {
           <Route path="/encargado/operacion" element={
             <RoleRoute role="encargado">
               <LiveOps />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/precios-ciudad" element={
+            <RoleRoute role="encargado">
+              <CityFares />
             </RoleRoute>
           } />
 
