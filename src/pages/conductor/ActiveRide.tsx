@@ -108,6 +108,9 @@ export function ActiveRide() {
   const [trail, setTrail] = useState<[number, number][]>([])
   const [fitKey, setFitKey] = useState(0)
   const autoFitDoneRef = useRef(false)
+  // Estado del GPS (para avisar si el conductor no puede compartir ubicacion)
+  const [geoStatus, setGeoStatus] = useState<'pending' | 'ok' | 'denied' | 'unsupported' | 'error'>('pending')
+  const [geoRetry, setGeoRetry] = useState(0)
 
   const pushTrailPoint = useCallback((lat: number, lng: number) => {
     setTrail((prev) => {
@@ -176,38 +179,51 @@ export function ActiveRide() {
     return () => { cancelled = true }
   }, [rideId, ride?.driver_id, user?.id])
 
-  // Iniciar seguimiento GPS del vehículo
+  // Seguimiento GPS del vehiculo (robusto: pide permiso, reintenta y avisa)
   useEffect(() => {
     if (!ride || ride.status === 'completada' || ride.status === 'cancelada' || ride.status === 'incidente') return
 
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      setGeoStatus('unsupported')
+      return
+    }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const pos: [number, number] = [position.coords.latitude, position.coords.longitude]
-        setVehiclePos(pos)
-        // Ruta recorrida (local, sin escrituras extra a la BD)
-        pushTrailPoint(pos[0], pos[1])
+    let mounted = true
+    let watchId: number | null = null
 
-        // 💰 COSTO: enviar ubicación al servidor como máximo 1 vez cada 12 s
-        // (antes: en CADA lectura GPS). El servidor vuelve a filtrar por
-        // tiempo (12 s) y distancia (25 m), así que no se pierde precisión.
-        const now = Date.now()
-        if (now - lastLocationSentRef.current < 12000) return
-        lastLocationSentRef.current = now
+    const onOk = (position: GeolocationPosition) => {
+      if (!mounted) return
+      setGeoStatus('ok')
+      const pos: [number, number] = [position.coords.latitude, position.coords.longitude]
+      setVehiclePos(pos)
+      pushTrailPoint(pos[0], pos[1])
 
-        supabase.rpc('update_driver_location', {
+      // COSTO: enviar al servidor como maximo 1 vez cada 12 s
+      const now = Date.now()
+      if (now - lastLocationSentRef.current < 12000) return
+      lastLocationSentRef.current = now
+      void supabase
+        .rpc('update_driver_location', {
           p_ride_id: rideId,
           p_lat: position.coords.latitude,
           p_lng: position.coords.longitude
         })
-      },
-      (err) => console.error('Error de geolocalización:', err),
-      { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 }
-    )
+        .then(({ error }) => { if (error) console.error('update_driver_location:', error.message) })
+    }
 
-    return () => navigator.geolocation.clearWatch(watchId)
-  }, [ride?.status, rideId, pushTrailPoint])
+    const onErr = (err: GeolocationPositionError) => {
+      if (!mounted) return
+      setGeoStatus(err && err.code === 1 ? 'denied' : 'error')
+    }
+
+    navigator.geolocation.getCurrentPosition(onOk, onErr, { enableHighAccuracy: true, maximumAge: 20000, timeout: 20000 })
+    watchId = navigator.geolocation.watchPosition(onOk, onErr, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 })
+
+    return () => {
+      mounted = false
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+    }
+  }, [ride?.status, rideId, pushTrailPoint, geoRetry])
 
   // Auto-encuadre la primera vez que hay posición del vehículo.
   useEffect(() => {
@@ -401,6 +417,31 @@ export function ActiveRide() {
       {error && (
         <div className="max-w-md mx-auto px-4 mt-4">
           <ErrorMessage message={error} onDismiss={() => setError('')} />
+        </div>
+      )}
+
+      {/* Aviso de ubicacion (compartir con el pasajero) */}
+      {geoStatus === 'unsupported' && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <div className="text-sm text-red-700">
+              <p className="font-semibold">No se puede leer tu ubicacion</p>
+              <p className="text-xs mt-0.5">Abre la app por https:// (no por http ni IP local) para compartir tu posicion con el pasajero.</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {(geoStatus === 'denied' || geoStatus === 'error') && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div className="flex-1 text-sm text-amber-800">
+              <p className="font-semibold">Sin ubicacion: el pasajero no te vera en el mapa</p>
+              <p className="text-xs mt-0.5">Activa el permiso de ubicacion y toca Reintentar.</p>
+              <button type="button" onClick={() => setGeoRetry((r) => r + 1)} className="btn-outline mt-2">Reintentar ubicacion</button>
+            </div>
+          </div>
         </div>
       )}
 
