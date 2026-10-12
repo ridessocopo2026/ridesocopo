@@ -27,6 +27,53 @@ export function isAndroid(): boolean {
   return /Android/i.test(navigator.userAgent)
 }
 
+// Navegadores "in-app" (WebView dentro de redes sociales). En ellos
+// beforeinstallprompt NUNCA se dispara y no se puede instalar la PWA.
+export type InAppBrowser =
+  | 'instagram'
+  | 'facebook'
+  | 'messenger'
+  | 'tiktok'
+  | 'twitter'
+  | 'linkedin'
+  | 'whatsapp'
+  | 'line'
+  | 'snapchat'
+  | 'pinterest'
+  | 'google'
+  | 'android_webview'
+  | null
+
+/**
+ * Devuelve el nombre de la red social si estamos dentro de su navegador
+ * in-app (WebView), o `null` si es un navegador normal (Chrome, Safari…).
+ */
+export function getInAppBrowser(): InAppBrowser {
+  if (typeof navigator === 'undefined') return null
+  const ua = navigator.userAgent
+
+  if (/Instagram/i.test(ua)) return 'instagram'
+  if (/Messenger/i.test(ua)) return 'messenger'
+  if (/FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBSS/i.test(ua)) return 'facebook'
+  if (/BytedanceWebview|musical_ly|TikTok/i.test(ua)) return 'tiktok'
+  if (/Twitter/i.test(ua)) return 'twitter'
+  if (/LinkedInApp/i.test(ua)) return 'linkedin'
+  if (/WhatsApp/i.test(ua)) return 'whatsapp'
+  if (/Line\//i.test(ua)) return 'line'
+  if (/Snapchat/i.test(ua)) return 'snapchat'
+  if (/Pinterest/i.test(ua)) return 'pinterest'
+  if (/GSA\/|GoogleApp/i.test(ua)) return 'google'
+
+  // WebView genérico de Android (muchas apps lo usan): todas incluyen "; wv)"
+  if (/Android/i.test(ua) && /; wv\)/i.test(ua)) return 'android_webview'
+
+  return null
+}
+
+export function isInAppBrowser(): boolean {
+  return getInAppBrowser() !== null
+}
+
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false
   return (
