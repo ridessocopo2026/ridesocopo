@@ -21,10 +21,10 @@ const INSTALL_GUIDES: Record<GuideType, { title: string; steps: string[]; note?:
     title: 'Instala BunRider',
     steps: [
       'Toca los 3 puntitos ⋮ arriba a la derecha.',
-      'Toca "Abrir en el navegador" (el dibujito del globo 🌐).',
-      'Ya en el navegador, toca el botón "Instalar".',
+      'Toca "Abrir en Chrome" (o el navegador de tu preferencia).',
+      'Ya en Chrome, toca el botón "Instalar".',
     ],
-    note: 'Si no ves "Abrir en el navegador", busca la opción con el icono del globo terráqueo 🌐.',
+    note: 'Si no ves "Abrir en Chrome", busca la opción con el icono del globo 🌐 (Abrir en el navegador).',
   },
   // Instagram / Facebook / etc. en iPhone → solo se instala desde Safari
   'ios-inapp': {
