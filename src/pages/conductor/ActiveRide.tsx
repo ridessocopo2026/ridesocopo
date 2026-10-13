@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn } from 'lucide-react'
+import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,6 +13,7 @@ import { useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import { resolvePhotoUrl } from '@/lib/photos'
+import { fetchRoute, distanceMeters } from '@/lib/routing'
 import type { Ride, CancellationEstimate, IncidentType, RideClientInfo } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
@@ -74,6 +75,16 @@ function FitBounds({ points, fitKey }: { points: [number, number][]; fitKey: num
   return null
 }
 
+// Recalcula el tamano del mapa cuando cambia (p. ej. pantalla completa).
+function MapResize({ trigger }: { trigger: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    const t = window.setTimeout(() => map.invalidateSize(), 250)
+    return () => window.clearTimeout(t)
+  }, [trigger, map])
+  return null
+}
+
 export function ActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -104,22 +115,19 @@ export function ActiveRide() {
   // 💰 COSTO: marca de tiempo del último envío de ubicación al servidor (throttle 12 s)
   const lastLocationSentRef = useRef(0)
 
-  // 🗺️ Trayectoria recorrida (breadcrumb, local) y encuadre del mapa
-  const [trail, setTrail] = useState<[number, number][]>([])
+  // 🗺️ Encuadre del mapa
   const [fitKey, setFitKey] = useState(0)
   const autoFitDoneRef = useRef(false)
   // Estado del GPS (para avisar si el conductor no puede compartir ubicacion)
   const [geoStatus, setGeoStatus] = useState<'pending' | 'ok' | 'denied' | 'unsupported' | 'error'>('pending')
   const [geoRetry, setGeoRetry] = useState(0)
+  // Ruta por carretera (OSRM) hacia el siguiente punto del viaje
+  const [route, setRoute] = useState<[number, number][] | null>(null)
+  const lastRouteRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null)
+  // Pantalla completa del mapa
+  const [mapExpanded, setMapExpanded] = useState(false)
 
-  const pushTrailPoint = useCallback((lat: number, lng: number) => {
-    setTrail((prev) => {
-      const last = prev[prev.length - 1]
-      if (last && Math.abs(last[0] - lat) < 1e-6 && Math.abs(last[1] - lng) < 1e-6) return prev
-      const next = [...prev, [lat, lng] as [number, number]]
-      return next.length > 200 ? next.slice(next.length - 200) : next
-    })
-  }, [])
+
 
   useEffect(() => {
     if (rideId) {
@@ -196,7 +204,6 @@ export function ActiveRide() {
       setGeoStatus('ok')
       const pos: [number, number] = [position.coords.latitude, position.coords.longitude]
       setVehiclePos(pos)
-      pushTrailPoint(pos[0], pos[1])
 
       // COSTO: enviar al servidor como maximo 1 vez cada 12 s
       const now = Date.now()
@@ -223,7 +230,7 @@ export function ActiveRide() {
       mounted = false
       if (watchId !== null) navigator.geolocation.clearWatch(watchId)
     }
-  }, [ride?.status, rideId, pushTrailPoint, geoRetry])
+  }, [ride?.status, rideId, geoRetry])
 
   // Auto-encuadre la primera vez que hay posición del vehículo.
   useEffect(() => {
@@ -233,6 +240,53 @@ export function ActiveRide() {
       setFitKey((k) => k + 1)
     }
   }, [vehiclePos])
+
+  // Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
+  // No pide de mas: solo si cambia el objetivo o el vehiculo avanzo >= 150 m.
+  useEffect(() => {
+    if (!ride) return
+    const active = ride.status === 'aceptada' || ride.status === 'en_ruta'
+    if (!active) {
+      lastRouteRef.current = null
+      setRoute(null)
+      return
+    }
+    const from: [number, number] | null =
+      vehiclePos ||
+      (ride.driver_location_lat != null && ride.driver_location_lng != null
+        ? [ride.driver_location_lat, ride.driver_location_lng]
+        : null)
+    if (!from) return
+    const to: [number, number] =
+      ride.status === 'aceptada'
+        ? [ride.origin_lat, ride.origin_lng]
+        : [ride.destination_lat, ride.destination_lng]
+
+    const prev = lastRouteRef.current
+    const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
+    const moved = prev ? distanceMeters(prev.from, from) : Infinity
+    if (prev && sameTarget && moved < 150) return
+
+    lastRouteRef.current = { from, to }
+    let cancelled = false
+    ;(async () => {
+      const pts = await fetchRoute(from, to)
+      if (cancelled || !pts) return
+      setRoute(pts)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    vehiclePos?.[0],
+    vehiclePos?.[1],
+    ride?.status,
+    ride?.driver_location_lat,
+    ride?.driver_location_lng,
+    ride?.origin_lat,
+    ride?.origin_lng,
+    ride?.destination_lat,
+    ride?.destination_lng
+  ])
 
   const handleConfirmStart = async () => {
     setError('')
@@ -467,7 +521,7 @@ export function ActiveRide() {
       )}
 
       {/* Mapa */}
-      <div className="h-[45vh] relative">
+      <div className={mapExpanded ? 'fixed inset-0 z-[2000] bg-white' : 'h-[45vh] relative'}>
         <MapContainer
           center={origin}
           zoom={15}
@@ -478,15 +532,16 @@ export function ActiveRide() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
           <FitBounds points={driverPos ? [origin, destination, driverPos] : [origin, destination]} fitKey={fitKey} />
-          {/* Trayectoria real recorrida */}
-          {trail.length >= 2 && (
-            <Polyline positions={trail} pathOptions={{ color: '#0284c7', weight: 4 }} />
+          <MapResize trigger={mapExpanded} />
+          {/* Ruta por carretera (OSRM). Si falla, referencia recta punteada */}
+          {route && route.length >= 2 ? (
+            <Polyline positions={route} pathOptions={{ color: '#7c3aed', weight: 5 }} />
+          ) : (
+            <Polyline
+              positions={[origin, destination]}
+              pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+            />
           )}
-          {/* Referencia hacia el destino */}
-          <Polyline
-            positions={[origin, destination]}
-            pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
-          />
           {/* Vehículo del conductor */}
           {driverPos && (
             <Marker position={driverPos} icon={vehicleIcon}>
@@ -511,6 +566,17 @@ export function ActiveRide() {
           title="Centrar en el viaje"
         >
           <Navigation className="w-5 h-5" />
+        </button>
+
+        {/* Pantalla completa */}
+        <button
+          type="button"
+          onClick={() => setMapExpanded((v) => !v)}
+          className="absolute top-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
+          aria-label="Pantalla completa"
+          title={mapExpanded ? 'Salir de pantalla completa' : 'Pantalla completa'}
+        >
+          {mapExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
         </button>
       </div>
 

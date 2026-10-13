@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn } from 'lucide-react'
+import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { whatsappNumber } from '@/lib/format'
@@ -17,6 +17,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
+import { fetchRoute, distanceMeters } from '@/lib/routing'
 
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -106,6 +107,16 @@ function FitBounds({ points, fitKey }: { points: [number, number][]; fitKey: num
   return null
 }
 
+// Recalcula el tamano del mapa cuando cambia (p. ej. pantalla completa).
+function MapResize({ trigger }: { trigger: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    const t = window.setTimeout(() => map.invalidateSize(), 250)
+    return () => window.clearTimeout(t)
+  }, [trigger, map])
+  return null
+}
+
 export function ClientActiveRide() {
   const { rideId } = useParams()
   const [ride, setRide] = useState<Ride | null>(null)
@@ -137,19 +148,16 @@ export function ClientActiveRide() {
 
   // 🗺️ Trayectoria recorrida por el conductor (breadcrumb). Se arma con las
   // posiciones que llegan (Realtime + watchdog). Tope de 200 puntos.
-  const [trail, setTrail] = useState<[number, number][]>([])
   // Encuadre: se incrementa para pedir a FitBounds que recuadre el mapa.
   const [fitKey, setFitKey] = useState(0)
   const autoFitDoneRef = useRef(false)
+  // Ruta por carretera (OSRM) hacia el siguiente punto del viaje
+  const [route, setRoute] = useState<[number, number][] | null>(null)
+  const lastRouteRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null)
+  // Pantalla completa del mapa
+  const [mapExpanded, setMapExpanded] = useState(false)
 
-  const pushTrailPoint = useCallback((lat: number, lng: number) => {
-    setTrail((prev) => {
-      const last = prev[prev.length - 1]
-      if (last && Math.abs(last[0] - lat) < 1e-6 && Math.abs(last[1] - lng) < 1e-6) return prev
-      const next = [...prev, [lat, lng] as [number, number]]
-      return next.length > 200 ? next.slice(next.length - 200) : next
-    })
-  }, [])
+
 
   useEffect(() => {
     if (rideId) {
@@ -177,9 +185,6 @@ export function ClientActiveRide() {
     (newRide) => {
       const ride = newRide as Ride
       setRide(ride)
-      if (ride.driver_location_lat != null && ride.driver_location_lng != null) {
-        pushTrailPoint(ride.driver_location_lat, ride.driver_location_lng)
-      }
       if (ride.status === 'completada') {
         setShowSaveFavorite(true)
       }
@@ -242,7 +247,6 @@ export function ClientActiveRide() {
               ...(lng != null ? { driver_location_lng: lng } : {})
             }
           })
-          if (lat != null && lng != null) pushTrailPoint(lat, lng)
         }
       } catch {
         // silencioso (red)
@@ -256,7 +260,7 @@ export function ClientActiveRide() {
       cancelled = true
       window.clearInterval(t)
     }
-  }, [rideId, ride?.status, pushTrailPoint])
+  }, [rideId, ride?.status])
 
   // Auto-encuadre la primera vez que aparece la posición del conductor.
   useEffect(() => {
@@ -266,6 +270,49 @@ export function ClientActiveRide() {
       setFitKey((k) => k + 1)
     }
   }, [ride?.driver_location_lat, ride?.driver_location_lng])
+
+  // Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
+  useEffect(() => {
+    if (!ride) return
+    const active = ride.status === 'aceptada' || ride.status === 'en_ruta'
+    if (!active) {
+      lastRouteRef.current = null
+      setRoute(null)
+      return
+    }
+    const from: [number, number] | null =
+      ride.driver_location_lat != null && ride.driver_location_lng != null
+        ? [ride.driver_location_lat, ride.driver_location_lng]
+        : null
+    if (!from) return
+    const to: [number, number] =
+      ride.status === 'aceptada'
+        ? [ride.origin_lat, ride.origin_lng]
+        : [ride.destination_lat, ride.destination_lng]
+
+    const prev = lastRouteRef.current
+    const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
+    const moved = prev ? distanceMeters(prev.from, from) : Infinity
+    if (prev && sameTarget && moved < 150) return
+
+    lastRouteRef.current = { from, to }
+    let cancelled = false
+    ;(async () => {
+      const pts = await fetchRoute(from, to)
+      if (cancelled || !pts) return
+      setRoute(pts)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ride?.status,
+    ride?.driver_location_lat,
+    ride?.driver_location_lng,
+    ride?.origin_lat,
+    ride?.origin_lng,
+    ride?.destination_lat,
+    ride?.destination_lng
+  ])
 
   // Scroll automático (una sola vez) cuando el viaje pasa a completado,
   // para que el cliente vea la calificación sin tener que bajar.
@@ -558,7 +605,7 @@ export function ClientActiveRide() {
       {/* Mapa: colapsable con boton Ver mapa (solo se monta al abrirlo) */}
       {showMap ? (
         <>
-          <div className="h-[40vh] relative map-scroll-safe">
+          <div className={mapExpanded ? 'fixed inset-0 z-[2000] bg-white' : 'h-[40vh] relative map-scroll-safe'}>
             <MapContainer
               center={origin}
               zoom={15}
@@ -569,15 +616,16 @@ export function ClientActiveRide() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
               <FitBounds points={driverPos ? [origin, destination, driverPos] : [origin, destination]} fitKey={fitKey} />
-              {/* Trayectoria real recorrida por el conductor */}
-              {trail.length >= 2 && (
-                <Polyline positions={trail} pathOptions={{ color: '#0284c7', weight: 4 }} />
+              <MapResize trigger={mapExpanded} />
+              {/* Ruta por carretera (OSRM). Si falla, referencia recta punteada */}
+              {route && route.length >= 2 ? (
+                <Polyline positions={route} pathOptions={{ color: '#7c3aed', weight: 5 }} />
+              ) : (
+                <Polyline
+                  positions={[origin, destination]}
+                  pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
+                />
               )}
-              {/* Referencia hacia el destino */}
-              <Polyline
-                positions={[origin, destination]}
-                pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
-              />
               <Marker position={origin} icon={originIcon}>
                 <Popup>Tu ubicación</Popup>
               </Marker>
@@ -607,6 +655,17 @@ export function ClientActiveRide() {
               title="Centrar en el viaje"
             >
               <Navigation className="w-5 h-5" />
+            </button>
+
+            {/* Pantalla completa */}
+            <button
+              type="button"
+              onClick={() => setMapExpanded((v) => !v)}
+              className="absolute top-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
+              aria-label="Pantalla completa"
+              title={mapExpanded ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            >
+              {mapExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
           </div>
           <div className="max-w-md mx-auto px-4 mt-2">
