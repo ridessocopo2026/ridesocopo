@@ -17,7 +17,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
-import { fetchRoute, distanceMeters } from '@/lib/routing'
+import { fetchRoute } from '@/lib/routing'
 
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -292,8 +292,7 @@ export function ClientActiveRide() {
 
     const prev = lastRouteRef.current
     const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
-    const moved = prev ? distanceMeters(prev.from, from) : Infinity
-    if (prev && sameTarget && moved < 150) return
+    if (prev && sameTarget) return
 
     lastRouteRef.current = { from, to }
     let cancelled = false

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
+import { Navigation, XCircle, Loader2, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, ZoomIn, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,7 +13,7 @@ import { useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import { resolvePhotoUrl } from '@/lib/photos'
-import { fetchRoute, distanceMeters } from '@/lib/routing'
+import { fetchRoute } from '@/lib/routing'
 import type { Ride, CancellationEstimate, IncidentType, RideClientInfo } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
@@ -126,6 +126,8 @@ export function ActiveRide() {
   const lastRouteRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null)
   // Pantalla completa del mapa
   const [mapExpanded, setMapExpanded] = useState(false)
+  // Fuerza un recalculo manual de la ruta (boton recargar)
+  const [routeNonce, setRouteNonce] = useState(0)
 
 
 
@@ -264,8 +266,7 @@ export function ActiveRide() {
 
     const prev = lastRouteRef.current
     const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
-    const moved = prev ? distanceMeters(prev.from, from) : Infinity
-    if (prev && sameTarget && moved < 150) return
+    if (prev && sameTarget) return
 
     lastRouteRef.current = { from, to }
     let cancelled = false
@@ -285,8 +286,15 @@ export function ActiveRide() {
     ride?.origin_lat,
     ride?.origin_lng,
     ride?.destination_lat,
-    ride?.destination_lng
+    ride?.destination_lng,
+    routeNonce
   ])
+
+  // Fuerza un recalculo de la ruta desde la posicion actual (boton recargar)
+  const handleRecalcRoute = () => {
+    lastRouteRef.current = null
+    setRouteNonce((n) => n + 1)
+  }
 
   const handleConfirmStart = async () => {
     setError('')
@@ -566,6 +574,17 @@ export function ActiveRide() {
           title="Centrar en el viaje"
         >
           <Navigation className="w-5 h-5" />
+        </button>
+
+        {/* Recalcular ruta */}
+        <button
+          type="button"
+          onClick={handleRecalcRoute}
+          className="absolute bottom-16 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
+          aria-label="Recalcular ruta"
+          title="Recalcular ruta"
+        >
+          <RefreshCw className="w-5 h-5" />
         </button>
 
         {/* Pantalla completa */}
