@@ -38,7 +38,11 @@ export function AdminConfig() {
       setDebtLimit(data[0].debt_limit_usd.toString())
     }
     const { data: settings } = await supabase.rpc('get_admin_settings')
-    if (settings) setNewRideAlerts(!!(settings as { new_ride_alerts?: boolean }).new_ride_alerts)
+    if (settings) {
+      setNewRideAlerts(!!(settings as { new_ride_alerts?: boolean }).new_ride_alerts)
+      const cr = (settings as { commission_rate?: number }).commission_rate
+      if (cr != null) setCommissionRate(String(cr))
+    }
     setLoading(false)
   }
 
@@ -56,9 +60,13 @@ export function AdminConfig() {
 
       if (error) throw error
 
-      // Actualizar tasa de comisión en viajes (se aplica a futuros viajes)
-      // La comisión se calcula en el servidor con el valor de rides.commission_rate
-      // que ya está en 10.00 por defecto
+      // Guardar el % de comisión (aplica a FUTUROS viajes; el histórico no cambia)
+      const rate = parseFloat(commissionRate)
+      if (Number.isNaN(rate) || rate < 0 || rate > 100) {
+        throw new Error('La comisión debe estar entre 0 y 100')
+      }
+      const { error: commError } = await supabase.rpc('set_commission_rate', { p_rate: rate })
+      if (commError) throw commError
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -157,7 +165,7 @@ export function AdminConfig() {
                   className="input"
                   step="0.5"
                   min="0"
-                  max="50"
+                  max="100"
                   value={commissionRate}
                   onChange={(e) => setCommissionRate(e.target.value)}
                 />
