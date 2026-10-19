@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Download, X } from 'lucide-react'
-import { isIOS, isStandalone, isPwaInstalled, markPwaInstalled, getInAppBrowser } from '@/lib/pwaUtils'
+import { isIOS, isAndroid, isStandalone, isPwaInstalled, markPwaInstalled, getInAppBrowser } from '@/lib/pwaUtils'
 
 // El prompt se captura GLOBALMENTE en main.tsx (antes de que React monte)
 // porque Chrome lo dispara muy temprano. Lo accedemos vía window.
@@ -61,31 +61,50 @@ export function InstallAppButton() {
   const [guide, setGuide] = useState<GuideType | null>(null)
   const [installed, setInstalled] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [hint, setHint] = useState('')
 
   const isiOS = isIOS()
+  const isAndroidDevice = isAndroid()
   // Si estamos dentro de Instagram/Facebook/etc. (WebView), no se puede instalar.
   const inApp = getInAppBrowser()
 
+  // ¿Chrome ya capturo el aviso nativo de instalacion?
+  const refreshPromptReady = () => {
+    return !!(window as any).__getDeferredPrompt?.()
+  }
+
   useEffect(() => {
-    // Si la app ya está instalada (modo standalone o localStorage), ocultar el aviso
-    if (isPwaInstalled() || isStandalone()) {
+    // Si Chrome ya capturo el aviso, la app NO esta instalada:
+    // limpiamos la marca vieja (p. ej. despues de desinstalar).
+    const hasPrompt = refreshPromptReady()
+    if (hasPrompt) {
+      try { localStorage.removeItem('rs_pwa_installed') } catch (_) { /* sin storage */ }
+    }
+
+    if (!hasPrompt && (isPwaInstalled() || isStandalone())) {
       setInstalled(true)
-      return
-    }
-
-    // El usuario ya cerró el aviso en esta visita → no volver a molestar
-    try {
-      if (sessionStorage.getItem(BANNER_DISMISS_KEY) === '1') {
-        setDismissed(true)
-        return
+    } else {
+      // El usuario ya cerro el aviso en esta visita -> no volver a molestar
+      try {
+        if (sessionStorage.getItem(BANNER_DISMISS_KEY) === '1') setDismissed(true)
+      } catch (_) {
+        // sessionStorage no disponible
       }
-    } catch (_) {
-      // sessionStorage no disponible
     }
 
+    // Cuando Chrome captura (o vuelve a capturar) el aviso, mostramos el banner
+    const onPromptReady = () => {
+      try { localStorage.removeItem('rs_pwa_installed') } catch (_) { /* sin storage */ }
+      setInstalled(false)
+      setDismissed(false)
+      setHint('')
+    }
+
+    window.addEventListener('app-install-prompt-ready', onPromptReady)
     window.addEventListener('appinstalled', handleAppInstalled)
 
     return () => {
+      window.removeEventListener('app-install-prompt-ready', onPromptReady)
       window.removeEventListener('appinstalled', handleAppInstalled)
     }
   }, [])
@@ -138,7 +157,22 @@ export function InstallAppButton() {
       return
     }
 
-    // 5. Otros navegadores sin prompt nativo (Firefox, etc.) → instrucciones genéricas
+    // 5. Android normal (Chrome/Samsung) pero el aviso aun no esta listo.
+    //    NO mostramos el manual: pedimos esperar un momento y reintentar.
+    if (isAndroidDevice) {
+      setHint('Preparando la instalación… espera un momento y toca "Instalar" otra vez.')
+      window.setTimeout(() => {
+        if (refreshPromptReady()) setHint('Ya está listo: toca "Instalar".')
+      }, 1500)
+      window.setTimeout(() => {
+        if (!refreshPromptReady()) {
+          setHint('Si no aparece el aviso, toca los 3 puntitos ⋮ y elige "Instalar app".')
+        }
+      }, 8000)
+      return
+    }
+
+    // 6. Otros navegadores sin instalación automática (Firefox, etc.)
     setGuide('generic')
   }
 
@@ -179,6 +213,9 @@ export function InstallAppButton() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-surface-800">{bannerTitle}</p>
             <p className="text-xs text-surface-500 leading-tight mt-0.5">{bannerSubtitle}</p>
+            {hint && (
+              <p className="text-[11px] text-amber-600 leading-tight mt-1">{hint}</p>
+            )}
           </div>
 
           {/* Botón instalar */}

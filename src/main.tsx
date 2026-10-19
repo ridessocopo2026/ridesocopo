@@ -21,6 +21,10 @@ window.addEventListener('beforeinstallprompt', (e: Event) => {
   e.preventDefault()
   globalDeferredPrompt = e as unknown as BeforeInstallPromptLike
 
+  // Si Chrome dispara el aviso es porque la app NO esta instalada:
+  // limpiamos la marca vieja (por si se desinstalo).
+  try { localStorage.removeItem('rs_pwa_installed') } catch (_) { /* sin storage */ }
+
   // Notificar al componente cuando llega el prompt
   window.dispatchEvent(new Event('app-install-prompt-ready'))
 })
