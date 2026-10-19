@@ -191,6 +191,31 @@ export function AdminDrivers() {
     }
   }
 
+  const handleNameReview = async (approve: boolean) => {
+    if (!selectedDriver) return
+    setError('')
+    setActionLoading(true)
+    try {
+      const { error } = await supabase.rpc('review_name_change', {
+        p_driver_id: selectedDriver.id,
+        p_approve: approve
+      })
+      if (error) throw error
+
+      const updated: Profile = {
+        ...selectedDriver,
+        full_name: approve ? (selectedDriver.full_name_pending || selectedDriver.full_name) : selectedDriver.full_name,
+        full_name_pending: null
+      }
+      setSelectedDriver(updated)
+      setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleAvatarReview = async (approve: boolean) => {
     if (!selectedDriver) return
     setError('')
@@ -291,6 +316,9 @@ export function AdminDrivers() {
                     )}
                     {incompleteDrivers.has(driver.id) && (
                       <span className="badge-danger" title="No completó teléfono/documentos/vehículo">Sin datos</span>
+                    )}
+                    {driver.full_name_pending && (
+                      <span className="badge-warning" title="Tiene un cambio de nombre por aprobar">Nombre por aprobar</span>
                     )}
                   </div>
                 </div>
@@ -452,6 +480,19 @@ export function AdminDrivers() {
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4" /> Rechazar</>}
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cambio de nombre solicitado */}
+              {selectedDriver.full_name_pending && (
+                <div className="card border-2 border-amber-200 bg-amber-50/50">
+                  <h3 className="font-semibold text-surface-700 mb-2">Cambio de nombre solicitado</h3>
+                  <p className="text-sm text-surface-600">Actual: <strong>{selectedDriver.full_name}</strong></p>
+                  <p className="text-sm text-surface-600">Nuevo: <strong>{selectedDriver.full_name_pending}</strong></p>
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={() => handleNameReview(true)} className="btn-success flex-1" disabled={actionLoading}>Aprobar</button>
+                    <button onClick={() => handleNameReview(false)} className="btn-danger flex-1" disabled={actionLoading}>Rechazar</button>
                   </div>
                 </div>
               )}

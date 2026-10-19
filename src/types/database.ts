@@ -20,6 +20,8 @@ export interface Profile {
   role: UserRole
   avatar_url?: string
   avatar_pending_url?: string | null
+  full_name_pending?: string | null
+  full_name_pending_at?: string | null
   zone_id?: string
   driver_status?: DriverStatus
   is_online: boolean
