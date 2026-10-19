@@ -3,13 +3,12 @@ import { MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { whatsappNumber } from '@/lib/format'
 
-const CACHE_KEY = 'rs_support_phone'
-
 /**
  * Boton de soporte por WhatsApp.
  * variant='icon': icono para el encabezado (junto a la campana).
  * variant='card': tarjeta para el perfil.
- * Lee el numero una sola vez y lo guarda en la sesion (sin costo extra).
+ * Lee el numero de soporte actual cada vez que se monta (sin cache),
+ * para que los cambios en la ciudad se reflejen de inmediato.
  */
 export function SupportButton({
   variant = 'icon',
@@ -18,23 +17,17 @@ export function SupportButton({
   variant?: 'icon' | 'card'
   className?: string
 }) {
-  const [phone, setPhone] = useState<string>(() => {
-    try { return sessionStorage.getItem(CACHE_KEY) || '' } catch { return '' }
-  })
+  const [phone, setPhone] = useState('')
 
   useEffect(() => {
-    if (phone) return
     let cancelled = false
     supabase.rpc('get_my_support').then(({ data }) => {
       if (cancelled) return
       const p = (data as { phone?: string | null } | null)?.phone || ''
-      if (p) {
-        try { sessionStorage.setItem(CACHE_KEY, p) } catch { /* sin storage */ }
-        setPhone(p)
-      }
+      if (p) setPhone(p)
     }, () => { /* silencioso */ })
     return () => { cancelled = true }
-  }, [phone])
+  }, [])
 
   const wa = whatsappNumber(phone)
   if (!wa) return null

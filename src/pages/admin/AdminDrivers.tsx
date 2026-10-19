@@ -60,7 +60,7 @@ export function AdminDrivers() {
     const withVeh = new Set<string>((vehRows || []).map((r: any) => r.driver_id))
     const incomplete = new Set<string>()
     for (const d of (data || [])) {
-      if (!withDocs.has(d.id) || !withVeh.has(d.id)) incomplete.add(d.id)
+      if (!withDocs.has(d.id) || !withVeh.has(d.id) || !d.phone || !String(d.phone).trim()) incomplete.add(d.id)
     }
     setIncompleteDrivers(incomplete)
 
@@ -221,7 +221,7 @@ export function AdminDrivers() {
   }
 
   // Solo se puede aprobar si completo documentos y tiene vehiculo
-  const canApproveSelected = !!selectedDriver && !!documents && vehicles.length > 0
+  const canApproveSelected = !!selectedDriver && !!documents && vehicles.length > 0 && !!selectedDriver.phone && !!selectedDriver.phone.trim()
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -290,7 +290,7 @@ export function AdminDrivers() {
                       <span className="badge-danger">⚠ En espera</span>
                     )}
                     {incompleteDrivers.has(driver.id) && (
-                      <span className="badge-danger" title="No completó documentos/vehículo">Sin datos</span>
+                      <span className="badge-danger" title="No completó teléfono/documentos/vehículo">Sin datos</span>
                     )}
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export function AdminDrivers() {
                         onClick={() => handleReview(driver.id, true)}
                         className="btn-success"
                         disabled={actionLoading || incompleteDrivers.has(driver.id)}
-                        title={incompleteDrivers.has(driver.id) ? 'No completó documentos/vehículo' : 'Aprobar conductor'}
+                        title={incompleteDrivers.has(driver.id) ? 'No completó teléfono/documentos/vehículo' : 'Aprobar conductor'}
                       >
                         <Check className="w-4 h-4" />
                         Aprobar
@@ -496,7 +496,7 @@ export function AdminDrivers() {
               {selectedDriver.driver_status === 'pendiente' && !canApproveSelected && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                   <p className="text-xs text-amber-800">
-                    Este conductor no completó su registro (falta documentos y/o vehículo). Pídele que complete sus datos antes de aprobarlo.
+                    Este conductor no completó su registro (falta teléfono, documentos y/o vehículo). Pídele que complete sus datos antes de aprobarlo.
                   </p>
                 </div>
               )}
