@@ -5,6 +5,7 @@ import L from 'leaflet'
 import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle, UserPlus } from 'lucide-react'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
+import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
@@ -986,7 +987,10 @@ export function ClientHome() {
                 <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
               </div>
             </div>
-            <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+            <div className="flex items-center gap-1">
+              <SupportButton />
+              <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+            </div>
           </div>
         </div>
 
@@ -1073,7 +1077,10 @@ export function ClientHome() {
               <p className="text-xs text-white/80">Hola, {user?.full_name?.split(' ')[0]}</p>
             </div>
           </div>
-          <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+          <div className="flex items-center gap-1">
+            <SupportButton />
+            <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
+          </div>
         </div>
       </div>
 

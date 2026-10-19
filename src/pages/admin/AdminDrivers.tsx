@@ -21,6 +21,8 @@ export function AdminDrivers() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [pendingVeh, setPendingVeh] = useState<Set<string>>(new Set())
+  // Conductores que no completaron documentos/vehiculo (no se pueden aprobar)
+  const [incompleteDrivers, setIncompleteDrivers] = useState<Set<string>>(new Set())
   const { user } = useAuth()
 
   useEffect(() => {
@@ -48,6 +50,19 @@ export function AdminDrivers() {
       .select('driver_id')
       .eq('is_approved', false)
     setPendingVeh(new Set<string>((vPending || []).map((r: any) => r.driver_id)))
+
+    // Conductores sin documentos o sin vehiculo (no se pueden aprobar)
+    const [{ data: docsRows }, { data: vehRows }] = await Promise.all([
+      supabase.from('driver_documents').select('driver_id'),
+      supabase.from('vehicles').select('driver_id')
+    ])
+    const withDocs = new Set<string>((docsRows || []).map((r: any) => r.driver_id))
+    const withVeh = new Set<string>((vehRows || []).map((r: any) => r.driver_id))
+    const incomplete = new Set<string>()
+    for (const d of (data || [])) {
+      if (!withDocs.has(d.id) || !withVeh.has(d.id)) incomplete.add(d.id)
+    }
+    setIncompleteDrivers(incomplete)
 
     setLoading(false)
   }
@@ -205,6 +220,9 @@ export function AdminDrivers() {
     suspendido: <span className="badge-danger">Suspendido</span>
   }
 
+  // Solo se puede aprobar si completo documentos y tiene vehiculo
+  const canApproveSelected = !!selectedDriver && !!documents && vehicles.length > 0
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -271,6 +289,9 @@ export function AdminDrivers() {
                     {(driver.driver_status === 'pendiente' || driver.avatar_pending_url || pendingVeh.has(driver.id)) && (
                       <span className="badge-danger">⚠ En espera</span>
                     )}
+                    {incompleteDrivers.has(driver.id) && (
+                      <span className="badge-danger" title="No completó documentos/vehículo">Sin datos</span>
+                    )}
                   </div>
                 </div>
 
@@ -287,7 +308,8 @@ export function AdminDrivers() {
                       <button
                         onClick={() => handleReview(driver.id, true)}
                         className="btn-success"
-                        disabled={actionLoading}
+                        disabled={actionLoading || incompleteDrivers.has(driver.id)}
+                        title={incompleteDrivers.has(driver.id) ? 'No completó documentos/vehículo' : 'Aprobar conductor'}
                       >
                         <Check className="w-4 h-4" />
                         Aprobar
@@ -471,13 +493,20 @@ export function AdminDrivers() {
               )}
 
               {/* Botones de acción */}
+              {selectedDriver.driver_status === 'pendiente' && !canApproveSelected && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-800">
+                    Este conductor no completó su registro (falta documentos y/o vehículo). Pídele que complete sus datos antes de aprobarlo.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {selectedDriver.driver_status === 'pendiente' && (
                   <>
                     <button
                       onClick={() => handleReview(selectedDriver.id, true)}
                       className="btn-success"
-                      disabled={actionLoading}
+                      disabled={actionLoading || !canApproveSelected}
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Aprobar</>}
                     </button>

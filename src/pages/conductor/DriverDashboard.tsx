@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle, HandCoins, Smartphone } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
+import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
@@ -373,6 +374,7 @@ export function DriverDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <SupportButton />
             <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
             <button onClick={handleSignOut} className="p-2 text-white/80 hover:text-white transition-colors">
               <LogOut className="w-5 h-5" />

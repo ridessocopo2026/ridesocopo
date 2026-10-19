@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { SupportButton } from '@/components/ui/SupportButton'
 import { resolvePhotoUrl } from '@/lib/photos'
 import { uploadImageToExternalHost, describeSaving } from '@/lib/uploadImage'
 
@@ -286,22 +287,7 @@ export function ClientProfile() {
         </div>
 
         {/* Soporte por WhatsApp */}
-        {supportPhone && whatsappNumber(supportPhone) && (
-          <a
-            href={`https://wa.me/${whatsappNumber(supportPhone)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="card flex items-center gap-3 p-4 hover:border-emerald-300 transition-colors"
-          >
-            <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium text-surface-700">Soporte</p>
-              <p className="text-xs text-surface-400">Escríbenos por WhatsApp</p>
-            </div>
-          </a>
-        )}
+        <SupportButton variant="card" />
 
         {/* Cerrar sesión */}
         <button onClick={handleSignOut} className="btn-danger w-full">
