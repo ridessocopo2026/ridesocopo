@@ -12,6 +12,7 @@ export function AdminConfig() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [cleaning, setCleaning] = useState(false)
   const [cleanResult, setCleanResult] = useState<{
     notifications?: number
@@ -29,19 +30,13 @@ export function AdminConfig() {
 
   const loadConfig = async () => {
     // Intentar leer la tabla de configuración si existe
-    const { data, error } = await supabase
-      .from('wallets')
-      .select('debt_limit_usd')
-      .limit(1)
-
-    if (!error && data && data.length > 0) {
-      setDebtLimit(data[0].debt_limit_usd.toString())
-    }
     const { data: settings } = await supabase.rpc('get_admin_settings')
     if (settings) {
       setNewRideAlerts(!!(settings as { new_ride_alerts?: boolean }).new_ride_alerts)
       const cr = (settings as { commission_rate?: number }).commission_rate
       if (cr != null) setCommissionRate(String(cr))
+      const dl = (settings as { debt_limit_usd?: number }).debt_limit_usd
+      if (dl != null) setDebtLimit(String(dl))
     }
     setLoading(false)
   }
@@ -52,12 +47,12 @@ export function AdminConfig() {
     setSaving(true)
 
     try {
-      // Actualizar límite de deuda en todas las billeteras
-      const { error } = await supabase
-        .from('wallets')
-        .update({ debt_limit_usd: parseFloat(debtLimit) })
-        .eq('is_blocked', false)
-
+      // Actualizar límite de deuda en todas las billeteras (RPC segura)
+      const limit = parseFloat(debtLimit)
+      if (Number.isNaN(limit) || limit < 0 || limit > 10000) {
+        throw new Error('El límite debe estar entre 0 y 10000')
+      }
+      const { error } = await supabase.rpc('admin_set_debt_limit', { p_limit: limit })
       if (error) throw error
 
       // Guardar el % de comisión (aplica a FUTUROS viajes; el histórico no cambia)
@@ -67,6 +62,9 @@ export function AdminConfig() {
       }
       const { error: commError } = await supabase.rpc('set_commission_rate', { p_rate: rate })
       if (commError) throw commError
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -202,6 +200,10 @@ export function AdminConfig() {
                 </p>
               </div>
             </div>
+
+            {saved && (
+              <p className="text-xs text-emerald-600 text-center font-medium">Configuración guardada ✓</p>
+            )}
 
             <button type="submit" className="btn-primary w-full" disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Guardar configuración</>}
