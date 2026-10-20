@@ -30,7 +30,7 @@ export function ClientProfile() {
     if (!user) return
     const { data, error } = await supabase
       .from('favorite_places')
-      .select('*')
+      .select('id, name, address')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 

@@ -77,7 +77,7 @@ export function ClientWallet() {
     if (!user) return
     const { data, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('id, type, description, created_at, amount_usd, status')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20)

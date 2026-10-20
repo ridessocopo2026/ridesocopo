@@ -255,7 +255,7 @@ export function ClientHome() {
     // 2) Viaje completado por el conductor SIN confirmar → confirmar desde el inicio
     const { data: pending } = await supabase
       .from('rides')
-      .select('*')
+      .select('id, status, destination_barrio_name, destination_address, final_fare_usd, completed_by, driver_id, client_confirmed_at')
       .eq('client_id', user.id)
       .eq('status', 'completada')
       .is('client_confirmed_at', null)
@@ -496,7 +496,7 @@ export function ClientHome() {
     if (!user) return
     const { data, error } = await supabase
       .from('favorite_places')
-      .select('*')
+      .select('id, name, address, lat, lng')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(5)
@@ -555,7 +555,7 @@ export function ClientHome() {
     const city = selectedCityId || user?.zone_id || null
     let query = supabase
       .from('banners')
-      .select('*')
+      .select('id, image_url, title, subtitle')
       .eq('is_active', true)
       .order('sort_order')
     query = city ? query.or(`zone_id.eq.${city},zone_id.is.null`) : query.is('zone_id', null)

@@ -40,7 +40,7 @@ export function ClientHistory() {
     // Cargar página actual
     const { data, error } = await supabase
       .from('rides')
-      .select('*')
+      .select('id, category, tracking_code, status, origin_address, destination_address, created_at, rating, final_fare_usd')
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)

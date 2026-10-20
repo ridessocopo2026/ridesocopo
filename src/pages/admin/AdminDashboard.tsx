@@ -43,7 +43,7 @@ export function AdminDashboard() {
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'conductor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('driver_status', 'pendiente'),
-        supabase.from('rides').select('*'),
+        supabase.from('rides').select('id', { count: 'exact', head: true }),
         supabase.rpc('get_wallet_overview')
       ])
 
@@ -51,7 +51,7 @@ export function AdminDashboard() {
         totalUsers: usersRes.count || 0,
         totalDrivers: driversRes.count || 0,
         pendingDrivers: pendingRes.count || 0,
-        totalRides: ridesRes.data?.length || 0
+        totalRides: ridesRes.count || 0
       })
 
       if (walletRes.data) {

@@ -39,7 +39,7 @@ export function DriverHistory() {
     // Cargar página actual
     const { data, error } = await supabase
       .from('rides')
-      .select('*')
+      .select('id, category, tracking_code, status, origin_address, destination_address, destination_barrio_name, created_at, rating, final_fare_usd')
       .eq('driver_id', user.id)
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)

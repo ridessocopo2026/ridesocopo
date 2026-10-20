@@ -30,7 +30,7 @@ export function Onboarding() {
   const loadZones = async () => {
     const { data, error } = await supabase
       .from('zones')
-      .select('*')
+      .select('id, name')
       .eq('is_active', true)
       .eq('zone_type', 'cobertura_general')
       .order('name')
