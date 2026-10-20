@@ -62,6 +62,7 @@ const paymentBadge = (method?: string) => {
 export function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(false)
   const [wallet, setWallet] = useState<WalletType | null>(null)
+  const [commissionRate, setCommissionRate] = useState<number | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [activeRide, setActiveRide] = useState<Ride | null>(null)
   const [error, setError] = useState('')
@@ -89,6 +90,10 @@ export function DriverDashboard() {
   useEffect(() => {
     loadWallet()
     checkActiveRide()
+    // % de comision vigente (evita mostrar un numero fijo)
+    supabase.rpc('get_commission_rate').then(({ data }) => {
+      if (data != null) setCommissionRate(Number(data))
+    })
     // Vehículo activo para mostrar en Disponibilidad
     const loadVehicle = async () => {
       if (!user) return
@@ -569,7 +574,7 @@ export function DriverDashboard() {
               <Wallet className="w-5 h-5" />
               <span className="text-sm font-medium">{wallet && wallet.balance_usd < 0 ? 'Deuda' : 'Billetera'}</span>
             </div>
-            <span className="text-xs bg-white/20 rounded-full px-3 py-1">Comisión 10%</span>
+            <span className="text-xs bg-white/20 rounded-full px-3 py-1">{commissionRate != null ? `Comisión ${commissionRate}%` : 'Comisión'}</span>
           </div>
           <p className="text-3xl font-bold">{wallet?.balance_usd?.toFixed(2) || '0.00'}$</p>
           <p className="text-sm text-white/70 mt-1">
