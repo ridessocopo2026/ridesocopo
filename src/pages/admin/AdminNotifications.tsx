@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Bell, Send, Users, Loader2, CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
@@ -26,7 +27,7 @@ export function AdminNotifications() {
   const isEncargado = user?.role === 'encargado'
 
   useEffect(() => {
-    supabase.rpc('get_active_cities').then(({ data }) => {
+    getActiveCities().then(({ data }) => {
       if (data) setCities(data as { id: string; name: string }[])
     })
     if (user?.role === 'encargado' && user.zone_id) setZoneId(user.zone_id)

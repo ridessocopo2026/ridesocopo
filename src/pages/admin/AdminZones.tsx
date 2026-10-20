@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polygon, useMapEvents } from 'react-leaflet'
 import { MapPin, Plus, Save, Trash2, Loader2, AlertTriangle, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { clearActiveCitiesCache } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -93,6 +94,7 @@ export function AdminZones() {
       })
 
       if (error) throw error
+      clearActiveCitiesCache()
 
       // Guardar número de soporte de la zona (la app lo usa en el perfil de los usuarios)
       const { error: supErr } = await supabase.rpc('set_zone_support', { p_zone_id: data, p_phone: supportPhone })
@@ -154,6 +156,7 @@ export function AdminZones() {
       if (res && res.success === false) {
         setError(res.message || 'No se pudo eliminar la zona')
       } else {
+        clearActiveCitiesCache()
         setDeleteTarget(null)
         loadZones()
       }

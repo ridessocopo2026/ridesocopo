@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Loader2, Save, RotateCcw, AlertTriangle, DollarSign } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface FareRow {
@@ -33,7 +34,7 @@ export function CityFares() {
       setCityId(user?.zone_id || '')
       return
     }
-    supabase.rpc('get_active_cities').then(({ data }) => {
+    getActiveCities().then(({ data }) => {
       if (data) {
         const list = data as { id: string; name: string }[]
         setCities(list)

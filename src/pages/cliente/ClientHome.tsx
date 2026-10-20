@@ -8,6 +8,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell'
 import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { fmt } from '@/lib/format'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
@@ -82,6 +83,10 @@ function writeCitiesCache(list: CityInfo[]): void {
     // localStorage no disponible
   }
 }
+
+// Cache corto de tarifas (evita repetir calculate_fare si el usuario toca varias veces)
+const fareCache = new Map<string, { ts: number; data: FareCalculation }>()
+const FARE_TTL_MS = 45_000
 
 export function ClientHome() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null)
@@ -431,7 +436,7 @@ export function ClientHome() {
   }, [destBarrioId])
 
   const loadCities = async (retry = true) => {
-    const { data, error } = await supabase.rpc('get_active_cities')
+    const { data, error } = await getActiveCities()
 
     if (error) {
       // Un fallo puntual de red no debe dejar al invitado sin zonas
@@ -717,6 +722,33 @@ export function ClientHome() {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
       }
 
+      const applyFare = (res: FareCalculation) => {
+        setFare(res)
+        if (couponCode.trim()) {
+          setCouponFeedback(
+            res.coupon_id && res.discount > 0
+              ? { ok: true, message: `Cupón ${res.coupon_code} aplicado: ahorras ${fmt(res.discount)}` }
+              : { ok: false, message: res.coupon_message || 'Ese cupón no existe o no está disponible' }
+          )
+        }
+        setShowFareSheet(true)
+        // Cargar saldo de la billetera para avisar del saldo insuficiente sin esperar el fallo
+        void loadWalletBalance()
+      }
+
+      // Cache corto por origen/destino/categoria/cupon
+      const cacheKey = [
+        origin.lat.toFixed(5), origin.lng.toFixed(5),
+        Number(barrio.lat).toFixed(5), Number(barrio.lng).toFixed(5),
+        selectedCategory,
+        (couponCode || '').trim().toUpperCase()
+      ].join('|')
+      const cachedFare = fareCache.get(cacheKey)
+      if (cachedFare && Date.now() - cachedFare.ts < FARE_TTL_MS) {
+        applyFare(cachedFare.data)
+        return
+      }
+
       const { data, error } = await supabase.rpc('calculate_fare', {
         p_origin_lat: origin.lat,
         p_origin_lng: origin.lng,
@@ -729,17 +761,9 @@ export function ClientHome() {
       if (error) throw error
 
       const res = data as FareCalculation
-      setFare(res)
-      if (couponCode.trim()) {
-        setCouponFeedback(
-          res.coupon_id && res.discount > 0
-            ? { ok: true, message: `Cupón ${res.coupon_code} aplicado: ahorras ${fmt(res.discount)}` }
-            : { ok: false, message: res.coupon_message || 'Ese cupón no existe o no está disponible' }
-        )
-      }
-      setShowFareSheet(true)
-      // Cargar saldo de la billetera para avisar del saldo insuficiente sin esperar el fallo
-      void loadWalletBalance()
+      if (fareCache.size > 50) fareCache.clear()
+      fareCache.set(cacheKey, { ts: Date.now(), data: res })
+      applyFare(res)
     } catch (err: any) {
       setError(err.message)
     } finally {

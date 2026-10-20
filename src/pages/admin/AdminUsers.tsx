@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Search, Loader2, MessageCircle, Receipt, Filter, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, whatsappNumber } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -90,7 +91,7 @@ export function AdminUsers() {
   const { user } = useAuth()
 
   const loadCities = async () => {
-    const { data } = await supabase.rpc('get_active_cities')
+    const { data } = await getActiveCities()
     if (data) setCities(data as { id: string; name: string }[])
   }
 

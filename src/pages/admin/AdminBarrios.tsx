@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet'
 import { MapPin, Plus, Save, Trash2, Loader2, Pencil, Navigation, Copy, Check, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -198,7 +199,7 @@ export function AdminBarrios() {
   }, [cities, selectedCityId])
 
   const loadCities = async () => {
-    const { data, error } = await supabase.rpc('get_active_cities')
+    const { data, error } = await getActiveCities()
     if (!error && data) {
       const list = (data as { id: string; name: string }[]) || []
       setCities(list)

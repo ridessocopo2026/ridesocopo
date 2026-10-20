@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Image, Plus, Trash2, Loader2, Upload, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { uploadImageToExternalHost } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -39,7 +40,7 @@ export function AdminBanners() {
 
   // Ciudades para el selector + ciudad fija del encargado
   useEffect(() => {
-    supabase.rpc('get_active_cities').then(({ data }) => {
+    getActiveCities().then(({ data }) => {
       if (data) setCities(data as { id: string; name: string }[])
     })
     if (user?.role === 'encargado' && user.zone_id) setZoneId(user.zone_id)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, TrendingUp, DollarSign, Users, Car, Calendar, Filter, Loader2, HandCoins, Wallet, CreditCard, AlertTriangle, Receipt, Landmark, PiggyBank, ArrowDownUp, Ticket, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -104,7 +105,7 @@ export function AdminMetrics() {
           .then(({ data }) => { if (data) setZoneName(data.name) })
       }
     } else {
-      supabase.rpc('get_active_cities').then(({ data }) => {
+      getActiveCities().then(({ data }) => {
         if (data) setCities(data as { id: string; name: string }[])
       })
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, RefreshCw, Phone, Car, Bike, Truck, Clock, Loader2, ChevronLeft, Gauge } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getActiveCities } from '@/lib/cities'
 import { useAuth } from '@/contexts/AuthContext'
 import { fmt, whatsappNumber } from '@/lib/format'
 
@@ -89,7 +90,7 @@ export function LiveOps() {
 
   useEffect(() => {
     if (isEncargado) return
-    supabase.rpc('get_active_cities').then(({ data }) => {
+    getActiveCities().then(({ data }) => {
       if (data) setCities(data as { id: string; name: string }[])
     })
   }, [isEncargado])
