@@ -1,11 +1,34 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, ShieldCheck, LogOut } from 'lucide-react'
+import { Clock, ShieldCheck, LogOut, ClipboardList } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 
 export function DriverPending() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [loadingDocs, setLoadingDocs] = useState(true)
+  const [incomplete, setIncomplete] = useState(false)
+
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+    ;(async () => {
+      const [{ data: docs }, { data: vehicles }] = await Promise.all([
+        supabase.from('driver_documents').select('cedula_photo_url, license_photo_url').eq('driver_id', user.id).maybeSingle(),
+        supabase.from('vehicles').select('id').eq('driver_id', user.id).limit(1)
+      ])
+      if (cancelled) return
+      const d = docs as { cedula_photo_url?: string | null; license_photo_url?: string | null } | null
+      const hasDocs = !!d && !!d.cedula_photo_url && !!d.license_photo_url
+      const hasVehicle = (vehicles || []).length > 0
+      const hasPhone = !!user.phone && !!user.phone.trim()
+      setIncomplete(!hasDocs || !hasVehicle || !hasPhone)
+      setLoadingDocs(false)
+    })()
+    return () => { cancelled = true }
+  }, [user?.id, user?.phone])
 
   const handleSignOut = async () => {
     await signOut()
@@ -20,22 +43,30 @@ export function DriverPending() {
         </div>
 
         <h1 className="text-2xl font-bold text-surface-800 mb-2">
-          Cuenta en Revisión
+          {incomplete ? 'Completa tus datos' : 'Cuenta en Revisión'}
         </h1>
         <HexUnderline />
 
-        {/* Banner fijo de estado pendiente */}
         <div className="pending-banner mb-6">
           <ShieldCheck className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="text-left">
             <p className="text-sm font-medium text-amber-800">
-              Tu cuenta está en revisión.
+              {incomplete ? 'Aún no has completado tu registro de conductor.' : 'Tu cuenta está en revisión.'}
             </p>
             <p className="text-xs text-amber-700 mt-1">
-              Te notificaremos cuando sea aprobada. Este proceso puede tomar hasta 24 horas.
+              {incomplete
+                ? 'Sube tus documentos y los datos de tu vehículo para que podamos revisarte.'
+                : 'Te notificaremos cuando sea aprobada. Este proceso puede tomar hasta 24 horas.'}
             </p>
           </div>
         </div>
+
+        {!loadingDocs && incomplete && (
+          <button onClick={() => navigate('/conductor/onboarding')} className="btn-primary w-full mb-3">
+            <ClipboardList className="w-4 h-4" />
+            Completar mis datos
+          </button>
+        )}
 
         <div className="card mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -62,6 +93,13 @@ export function DriverPending() {
             Una vez aprobado, podrás comenzar a recibir solicitudes de viaje.
           </p>
         </div>
+
+        {!loadingDocs && !incomplete && (
+          <button onClick={() => navigate('/conductor/onboarding')} className="btn-outline w-full mb-3">
+            <ClipboardList className="w-4 h-4" />
+            Actualizar mis datos
+          </button>
+        )}
 
         <button onClick={handleSignOut} className="btn-outline w-full">
           <LogOut className="w-4 h-4" />

@@ -45,6 +45,12 @@ export function DriverOnboarding() {
   const [vehicleColor, setVehicleColor] = useState('')
   const [vehiclePlate, setVehiclePlate] = useState('')
 
+  // Fotos que ya existen en el servidor (para reenviar sin volver a subirlas)
+  const [hasCedulaPhoto, setHasCedulaPhoto] = useState(false)
+  const [hasLicensePhoto, setHasLicensePhoto] = useState(false)
+  const [hasProfilePhoto, setHasProfilePhoto] = useState(false)
+  const [hasVehiclePhoto, setHasVehiclePhoto] = useState(false)
+
   useEffect(() => {
     (async () => {
       try {
@@ -66,6 +72,41 @@ export function DriverOnboarding() {
     })()
   }, [])
 
+  // Precargar datos ya guardados (para continuar un registro a medias)
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+    ;(async () => {
+      const [{ data: profile }, { data: docs }, { data: vehicles }] = await Promise.all([
+        supabase.from('profiles').select('full_name, phone').eq('id', user.id).single(),
+        supabase.from('driver_documents').select('*').eq('driver_id', user.id).maybeSingle(),
+        supabase.from('vehicles').select('*').eq('driver_id', user.id).order('is_active_vehicle', { ascending: false }).limit(1)
+      ])
+      if (cancelled) return
+      if (profile?.full_name) setFullName((prev) => prev || profile.full_name)
+      if (profile?.phone) setPhone((prev) => prev || profile.phone)
+      const d = docs as any
+      if (d) {
+        if (d.cedula_number) setCedulaNumber((prev) => prev || d.cedula_number)
+        if (d.license_expiry_date) setLicenseExpiry((prev) => prev || d.license_expiry_date)
+        setHasCedulaPhoto(!!d.cedula_photo_url)
+        setHasLicensePhoto(!!d.license_photo_url)
+        setHasProfilePhoto(!!d.profile_photo_url)
+      }
+      const v = (vehicles || [])[0] as any
+      if (v) {
+        if (v.category) setVehicleCategory(v.category)
+        if (v.brand) setVehicleBrand((prev) => prev || v.brand)
+        if (v.model) setVehicleModel((prev) => prev || v.model)
+        if (v.year) setVehicleYear((prev) => prev || String(v.year))
+        if (v.color) setVehicleColor((prev) => prev || v.color)
+        if (v.plate) setVehiclePlate((prev) => prev || v.plate)
+        setHasVehiclePhoto(!!v.photo_url)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user?.id])
+
   // Comprime y sube el archivo (la foto de una cédula pasa de ~600 KB
   // a ~200 KB, el vehículo de ~900 KB a ~120 KB) en vez de subir la
   // imagen original de 3-5 MB de la cámara.
@@ -85,12 +126,13 @@ export function DriverOnboarding() {
     setError('')
 
     // Validación manual de archivos obligatorios
-    if (!cedulaPhoto || !licensePhoto) {
+    // (si ya tenía la foto subida de antes, no hace falta volver a subirla)
+    if ((!cedulaPhoto && !hasCedulaPhoto) || (!licensePhoto && !hasLicensePhoto)) {
       setError('Debes subir la foto de la cédula y la licencia')
       return
     }
 
-    if (!vehiclePhoto) {
+    if (!vehiclePhoto && !hasVehiclePhoto) {
       setError('Debes subir la foto del vehículo')
       return
     }
@@ -121,7 +163,7 @@ export function DriverOnboarding() {
         : ''
 
       // Llamar RPC para registrar onboarding
-      const { error: rpcError } = await supabase.rpc('register_driver_onboarding', {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_driver_onboarding', {
         p_full_name: fullName,
         p_phone: phone,
         p_cedula_number: cedulaNumber,
@@ -141,7 +183,8 @@ export function DriverOnboarding() {
 
       if (rpcError) throw rpcError
 
-      navigate('/conductor/pendiente')
+      const newStatus = (rpcData as { status?: string } | null)?.status
+      navigate(newStatus === 'aprobado' ? '/conductor' : '/conductor/pendiente')
     } catch (err: any) {
       setError(err.message || 'Error al enviar la solicitud')
       setLoading(false)
@@ -157,7 +200,7 @@ export function DriverOnboarding() {
       }
     }
     if (step === 2) {
-      if (!cedulaPhoto || !licensePhoto || !licenseExpiry) {
+      if ((!cedulaPhoto && !hasCedulaPhoto) || (!licensePhoto && !hasLicensePhoto) || !licenseExpiry) {
         setError('Sube las fotos requeridas')
         return
       }
@@ -173,10 +216,11 @@ export function DriverOnboarding() {
 
   const prevStep = () => setStep(step - 1)
 
-  const FileInput = ({ label, file, setFile }: {
+  const FileInput = ({ label, file, setFile, existing = false }: {
     label: string
     file: File | null
     setFile: (f: File | null) => void
+    existing?: boolean
   }) => (
     <div>
       <label className="label">{label}</label>
@@ -185,6 +229,12 @@ export function DriverOnboarding() {
           <div className="text-center">
             <FileText className="w-8 h-8 text-primary-600 mx-auto mb-1" />
             <span className="text-xs text-surface-600">{file.name}</span>
+          </div>
+        ) : existing ? (
+          <div className="text-center">
+            <FileText className="w-8 h-8 text-emerald-600 mx-auto mb-1" />
+            <span className="text-xs text-emerald-700">Ya tienes esta foto</span>
+            <span className="text-[11px] text-surface-400 block">Toca para cambiarla</span>
           </div>
         ) : (
           <div className="text-center">
@@ -283,9 +333,9 @@ export function DriverOnboarding() {
                 <h2 className="font-semibold text-surface-800">Documentos</h2>
               </div>
 
-              <FileInput label="Foto de perfil" file={profilePhoto} setFile={setProfilePhoto} />
-              <FileInput label="Foto de la Cédula *" file={cedulaPhoto} setFile={setCedulaPhoto} />
-              <FileInput label="Foto de la Licencia *" file={licensePhoto} setFile={setLicensePhoto} />
+              <FileInput label="Foto de perfil" file={profilePhoto} setFile={setProfilePhoto} existing={hasProfilePhoto} />
+              <FileInput label="Foto de la Cédula *" file={cedulaPhoto} setFile={setCedulaPhoto} existing={hasCedulaPhoto} />
+              <FileInput label="Foto de la Licencia *" file={licensePhoto} setFile={setLicensePhoto} existing={hasLicensePhoto} />
             </div>
           )}
 
@@ -390,7 +440,7 @@ export function DriverOnboarding() {
                 <h2 className="font-semibold text-surface-800">Foto del Vehículo</h2>
               </div>
 
-              <FileInput label="Foto real del vehículo *" file={vehiclePhoto} setFile={setVehiclePhoto} />
+              <FileInput label="Foto real del vehículo *" file={vehiclePhoto} setFile={setVehiclePhoto} existing={hasVehiclePhoto} />
 
               <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
                 <p className="text-sm text-amber-800">
