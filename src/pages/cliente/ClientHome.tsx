@@ -14,6 +14,7 @@ import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
 import { DestinationPinPicker } from '@/components/ride/DestinationPinPicker'
+import { nearestBarrio } from '@/lib/geo'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
@@ -1001,6 +1002,38 @@ export function ClientHome() {
 
   const sheetBarrio = barrios.find((b) => b.id === sheetBarrioId)
 
+  const pinDetection = sheetPin ? nearestBarrio(sheetPin, barrios) : null
+  const pinHint = (() => {
+    if (!sheetPin || !pinDetection) return null
+    const distance = pinDetection.distanceMeters
+    const distText = distance < 1000
+      ? `${Math.round(distance)} m`
+      : `${(distance / 1000).toFixed(1)} km`
+
+    if (distance > 10000) {
+      return {
+        tone: 'warn' as const,
+        text: `El pin está muy lejos de los sectores de la ciudad (${distText}). Se usará ${pinDetection.barrio.name} para la tarifa; muévelo o usa el sector.`
+      }
+    }
+    if (distance > 1000) {
+      return {
+        tone: 'warn' as const,
+        text: `El pin está a ${distText} de la referencia más cercana (${pinDetection.barrio.name}). Se usará ese sector para la tarifa.`
+      }
+    }
+    if (pinDetection.barrio.id !== sheetBarrioId) {
+      return {
+        tone: 'warn' as const,
+        text: `El pin está en ${pinDetection.barrio.name} (a ${distText} de su referencia). Se usará ese sector.`
+      }
+    }
+    return {
+      tone: 'ok' as const,
+      text: `Sector: ${pinDetection.barrio.name} · a ${distText} de la referencia`
+    }
+  })()
+
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
     if (!origin) return '📌 Usa tu ubicación para continuar'
@@ -1605,6 +1638,7 @@ export function ClientHome() {
                   center={{ lat: Number(sheetBarrio.lat), lng: Number(sheetBarrio.lng) }}
                   value={sheetPin}
                   onChange={setSheetPin}
+                  hint={pinHint}
                 />
               </div>
             )}
@@ -1615,7 +1649,7 @@ export function ClientHome() {
             <button
               id="confirm-destino-btn"
               onClick={() => {
-                setDestBarrioId(sheetBarrioId)
+                setDestBarrioId(sheetPin && pinDetection ? pinDetection.barrio.id : sheetBarrioId)
                 setDestAddress(sheetAddress)
                 setDestPin(sheetPin)
                 setShowDestSheet(false)

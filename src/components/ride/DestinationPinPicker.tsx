@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, CircleMarker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Maximize2, Minimize2, X } from 'lucide-react'
+import { Check, MapPin, X } from 'lucide-react'
 
 export type LatLngPoint = { lat: number; lng: number }
+
+export interface PinPickerHint {
+  text: string
+  tone: 'muted' | 'ok' | 'warn'
+}
 
 interface DestinationPinPickerProps {
   center: LatLngPoint | null
   value: LatLngPoint | null
   onChange: (point: LatLngPoint | null) => void
+  hint?: PinPickerHint | null
 }
 
 const pinIcon = L.divIcon({
@@ -28,20 +34,11 @@ function Recenter({ center, focus }: { center: LatLngPoint; focus: LatLngPoint }
   const map = useMap()
   useEffect(() => {
     map.setView([focus.lat, focus.lng], map.getZoom() || 16)
-    const t = window.setTimeout(() => map.invalidateSize(), 150)
-    return () => window.clearTimeout(t)
-    // Solo recentra cuando cambia el sector; no en cada arrastre del pin.
+    const timer = window.setTimeout(() => map.invalidateSize(), 180)
+    return () => window.clearTimeout(timer)
+    // Solo recentra al abrir; no en cada arrastre del pin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center.lat, center.lng, map])
-  return null
-}
-
-function Resize({ expanded }: { expanded: boolean }) {
-  const map = useMap()
-  useEffect(() => {
-    const t = window.setTimeout(() => map.invalidateSize(), 220)
-    return () => window.clearTimeout(t)
-  }, [expanded, map])
   return null
 }
 
@@ -54,17 +51,26 @@ function TapToPlace({ onPlace }: { onPlace: (point: LatLngPoint) => void }) {
   return null
 }
 
-export function DestinationPinPicker({ center, value, onChange }: DestinationPinPickerProps) {
-  const [expanded, setExpanded] = useState(false)
+export function DestinationPinPicker({ center, value, onChange, hint }: DestinationPinPickerProps) {
+  const [open, setOpen] = useState(false)
 
   if (!center) return null
 
   const current = value || center
   const marked = !!value
+  const toneClass =
+    hint?.tone === 'ok'
+      ? 'text-emerald-700'
+      : hint?.tone === 'warn'
+        ? 'text-amber-700'
+        : 'text-surface-400'
+  const statusText = marked
+    ? (hint?.text || '✓ Punto exacto marcado')
+    : 'Usando el sector como referencia'
 
   const map = (
     <MapContainer
-      key={expanded ? 'full' : 'compact'}
+      key="pin-picker"
       center={[current.lat, current.lng]}
       zoom={16}
       className="h-full w-full"
@@ -75,8 +81,13 @@ export function DestinationPinPicker({ center, value, onChange }: DestinationPin
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
       <Recenter center={center} focus={current} />
-      <Resize expanded={expanded} />
       <TapToPlace onPlace={onChange} />
+      {/* Referencia del sector elegido */}
+      <CircleMarker
+        center={[center.lat, center.lng]}
+        radius={7}
+        pathOptions={{ color: '#64748b', fillColor: '#cbd5e1', fillOpacity: 0.9, weight: 2 }}
+      />
       <Marker
         position={[current.lat, current.lng]}
         icon={pinIcon}
@@ -92,61 +103,92 @@ export function DestinationPinPicker({ center, value, onChange }: DestinationPin
   )
 
   return (
-    <div className="rounded-2xl border border-surface-200 overflow-hidden bg-white">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-50 border-b border-surface-100">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
-          <p className="text-xs font-semibold text-surface-700 truncate">
-            Punto exacto <span className="font-normal text-surface-400">(opcional)</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+    <>
+      <div className="rounded-2xl border border-surface-200 bg-white px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-4 h-4 text-primary-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-surface-700">
+              Punto exacto <span className="font-normal text-surface-400">(opcional)</span>
+            </p>
+            <p className={`text-[11px] leading-snug ${marked ? toneClass : 'text-surface-400'}`}>
+              {statusText}
+            </p>
+          </div>
           {marked && (
             <button
               type="button"
               onClick={() => onChange(null)}
-              className="flex items-center gap-1 text-[11px] font-semibold text-surface-500 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+              className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              aria-label="Quitar pin"
             >
-              <X className="w-3 h-3" /> Quitar
+              <X className="w-4 h-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="p-1.5 rounded-lg text-surface-500 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-            aria-label={expanded ? 'Reducir mapa' : 'Ampliar mapa'}
-          >
-            {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 w-full btn-outline py-1.5 text-xs"
+        >
+          <MapPin className="w-3.5 h-3.5" />
+          {marked ? 'Cambiar pin en el mapa' : 'Colocar pin en el mapa'}
+        </button>
       </div>
 
-      {!expanded && (
-        <div className="relative h-[175px]">{map}</div>
-      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[4000] bg-white flex flex-col">
+          <div className="px-4 py-3 border-b border-surface-100">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-surface-800">Punto exacto de ida</p>
+                <p className={`text-[11px] leading-snug ${marked ? toneClass : 'text-surface-400'}`}>
+                  {marked ? (hint?.text || '✓ Punto exacto marcado') : 'Arrastra el pin o toca el mapa en la puerta exacta.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="p-2 text-surface-400"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-surface-400">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" /> Referencia del sector
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-primary-600 inline-block" /> Tu pin
+              </span>
+            </div>
+          </div>
 
-      {expanded && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[4000] bg-white">
-          <div className="h-full w-full">{map}</div>
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[4100] btn-primary px-8 shadow-lg"
-          >
-            Listo
-          </button>
+          <div className="flex-1 relative min-h-0">{map}</div>
+
+          <div className="flex gap-2 px-4 py-3 border-t border-surface-100 bg-white">
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false) }}
+              className="btn-outline flex-1"
+            >
+              Usar el sector
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="btn-primary flex-1"
+            >
+              <Check className="w-4 h-4" /> Listo
+            </button>
+          </div>
         </div>,
         document.body
       )}
-
-      <div className="px-3 py-2">
-        <p className={`text-[11px] font-medium ${marked ? 'text-emerald-700' : 'text-surface-400'}`}>
-          {marked ? '✓ Punto exacto marcado' : 'Usando el sector como referencia'}
-        </p>
-        <p className="text-[11px] text-surface-400 mt-0.5 leading-snug">
-          Arrastra el pin o toca el mapa en la puerta exacta. Si no lo mueves, se usará el sector.
-        </p>
-      </div>
-    </div>
+    </>
   )
 }
