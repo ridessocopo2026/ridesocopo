@@ -44,13 +44,6 @@ export function DriverOnboarding() {
   const [vehicleYear, setVehicleYear] = useState('')
   const [vehicleColor, setVehicleColor] = useState('')
   const [vehiclePlate, setVehiclePlate] = useState('')
-  const [vehiclePassengers, setVehiclePassengers] = useState('')
-
-  // Motos de 2 ruedas: siempre 1 pasajero
-  const MOTOS_CATS = ['moto_basica', 'moto_lujo', 'moto_carga', 'moto']
-  const isMotoCategory = MOTOS_CATS.includes(vehicleCategory)
-  const selectedVehicleCat = vehicleTypes.find((c) => c.name === vehicleCategory)
-  const categoryMaxPassengers = selectedVehicleCat?.max_passengers || 1
 
   // Fotos que ya existen en el servidor (para reenviar sin volver a subirlas)
   const [hasCedulaPhoto, setHasCedulaPhoto] = useState(false)
@@ -108,26 +101,11 @@ export function DriverOnboarding() {
         if (v.year) setVehicleYear((prev) => prev || String(v.year))
         if (v.color) setVehicleColor((prev) => prev || v.color)
         if (v.plate) setVehiclePlate((prev) => prev || v.plate)
-        if (v.max_passengers) setVehiclePassengers(String(v.max_passengers))
         setHasVehiclePhoto(!!v.photo_url)
       }
     })()
     return () => { cancelled = true }
   }, [user?.id])
-
-  // Capacidad de pasajeros: motos = 1; resto hasta el máximo de la categoría
-  useEffect(() => {
-    if (!vehicleCategory) return
-    const cat = vehicleTypes.find((c) => c.name === vehicleCategory)
-    const max = cat?.max_passengers || 1
-    setVehiclePassengers((prev) => {
-      if (MOTOS_CATS.includes(vehicleCategory)) return '1'
-      const n = Number(prev)
-      if (!prev || Number.isNaN(n) || n < 1) return String(max)
-      return String(Math.min(n, max))
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleCategory, vehicleTypes])
 
   // Comprime y sube el archivo (la foto de una cédula pasa de ~600 KB
   // a ~200 KB, el vehículo de ~900 KB a ~120 KB) en vez de subir la
@@ -156,11 +134,6 @@ export function DriverOnboarding() {
 
     if (!vehiclePhoto && !hasVehiclePhoto) {
       setError('Debes subir la foto del vehículo')
-      return
-    }
-
-    if (!vehiclePassengers || Number(vehiclePassengers) < 1) {
-      setError('Indica cuántos pasajeros lleva el vehículo')
       return
     }
 
@@ -210,17 +183,6 @@ export function DriverOnboarding() {
 
       if (rpcError) throw rpcError
 
-      // Guardar la capacidad de pasajeros elegida (el trigger limita motos a 1)
-      const vehicleId = (rpcData as { vehicle_id?: string } | null)?.vehicle_id
-      if (vehicleId) {
-        const passengers = isMotoCategory ? 1 : Math.max(1, Number(vehiclePassengers) || categoryMaxPassengers)
-        const { error: passErr } = await supabase.rpc('set_vehicle_passengers', {
-          p_vehicle_id: vehicleId,
-          p_max_passengers: passengers
-        })
-        if (passErr) console.error('set_vehicle_passengers:', passErr.message)
-      }
-
       const newStatus = (rpcData as { status?: string } | null)?.status
       navigate(newStatus === 'aprobado' ? '/conductor' : '/conductor/pendiente')
     } catch (err: any) {
@@ -244,7 +206,7 @@ export function DriverOnboarding() {
       }
     }
     if (step === 3) {
-      if (!vehicleCategory || !vehicleBrand || !vehicleModel || !vehicleYear || !vehicleColor || !vehiclePlate || !vehiclePassengers) {
+      if (!vehicleCategory || !vehicleBrand || !vehicleModel || !vehicleYear || !vehicleColor || !vehiclePlate) {
         setError('Completa todos los datos del vehículo')
         return
       }
@@ -391,7 +353,7 @@ export function DriverOnboarding() {
                     <button
                       key={cat.name}
                       type="button"
-                      onClick={() => { setVehicleCategory(cat.name); setVehiclePassengers(String(cat.max_passengers || 1)) }}
+                      onClick={() => setVehicleCategory(cat.name)}
                       className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         vehicleCategory === cat.name
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -467,23 +429,6 @@ export function DriverOnboarding() {
                   onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
                   required
                 />
-              </div>
-
-              <div>
-                <label className="label">Pasajeros *</label>
-                <input
-                  type="number"
-                  className="input"
-                  min="1"
-                  max={String(isMotoCategory ? 1 : categoryMaxPassengers)}
-                  value={vehiclePassengers}
-                  onChange={(e) => setVehiclePassengers(e.target.value)}
-                  disabled={isMotoCategory}
-                  required
-                />
-                <p className="text-[11px] text-surface-400 mt-1">
-                  {isMotoCategory ? 'Las motos son para 1 solo pasajero.' : `Máximo ${categoryMaxPassengers} según la categoría.`}
-                </p>
               </div>
             </div>
           )}
