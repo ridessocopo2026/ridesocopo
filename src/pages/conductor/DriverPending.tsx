@@ -1,34 +1,14 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, ShieldCheck, LogOut, ClipboardList } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase'
+import { useDriverProfileState } from '@/hooks/useDriverProfileState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 
 export function DriverPending() {
-  const { user, signOut } = useAuth()
+  const { signOut } = useAuth()
   const navigate = useNavigate()
-  const [loadingDocs, setLoadingDocs] = useState(true)
-  const [incomplete, setIncomplete] = useState(false)
-
-  useEffect(() => {
-    if (!user?.id) return
-    let cancelled = false
-    ;(async () => {
-      const [{ data: docs }, { data: vehicles }] = await Promise.all([
-        supabase.from('driver_documents').select('cedula_photo_url, license_photo_url').eq('driver_id', user.id).maybeSingle(),
-        supabase.from('vehicles').select('id').eq('driver_id', user.id).limit(1)
-      ])
-      if (cancelled) return
-      const d = docs as { cedula_photo_url?: string | null; license_photo_url?: string | null } | null
-      const hasDocs = !!d && !!d.cedula_photo_url && !!d.license_photo_url
-      const hasVehicle = (vehicles || []).length > 0
-      const hasPhone = !!user.phone && !!user.phone.trim()
-      setIncomplete(!hasDocs || !hasVehicle || !hasPhone)
-      setLoadingDocs(false)
-    })()
-    return () => { cancelled = true }
-  }, [user?.id, user?.phone])
+  const { state: profileState, loading: loadingDocs } = useDriverProfileState()
+  const incomplete = !!profileState && !profileState.complete
 
   const handleSignOut = async () => {
     await signOut()

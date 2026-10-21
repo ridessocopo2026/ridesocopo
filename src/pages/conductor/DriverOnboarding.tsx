@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Loader2, Upload, User, Car, FileText, Shield } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage, type ImagePreset } from '@/lib/uploadImage'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext';
+import { useDriverProfileState } from '@/hooks/useDriverProfileState'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { VehicleCategory, VehicleCategoryType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
@@ -23,6 +24,7 @@ export function DriverOnboarding() {
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { state: driverState, loading: driverStateLoading } = useDriverProfileState()
 
   // Datos personales
   const [fullName, setFullName] = useState(user?.full_name || '')
@@ -252,6 +254,32 @@ export function DriverOnboarding() {
     </div>
   )
 
+  if (driverStateLoading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    )
+  }
+
+  if (driverState?.approved && driverState.complete) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center px-6 py-12">
+        <div className="card max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h1 className="text-xl font-bold text-surface-800 mb-2">Datos verificados</h1>
+          <p className="text-sm text-surface-500 mb-4">
+            Tu cuenta está aprobada y tus documentos están completos. Si necesitas corregir algo, solicítalo y el administrador lo revisará.
+          </p>
+          <button onClick={() => navigate('/conductor/perfil')} className="btn-primary w-full">
+            Ir a mi perfil
+          </button>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="min-h-screen bg-surface-50 pb-20">
       <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">

@@ -11,6 +11,15 @@ import type { Profile, DriverDocument, Vehicle } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
 
+interface DriverChangeRequest {
+  id: string
+  driver_id: string
+  kind: 'documents' | 'vehicle' | 'phone'
+  payload: any
+  status: string
+  created_at: string
+}
+
 export function AdminDrivers() {
   const [drivers, setDrivers] = useState<Profile[]>([])
   const [selectedDriver, setSelectedDriver] = useState<Profile | null>(null)
@@ -23,6 +32,8 @@ export function AdminDrivers() {
   const [pendingVeh, setPendingVeh] = useState<Set<string>>(new Set())
   // Conductores que no completaron documentos/vehiculo (no se pueden aprobar)
   const [incompleteDrivers, setIncompleteDrivers] = useState<Set<string>>(new Set())
+  const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set())
+  const [pendingChange, setPendingChange] = useState<DriverChangeRequest | null>(null)
   const { user } = useAuth()
 
   useEffect(() => {
@@ -50,6 +61,12 @@ export function AdminDrivers() {
       .select('driver_id')
       .eq('is_approved', false)
     setPendingVeh(new Set<string>((vPending || []).map((r: any) => r.driver_id)))
+
+    const { data: changeRows } = await supabase
+      .from('driver_change_requests')
+      .select('driver_id')
+      .eq('status', 'pendiente')
+    setPendingChanges(new Set<string>((changeRows || []).map((r: any) => r.driver_id)))
 
     // Conductores sin documentos o sin vehiculo (no se pueden aprobar)
     const [{ data: docsRows }, { data: vehRows }] = await Promise.all([
@@ -103,6 +120,7 @@ export function AdminDrivers() {
     setDocuments(null)
     setVehicles([])
     setImageUrls({})
+    setPendingChange(null)
 
     const [docRes, vehRes] = await Promise.all([
       supabase.from('driver_documents').select('*').eq('driver_id', driver.id).single(),
@@ -145,6 +163,31 @@ export function AdminDrivers() {
     })
 
     setImageUrls(urls)
+
+    const { data: changeData } = await supabase
+      .from('driver_change_requests')
+      .select('*')
+      .eq('driver_id', driver.id)
+      .eq('status', 'pendiente')
+      .maybeSingle()
+
+    const change = (changeData as DriverChangeRequest | null) || null
+    setPendingChange(change)
+
+    if (change?.kind === 'documents') {
+      const pendingUrls: { [key: string]: string } = {}
+      if (change.payload?.cedula_photo_url) {
+        const u = await getSignedUrl('documents', change.payload.cedula_photo_url)
+        if (u) pendingUrls.cedulaPending = u
+      }
+      if (change.payload?.license_photo_url) {
+        const u = await getSignedUrl('documents', change.payload.license_photo_url)
+        if (u) pendingUrls.licensePending = u
+      }
+      if (Object.keys(pendingUrls).length) {
+        setImageUrls((prev) => ({ ...prev, ...pendingUrls }))
+      }
+    }
   }
 
   const handleReview = async (driverId: string, approve: boolean) => {
@@ -184,6 +227,27 @@ export function AdminDrivers() {
       if (selectedDriver) {
         loadDriverDetails(selectedDriver)
       }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleChangeReview = async (approve: boolean) => {
+    if (!selectedDriver || !pendingChange) return
+    setError('')
+    setActionLoading(true)
+    try {
+      const { error } = await supabase.rpc('review_driver_change', {
+        p_request_id: pendingChange.id,
+        p_approve: approve,
+        p_reason: approve ? null : 'Rechazada por el administrador'
+      })
+      if (error) throw error
+      setPendingChange(null)
+      await loadDriverDetails(selectedDriver)
+      await loadDrivers()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -311,7 +375,7 @@ export function AdminDrivers() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {statusBadge[driver.driver_status || 'pendiente']}
-                    {(driver.driver_status === 'pendiente' || driver.avatar_pending_url || pendingVeh.has(driver.id)) && (
+                    {(driver.driver_status === 'pendiente' || driver.avatar_pending_url || pendingVeh.has(driver.id) || pendingChanges.has(driver.id)) && (
                       <span className="badge-danger">⚠ En espera</span>
                     )}
                     {incompleteDrivers.has(driver.id) && (
@@ -319,6 +383,9 @@ export function AdminDrivers() {
                     )}
                     {driver.full_name_pending && (
                       <span className="badge-warning" title="Tiene un cambio de nombre por aprobar">Nombre por aprobar</span>
+                    )}
+                    {pendingChanges.has(driver.id) && (
+                      <span className="badge-warning" title="Tiene una corrección por aprobar">Corrección por aprobar</span>
                     )}
                   </div>
                 </div>
@@ -437,6 +504,49 @@ export function AdminDrivers() {
                   </>
                 )}
               </div>
+
+              {pendingChange && (
+                <div className="card border-2 border-amber-200">
+                  <h3 className="font-semibold text-surface-700 mb-3">Solicitud de corrección</h3>
+                  <p className="text-xs text-surface-500 mb-2">
+                    Tipo: {pendingChange.kind === 'documents' ? 'Documentos' : pendingChange.kind === 'vehicle' ? 'Vehículo' : 'Teléfono'}
+                  </p>
+                  <div className="text-sm text-surface-600 space-y-1">
+                    {pendingChange.kind === 'phone' && (
+                      <p><strong>Nuevo teléfono:</strong> {pendingChange.payload?.phone}</p>
+                    )}
+                    {pendingChange.kind === 'documents' && (
+                      <>
+                        <p><strong>Cédula:</strong> {pendingChange.payload?.cedula_number}</p>
+                        <p><strong>Licencia:</strong> {pendingChange.payload?.license_number || '—'}</p>
+                        <p><strong>Vence:</strong> {pendingChange.payload?.license_expiry_date}</p>
+                        {imageUrls.cedulaPending && (
+                          <a href={imageUrls.cedulaPending} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 underline">Ver nueva foto de cédula</a>
+                        )}
+                        {imageUrls.licensePending && (
+                          <a href={imageUrls.licensePending} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 underline">Ver nueva foto de licencia</a>
+                        )}
+                      </>
+                    )}
+                    {pendingChange.kind === 'vehicle' && (
+                      <>
+                        <p><strong>Vehículo:</strong> {pendingChange.payload?.brand} {pendingChange.payload?.model} ({pendingChange.payload?.year})</p>
+                        <p><strong>Placa:</strong> {pendingChange.payload?.plate}</p>
+                        <p><strong>Tipo:</strong> {pendingChange.payload?.category}</p>
+                        <p><strong>Color:</strong> {pendingChange.payload?.color}</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <button onClick={() => handleChangeReview(true)} className="btn-success" disabled={actionLoading}>
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Aprobar</>}
+                    </button>
+                    <button onClick={() => handleChangeReview(false)} className="btn-danger" disabled={actionLoading}>
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4" /> Rechazar</>}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Cambio de foto de perfil pendiente de aprobación */}
               {selectedDriver.avatar_pending_url && (
