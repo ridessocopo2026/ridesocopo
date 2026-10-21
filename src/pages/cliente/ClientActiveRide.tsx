@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, Circle, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -18,6 +18,8 @@ import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
 import { fetchRoute } from '@/lib/routing'
+
+const SECTOR_REFERENCE_RADIUS_M = 350
 
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -543,7 +545,7 @@ export function ClientActiveRide() {
   const statusLabels = {
     buscando: 'Buscando conductor...',
     aceptada: 'Conductor en camino',
-    en_ruta: 'En ruta al destino',
+    en_ruta: ride.destination_is_exact ? 'En ruta al destino' : 'En ruta al sector',
     completada: 'Viaje completado',
     cancelada: 'Viaje cancelado',
     incidente: 'Incidente en revisión'
@@ -618,7 +620,14 @@ export function ClientActiveRide() {
               <MapResize trigger={mapExpanded} />
               {/* Ruta por carretera (OSRM). Si falla, referencia recta punteada */}
               {route && route.length >= 2 ? (
-                <Polyline positions={route} pathOptions={{ color: '#7c3aed', weight: 5 }} />
+                <Polyline
+                  positions={route}
+                  pathOptions={{
+                    color: '#7c3aed',
+                    weight: 5,
+                    dashArray: ride.status === 'en_ruta' && !ride.destination_is_exact ? '8 8' : undefined
+                  }}
+                />
               ) : (
                 <Polyline
                   positions={[origin, destination]}
@@ -629,8 +638,15 @@ export function ClientActiveRide() {
                 <Popup>Tu ubicación</Popup>
               </Marker>
               <Marker position={destination} icon={destIcon}>
-                <Popup>Destino</Popup>
+                <Popup>Destino{!ride.destination_is_exact ? ' (sector de referencia)' : ' (punto exacto)'}</Popup>
               </Marker>
+              {!ride.destination_is_exact && (
+                <Circle
+                  center={destination}
+                  radius={SECTOR_REFERENCE_RADIUS_M}
+                  pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.08, dashArray: '6 6', weight: 2 }}
+                />
+              )}
               {driverPos && (
                 <Marker position={driverPos} icon={vehicleIcon}>
                   <Popup>Conductor</Popup>
@@ -642,7 +658,7 @@ export function ClientActiveRide() {
             <div className="absolute top-2 left-2 z-[1000] bg-white/90 rounded-lg shadow-card px-2.5 py-1.5 text-[11px] text-surface-600 space-y-0.5">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary-600 inline-block" /> Conductor</div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-accent-600 inline-block" /> Tú</div>
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Destino</div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Destino {!ride.destination_is_exact ? '(sector)' : '(punto exacto)'}</div>
             </div>
 
             {/* Centrar mapa */}
@@ -873,6 +889,9 @@ export function ClientActiveRide() {
                 <p className="text-sm text-surface-700">{ride.destination_address || 'Destino'}</p>
                 {ride.destination_barrio_name && (
                   <span className="badge-primary mt-1">{ride.destination_barrio_name}</span>
+                )}
+                {!ride.destination_is_exact && (
+                  <p className="text-[11px] text-amber-600 mt-1">El mapa muestra el sector; la dirección exacta es la indicada.</p>
                 )}
               </div>
             </div>

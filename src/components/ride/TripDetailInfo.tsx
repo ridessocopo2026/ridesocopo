@@ -135,7 +135,11 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-surface-500">Estado</span>
-            <span className="font-medium text-surface-700">{rideStatusLabels[ride.status] || ride.status}</span>
+            <span className="font-medium text-surface-700">
+              {ride.status === 'en_ruta' && ride.destination_is_exact === false
+                ? 'En ruta al sector'
+                : (rideStatusLabels[ride.status] || ride.status)}
+            </span>
           </div>
           {ride.tracking_code && (
             <div className="flex justify-between">

@@ -13,6 +13,7 @@ import { fmt } from '@/lib/format'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
+import { DestinationPinPicker } from '@/components/ride/DestinationPinPicker'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
@@ -94,6 +95,8 @@ export function ClientHome() {
   const [originAddress, setOriginAddress] = useState('')
   const [destBarrioId, setDestBarrioId] = useState('')
   const [destAddress, setDestAddress] = useState('')
+  const [destPin, setDestPin] = useState<{ lat: number; lng: number } | null>(null)
+  const [sheetPin, setSheetPin] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryType | null>(null)
   const [categories, setCategories] = useState<VehicleCategory[]>([])
   const [barrios, setBarrios] = useState<Barrio[]>([])
@@ -197,6 +200,8 @@ export function ClientHome() {
       loadBarrios(selectedCityId)
       setDestBarrioId('')
       setDestAddress('')
+      setDestPin(null)
+      setSheetPin(null)
     } else {
       // Sin ciudad no hay sectores que mostrar (evita la lista de otra ciudad)
       setBarrios([])
@@ -223,6 +228,7 @@ export function ClientHome() {
     if (draft.destBarrioId && draft.destAddress) {
       setDestBarrioId(draft.destBarrioId)
       setDestAddress(draft.destAddress)
+      if (draft.destPin) setDestPin(draft.destPin)
     }
     if (draft.category) setSelectedCategory(draft.category)
     if (draft.origin) {
@@ -435,6 +441,12 @@ export function ClientHome() {
     }
   }, [destBarrioId])
 
+  // Si el cliente ajusta el pin del destino, la tarifa anterior deja de ser válida.
+  useEffect(() => {
+    setFare(null)
+    setShowFareSheet(false)
+  }, [destPin?.lat, destPin?.lng])
+
   const loadCities = async (retry = true) => {
     const { data, error } = await getActiveCities()
 
@@ -474,6 +486,8 @@ export function ClientHome() {
     setOrigin(null)
     setOriginAddress('')
     setInCoverage(false)
+    setDestPin(null)
+    setSheetPin(null)
   }
 
   // Ir a iniciar sesión o registrarse guardando antes lo que el invitado ya
@@ -484,6 +498,7 @@ export function ClientHome() {
         cityId: selectedCityId,
         destBarrioId,
         destAddress,
+        destPin,
         category: selectedCategory,
         origin,
         originAddress
@@ -722,6 +737,8 @@ export function ClientHome() {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
       }
 
+      const destPoint = destPin ?? { lat: Number(barrio.lat), lng: Number(barrio.lng) }
+
       const applyFare = (res: FareCalculation) => {
         setFare(res)
         if (couponCode.trim()) {
@@ -739,7 +756,7 @@ export function ClientHome() {
       // Cache corto por origen/destino/categoria/cupon
       const cacheKey = [
         origin.lat.toFixed(5), origin.lng.toFixed(5),
-        Number(barrio.lat).toFixed(5), Number(barrio.lng).toFixed(5),
+        destPoint.lat.toFixed(5), destPoint.lng.toFixed(5),
         selectedCategory,
         (couponCode || '').trim().toUpperCase()
       ].join('|')
@@ -752,8 +769,8 @@ export function ClientHome() {
       const { data, error } = await supabase.rpc('calculate_fare', {
         p_origin_lat: origin.lat,
         p_origin_lng: origin.lng,
-        p_dest_lat: barrio.lat,
-        p_dest_lng: barrio.lng,
+        p_dest_lat: destPoint.lat,
+        p_dest_lng: destPoint.lng,
         p_category: selectedCategory,
         p_coupon_code: couponCode || null
       })
@@ -799,6 +816,8 @@ export function ClientHome() {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
       }
 
+      const destPoint = destPin ?? { lat: Number(barrio.lat), lng: Number(barrio.lng) }
+
       const method = getSelectedMethod()
       const requiresProof = method?.proof_required
 
@@ -822,8 +841,8 @@ export function ClientHome() {
           p_origin_lat: origin.lat,
           p_origin_lng: origin.lng,
           p_origin_address: originAddress,
-          p_dest_lat: barrio.lat,
-          p_dest_lng: barrio.lng,
+          p_dest_lat: destPoint.lat,
+          p_dest_lng: destPoint.lng,
           p_dest_address: destAddress,
           p_category: selectedCategory,
           p_payment_method: selectedPaymentMethod,
@@ -838,8 +857,8 @@ export function ClientHome() {
           p_origin_lat: origin.lat,
           p_origin_lng: origin.lng,
           p_origin_address: originAddress,
-          p_dest_lat: barrio.lat,
-          p_dest_lng: barrio.lng,
+          p_dest_lat: destPoint.lat,
+          p_dest_lng: destPoint.lng,
           p_dest_address: destAddress,
           p_category: selectedCategory,
           p_payment_method: selectedPaymentMethod,
@@ -979,6 +998,8 @@ export function ClientHome() {
     const coincideTipo = destTab === 'todos' || b.tipo === destTab
     return coincideTexto && coincideTipo
   })
+
+  const sheetBarrio = barrios.find((b) => b.id === sheetBarrioId)
 
   // Texto contextual del botón Continuar según qué paso falta
   const botonContinuarTexto = () => {
@@ -1240,7 +1261,7 @@ export function ClientHome() {
 
           {destBarrioId && destAddress ? (
             <button
-              onClick={() => { setSheetBarrioId(destBarrioId); setSheetAddress(destAddress); setShowDestSheet(true) }}
+              onClick={() => { setSheetBarrioId(destBarrioId); setSheetAddress(destAddress); setSheetPin(destPin); setShowDestSheet(true) }}
               className="w-full text-left card-hover flex items-center gap-3"
             >
               <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
@@ -1251,12 +1272,13 @@ export function ClientHome() {
                     {barrios.find((b) => b.id === destBarrioId)?.name || 'Destino'}
                   </p>
                 <p className="text-xs text-surface-500 truncate">{destAddress}</p>
+                {destPin && <span className="badge-success mt-1 inline-block">Punto exacto marcado</span>}
               </div>
               <span className="text-xs font-medium text-primary-600">Cambiar</span>
             </button>
           ) : (
             <button
-              onClick={() => { setSheetBarrioId(''); setSheetAddress(''); setShowDestSheet(true) }}
+              onClick={() => { setSheetBarrioId(''); setSheetAddress(''); setSheetPin(null); setShowDestSheet(true) }}
               className="btn-primary w-full"
             >
               <MapPin className="w-4 h-4" />
@@ -1532,7 +1554,7 @@ export function ClientHome() {
                     barriosFiltrados.map((barrio) => (
                       <button
                         key={barrio.id}
-                        onClick={() => setSheetBarrioId(barrio.id)}
+                        onClick={() => { setSheetBarrioId(barrio.id); setSheetPin(null) }}
                         className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
                           sheetBarrioId === barrio.id
                             ? 'border-primary-600 bg-primary-50 shadow-soft'
@@ -1577,6 +1599,16 @@ export function ClientHome() {
               </div>
             )}
 
+            {sheetBarrio?.lat && sheetBarrio?.lng && (
+              <div className="animate-slide-up mb-4">
+                <DestinationPinPicker
+                  center={{ lat: Number(sheetBarrio.lat), lng: Number(sheetBarrio.lng) }}
+                  value={sheetPin}
+                  onChange={setSheetPin}
+                />
+              </div>
+            )}
+
             {/* Se oculta mientras el usuario debe elegir ciudad o reintentar:
                 así nunca se ve un botón deshabilitado sin explicación */}
             {!selectedCityId && (cities.length > 1 || !!citiesError) ? null : (
@@ -1585,6 +1617,7 @@ export function ClientHome() {
               onClick={() => {
                 setDestBarrioId(sheetBarrioId)
                 setDestAddress(sheetAddress)
+                setDestPin(sheetPin)
                 setShowDestSheet(false)
                 setTimeout(() => {
                   if (!origin) {

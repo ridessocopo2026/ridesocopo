@@ -18,6 +18,7 @@ export interface GuestDraft {
   category: VehicleCategoryType | null
   origin: { lat: number; lng: number } | null
   originAddress: string
+  destPin?: { lat: number; lng: number } | null
   savedAt: number
 }
 

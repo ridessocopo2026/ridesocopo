@@ -200,6 +200,7 @@ export interface Ride {
   destination_zone_id?: string
   destination_barrio_id?: string
   destination_barrio_name?: string
+  destination_is_exact?: boolean
   base_fare_usd: number
   origin_surcharge_usd: number
   destination_surcharge_usd: number
