@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Users, Check, X, Loader2, Eye, MessageCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Users, Check, X, Loader2, Eye, MessageCircle, Search, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
@@ -20,6 +21,31 @@ interface DriverChangeRequest {
   created_at: string
 }
 
+interface PendingChangeSummary {
+  driver_id: string
+  kind: 'documents' | 'vehicle' | 'phone'
+  created_at: string
+}
+
+type DriverFilter = 'all' | 'pending' | 'new' | 'vehicle' | 'change' | 'name' | 'avatar' | 'incomplete'
+
+const DRIVER_FILTERS: { key: DriverFilter; label: string }[] = [
+  { key: 'all', label: 'Todos' },
+  { key: 'pending', label: 'Solicitudes' },
+  { key: 'new', label: 'Nuevos' },
+  { key: 'vehicle', label: 'Vehículos' },
+  { key: 'change', label: 'Correcciones' },
+  { key: 'name', label: 'Nombres' },
+  { key: 'avatar', label: 'Fotos' },
+  { key: 'incomplete', label: 'Sin datos' },
+]
+
+const CHANGE_KIND_LABEL: Record<string, string> = {
+  documents: 'documentos',
+  vehicle: 'vehículo',
+  phone: 'teléfono',
+}
+
 export function AdminDrivers() {
   const [drivers, setDrivers] = useState<Profile[]>([])
   const [selectedDriver, setSelectedDriver] = useState<Profile | null>(null)
@@ -32,8 +58,15 @@ export function AdminDrivers() {
   const [pendingVeh, setPendingVeh] = useState<Set<string>>(new Set())
   // Conductores que no completaron documentos/vehiculo (no se pueden aprobar)
   const [incompleteDrivers, setIncompleteDrivers] = useState<Set<string>>(new Set())
-  const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set())
+  const [pendingChanges, setPendingChanges] = useState<Map<string, PendingChangeSummary>>(new Map())
   const [pendingChange, setPendingChange] = useState<DriverChangeRequest | null>(null)
+  const [platesByDriver, setPlatesByDriver] = useState<Map<string, string[]>>(new Map())
+  const [filter, setFilter] = useState<DriverFilter>('all')
+  const [query, setQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusDriverId = searchParams.get('driver')
+  const focusType = searchParams.get('focus')
+  const openedFocusRef = useRef<string | null>(null)
   const { user } = useAuth()
 
   useEffect(() => {
@@ -55,25 +88,30 @@ export function AdminDrivers() {
       setDrivers(data as Profile[])
     }
 
-    // Conductores con al menos un vehículo sin aprobar (para la alerta roja)
-    const { data: vPending } = await supabase
-      .from('vehicles')
-      .select('driver_id')
-      .eq('is_approved', false)
-    setPendingVeh(new Set<string>((vPending || []).map((r: any) => r.driver_id)))
-
     const { data: changeRows } = await supabase
       .from('driver_change_requests')
-      .select('driver_id')
+      .select('driver_id, kind, created_at')
       .eq('status', 'pendiente')
-    setPendingChanges(new Set<string>((changeRows || []).map((r: any) => r.driver_id)))
+    const changeMap = new Map<string, PendingChangeSummary>()
+    for (const r of (changeRows || [])) changeMap.set(r.driver_id, r as PendingChangeSummary)
+    setPendingChanges(changeMap)
 
-    // Conductores sin documentos o sin vehiculo (no se pueden aprobar)
+    // Conductores sin documentos o sin vehiculo (no se pueden aprobar) + placas
     const [{ data: docsRows }, { data: vehRows }] = await Promise.all([
       supabase.from('driver_documents').select('driver_id'),
-      supabase.from('vehicles').select('driver_id')
+      supabase.from('vehicles').select('driver_id, plate, is_approved')
     ])
     const withDocs = new Set<string>((docsRows || []).map((r: any) => r.driver_id))
+    const pendingVehicleIds = new Set<string>()
+    const plates = new Map<string, string[]>()
+    for (const r of (vehRows || [])) {
+      if (!r.is_approved) pendingVehicleIds.add(r.driver_id)
+      const list = plates.get(r.driver_id) || []
+      list.push(r.plate)
+      plates.set(r.driver_id, list)
+    }
+    setPendingVeh(pendingVehicleIds)
+    setPlatesByDriver(plates)
     const withVeh = new Set<string>((vehRows || []).map((r: any) => r.driver_id))
     const incomplete = new Set<string>()
     for (const d of (data || [])) {
@@ -190,6 +228,14 @@ export function AdminDrivers() {
     }
   }
 
+  const closeDriverDetails = () => {
+    setSelectedDriver(null)
+    openedFocusRef.current = null
+    if (focusDriverId || focusType) {
+      setSearchParams({}, { replace: true })
+    }
+  }
+
   const handleReview = async (driverId: string, approve: boolean) => {
     setError('')
     setActionLoading(true)
@@ -202,7 +248,7 @@ export function AdminDrivers() {
 
       if (error) throw error
 
-      setSelectedDriver(null)
+      closeDriverDetails()
       loadDrivers()
     } catch (err: any) {
       setError(err.message)
@@ -293,7 +339,7 @@ export function AdminDrivers() {
 
       if (error) throw error
 
-      setSelectedDriver(null)
+      closeDriverDetails()
       loadDrivers()
     } catch (err: any) {
       setError(err.message)
@@ -311,6 +357,77 @@ export function AdminDrivers() {
 
   // Solo se puede aprobar si completo documentos y tiene vehiculo
   const canApproveSelected = !!selectedDriver && !!documents && vehicles.length > 0 && !!selectedDriver.phone && !!selectedDriver.phone.trim()
+
+  const pendingTypes = (d: Profile): string[] => {
+    const types: string[] = []
+    if (d.driver_status === 'pendiente') types.push('Conductor nuevo')
+    if (pendingVeh.has(d.id)) types.push('Vehículo')
+    const change = pendingChanges.get(d.id)
+    if (change) types.push(`Corrección: ${CHANGE_KIND_LABEL[change.kind] || change.kind}`)
+    if (d.full_name_pending) types.push('Nombre')
+    if (d.avatar_pending_url) types.push('Foto')
+    return types
+  }
+
+  const counts: Record<DriverFilter, number> = {
+    all: drivers.length,
+    pending: drivers.filter((d) => pendingTypes(d).length > 0).length,
+    new: drivers.filter((d) => d.driver_status === 'pendiente').length,
+    vehicle: drivers.filter((d) => pendingVeh.has(d.id)).length,
+    change: drivers.filter((d) => pendingChanges.has(d.id)).length,
+    name: drivers.filter((d) => !!d.full_name_pending).length,
+    avatar: drivers.filter((d) => !!d.avatar_pending_url).length,
+    incomplete: drivers.filter((d) => incompleteDrivers.has(d.id)).length,
+  }
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleDrivers = drivers
+    .filter((d) => {
+      if (filter === 'pending' && pendingTypes(d).length === 0) return false
+      if (filter === 'new' && d.driver_status !== 'pendiente') return false
+      if (filter === 'vehicle' && !pendingVeh.has(d.id)) return false
+      if (filter === 'change' && !pendingChanges.has(d.id)) return false
+      if (filter === 'name' && !d.full_name_pending) return false
+      if (filter === 'avatar' && !d.avatar_pending_url) return false
+      if (filter === 'incomplete' && !incompleteDrivers.has(d.id)) return false
+      if (!normalizedQuery) return true
+      const plates = (platesByDriver.get(d.id) || []).join(' ').toLowerCase()
+      return [d.full_name, d.email, d.phone, plates]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery))
+    })
+    .sort((a, b) => {
+      const aPending = pendingTypes(a).length > 0 ? 0 : 1
+      const bPending = pendingTypes(b).length > 0 ? 0 : 1
+      if (aPending !== bPending) return aPending - bPending
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+
+  useEffect(() => {
+    if (!focusDriverId || loading) return
+    if (openedFocusRef.current === focusDriverId) return
+    const driver = drivers.find((d) => d.id === focusDriverId)
+    if (!driver) return
+    openedFocusRef.current = focusDriverId
+    void loadDriverDetails(driver)
+  }, [focusDriverId, loading, drivers])
+
+  useEffect(() => {
+    if (!selectedDriver || !focusType) return
+    const cardIds: Record<string, string> = {
+      change: 'card-change',
+      vehicle: 'card-vehicle',
+      name: 'card-name',
+      avatar: 'card-avatar',
+      pending: 'card-actions',
+    }
+    const cardId = cardIds[focusType]
+    if (!cardId) return
+    const timer = window.setTimeout(() => {
+      document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [selectedDriver, focusType, pendingChange, documents, vehicles])
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -338,97 +455,142 @@ export function AdminDrivers() {
           />
         ) : (
           <div className="space-y-3">
-            {drivers.map((driver) => (
-              <div key={driver.id} className="card card-hover">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden">
-                      {driver.avatar_url ? (
-                        <img src={resolvePhotoUrl(driver.avatar_url, 'avatars')} alt={driver.full_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                      ) : (
-                        <Users className="w-6 h-6 text-primary-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-surface-700">{driver.full_name}</p>
-                      <p className="text-xs text-surface-400">{driver.email}</p>
-                      {driver.avatar_pending_url && (
-                        <span className="badge-warning mt-1">Nueva foto pendiente</span>
-                      )}
-                      {driver.phone && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-surface-500">{driver.phone}</span>
-                          {whatsappNumber(driver.phone) && (
-                            <a
-                              href={`https://wa.me/${whatsappNumber(driver.phone)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Abrir WhatsApp"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
-                            >
-                              <MessageCircle className="w-3 h-3" /> WhatsApp
-                            </a>
+            {counts.pending > 0 && (
+              <button
+                onClick={() => setFilter('pending')}
+                className="w-full flex items-center gap-3 rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 text-left"
+              >
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">
+                    {counts.pending} solicitud{counts.pending === 1 ? '' : 'es'} pendiente{counts.pending === 1 ? '' : 's'}
+                  </p>
+                  <p className="text-xs text-amber-700">Revisa conductores nuevos, vehículos, correcciones, nombres o fotos.</p>
+                </div>
+                <span className="text-xs font-bold text-amber-700">Ver →</span>
+              </button>
+            )}
+
+            <div className="relative">
+              <Search className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className="input pl-9"
+                placeholder="Buscar por nombre, teléfono, correo o placa"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {DRIVER_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
+                    filter === f.key
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : f.key === 'pending' && counts.pending > 0
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-white text-surface-600 border-surface-200'
+                  }`}
+                >
+                  {f.label} ({counts[f.key]})
+                </button>
+              ))}
+            </div>
+
+            <p className="text-xs text-surface-400">
+              {visibleDrivers.length} conductor{visibleDrivers.length === 1 ? '' : 'es'}
+              {filter !== 'all' ? ` en “${DRIVER_FILTERS.find((f) => f.key === filter)?.label}”` : ''}
+            </p>
+
+            {visibleDrivers.length === 0 ? (
+              <EmptyState
+                icon={<Users className="w-8 h-8" />}
+                title="Sin resultados"
+                description="No hay conductores que coincidan con la búsqueda o el filtro."
+              />
+            ) : (
+              <div className="space-y-2">
+                {visibleDrivers.map((driver) => {
+                  const types = pendingTypes(driver)
+                  const isFocused = focusDriverId === driver.id
+                  const plates = platesByDriver.get(driver.id) || []
+                  return (
+                    <div
+                      key={driver.id}
+                      className={`card p-3 ${types.length > 0 ? 'border-l-4 border-l-amber-400' : ''} ${isFocused ? 'ring-2 ring-amber-400 bg-amber-50/40' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-11 h-11 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {driver.avatar_url ? (
+                            <img src={resolvePhotoUrl(driver.avatar_url, 'avatars')} alt={driver.full_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          ) : (
+                            <Users className="w-5 h-5 text-primary-600" />
                           )}
                         </div>
-                      )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium text-surface-800 truncate">{driver.full_name}</p>
+                              <p className="text-xs text-surface-400 truncate">{driver.phone || 'Sin teléfono'} • {driver.email}</p>
+                              {plates.length > 0 && (
+                                <p className="text-xs text-surface-400 truncate">Placa: {plates.join(', ')}</p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              {statusBadge[driver.driver_status || 'pendiente']}
+                            </div>
+                          </div>
+                          {(types.length > 0 || incompleteDrivers.has(driver.id)) && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {types.map((t) => (
+                                <span key={t} className="badge-warning text-[10px]">{t}</span>
+                              ))}
+                              {incompleteDrivers.has(driver.id) && (
+                                <span className="badge-danger text-[10px]" title="No completó teléfono/documentos/vehículo">Sin datos</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <button onClick={() => loadDriverDetails(driver)} className="btn-outline flex-1 py-1.5 text-xs whitespace-nowrap">
+                          <Eye className="w-3.5 h-3.5" />
+                          Revisar
+                        </button>
+                        {driver.driver_status === 'pendiente' && (
+                          <>
+                            <button
+                              onClick={() => handleReview(driver.id, true)}
+                              className="btn-success px-3 py-1.5 text-xs"
+                              disabled={actionLoading || incompleteDrivers.has(driver.id)}
+                              title={incompleteDrivers.has(driver.id) ? 'No completó teléfono/documentos/vehículo' : 'Aprobar conductor'}
+                            >
+                              <Check className="w-3.5 h-3.5" /> Aprobar
+                            </button>
+                            <button
+                              onClick={() => handleReview(driver.id, false)}
+                              className="btn-danger px-3 py-1.5 text-xs"
+                              disabled={actionLoading}
+                            >
+                              <X className="w-3.5 h-3.5" /> Rechazar
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {statusBadge[driver.driver_status || 'pendiente']}
-                    {(driver.driver_status === 'pendiente' || driver.avatar_pending_url || pendingVeh.has(driver.id) || pendingChanges.has(driver.id)) && (
-                      <span className="badge-danger">⚠ En espera</span>
-                    )}
-                    {incompleteDrivers.has(driver.id) && (
-                      <span className="badge-danger" title="No completó teléfono/documentos/vehículo">Sin datos</span>
-                    )}
-                    {driver.full_name_pending && (
-                      <span className="badge-warning" title="Tiene un cambio de nombre por aprobar">Nombre por aprobar</span>
-                    )}
-                    {pendingChanges.has(driver.id) && (
-                      <span className="badge-warning" title="Tiene una corrección por aprobar">Corrección por aprobar</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={() => loadDriverDetails(driver)}
-                    className="btn-outline w-full"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Ver detalles
-                  </button>
-                  {driver.driver_status === 'pendiente' && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleReview(driver.id, true)}
-                        className="btn-success"
-                        disabled={actionLoading || incompleteDrivers.has(driver.id)}
-                        title={incompleteDrivers.has(driver.id) ? 'No completó teléfono/documentos/vehículo' : 'Aprobar conductor'}
-                      >
-                        <Check className="w-4 h-4" />
-                        Aprobar
-                      </button>
-                      <button
-                        onClick={() => handleReview(driver.id, false)}
-                        className="btn-danger"
-                        disabled={actionLoading}
-                      >
-                        <X className="w-4 h-4" />
-                        Rechazar
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  )
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
 
       {/* Modal de detalles */}
       {selectedDriver && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setSelectedDriver(null)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={closeDriverDetails}>
           <div className="bottom-sheet max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="bottom-sheet-handle" />
             <h2 className="text-xl font-bold text-surface-800 mb-4">Detalles del Conductor</h2>
@@ -506,7 +668,7 @@ export function AdminDrivers() {
               </div>
 
               {pendingChange && (
-                <div className="card border-2 border-amber-200">
+                <div id="card-change" className={`card border-2 border-amber-200 ${focusType === 'change' ? 'ring-2 ring-amber-400' : ''}`}>
                   <h3 className="font-semibold text-surface-700 mb-3">Solicitud de corrección</h3>
                   <p className="text-xs text-surface-500 mb-2">
                     Tipo: {pendingChange.kind === 'documents' ? 'Documentos' : pendingChange.kind === 'vehicle' ? 'Vehículo' : 'Teléfono'}
@@ -550,7 +712,7 @@ export function AdminDrivers() {
 
               {/* Cambio de foto de perfil pendiente de aprobación */}
               {selectedDriver.avatar_pending_url && (
-                <div className="card">
+                <div id="card-avatar" className={`card ${focusType === 'avatar' ? 'ring-2 ring-amber-400' : ''}`}>
                   <h3 className="font-semibold text-surface-700 mb-3">Cambio de foto de perfil</h3>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 text-center">
@@ -596,7 +758,7 @@ export function AdminDrivers() {
 
               {/* Cambio de nombre solicitado */}
               {selectedDriver.full_name_pending && (
-                <div className="card border-2 border-amber-200 bg-amber-50/50">
+                <div id="card-name" className={`card border-2 border-amber-200 bg-amber-50/50 ${focusType === 'name' ? 'ring-2 ring-amber-400' : ''}`}>
                   <h3 className="font-semibold text-surface-700 mb-2">Cambio de nombre solicitado</h3>
                   <p className="text-sm text-surface-600">Actual: <strong>{selectedDriver.full_name}</strong></p>
                   <p className="text-sm text-surface-600">Nuevo: <strong>{selectedDriver.full_name_pending}</strong></p>
@@ -609,7 +771,7 @@ export function AdminDrivers() {
 
               {/* Vehículo */}
               {vehicles.length > 0 && (
-                <div className="card">
+                <div id="card-vehicle" className={`card ${focusType === 'vehicle' ? 'ring-2 ring-amber-400' : ''}`}>
                   <h3 className="font-semibold text-surface-700 mb-3">Vehículo</h3>
                   {vehicles.map((v, i) => (
                     <div key={v.id}>
@@ -652,7 +814,7 @@ export function AdminDrivers() {
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
+              <div id="card-actions" className={`grid grid-cols-2 gap-2 ${focusType === 'pending' ? 'ring-2 ring-amber-400 rounded-xl p-1' : ''}`}>
                 {selectedDriver.driver_status === 'pendiente' && (
                   <>
                     <button
@@ -671,7 +833,7 @@ export function AdminDrivers() {
                     </button>
                   </>
                 )}
-                <button onClick={() => setSelectedDriver(null)} className="btn-outline col-span-2">
+                <button onClick={closeDriverDetails} className="btn-outline col-span-2">
                   Cerrar
                 </button>
               </div>

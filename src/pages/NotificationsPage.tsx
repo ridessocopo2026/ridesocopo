@@ -17,6 +17,11 @@ const typeIcons: Record<string, React.ReactNode> = {
   client_rated: <Star className="w-4 h-4" />,
   driver_review: <User className="w-4 h-4" />,
   driver_pending: <User className="w-4 h-4" />,
+  vehicle_pending: <Car className="w-4 h-4" />,
+  name_review: <User className="w-4 h-4" />,
+  avatar_review: <User className="w-4 h-4" />,
+  driver_change_request: <ClipboardCheck className="w-4 h-4" />,
+  driver_change_review: <ClipboardCheck className="w-4 h-4" />,
   recharge_approved: <Wallet className="w-4 h-4" />,
   recharge_rejected: <Wallet className="w-4 h-4" />,
   recharge_pending: <Wallet className="w-4 h-4" />,
@@ -43,6 +48,11 @@ const typeColors: Record<string, string> = {
   client_rated: 'bg-amber-100 text-amber-600',
   driver_review: 'bg-primary-100 text-primary-600',
   driver_pending: 'bg-primary-100 text-primary-600',
+  vehicle_pending: 'bg-amber-100 text-amber-600',
+  name_review: 'bg-primary-100 text-primary-600',
+  avatar_review: 'bg-primary-100 text-primary-600',
+  driver_change_request: 'bg-amber-100 text-amber-600',
+  driver_change_review: 'bg-emerald-100 text-emerald-600',
   recharge_approved: 'bg-emerald-100 text-emerald-600',
   recharge_rejected: 'bg-red-100 text-red-500',
   recharge_pending: 'bg-amber-100 text-amber-600',
@@ -59,8 +69,24 @@ const typeColors: Record<string, string> = {
   ride_unattended: 'bg-amber-100 text-amber-600',
 }
 
+const driverNotificationFocus: Record<string, string> = {
+  driver_pending: 'pending',
+  vehicle_pending: 'vehicle',
+  name_review: 'name',
+  avatar_review: 'avatar',
+  driver_change_request: 'change',
+}
+
 function getNotificationUrl(n: Notification): string {
   const data = n.data || {}
+
+  // Las notificaciones de conductores abren el conductor exacto en el admin.
+  const driverId = data.driver_id as string | undefined
+  const focus = n.type ? driverNotificationFocus[n.type] : undefined
+  if (driverId && focus) {
+    return `/admin/conductores?driver=${driverId}&focus=${focus}`
+  }
+
   if (data.url) return data.url as string
   if (n.type?.startsWith('ride_')) {
     const rideId = data.ride_id as string

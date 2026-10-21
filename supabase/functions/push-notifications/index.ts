@@ -48,7 +48,7 @@ async function processNotification(notificationId: string) {
   // 1. Obtener notificaciÃ³n
   const { data: notification, error: notifErr } = await supabase
     .from("notifications")
-    .select("title, body, data, user_id")
+    .select("title, body, data, user_id, type")
     .eq("id", notificationId)
     .single();
 
@@ -79,7 +79,20 @@ async function processNotification(notificationId: string) {
 
   // 3. Enviar push a cada suscripciÃ³n
   const data = notification.data || {};
-  const url = data.url || "/";
+
+  // Notificaciones de conductores: abrir el conductor exacto en el admin.
+  const driverFocusByType: Record<string, string> = {
+    driver_pending: "pending",
+    vehicle_pending: "vehicle",
+    name_review: "name",
+    avatar_review: "avatar",
+    driver_change_request: "change",
+  };
+  const driverId = data.driver_id;
+  const driverFocus = notification.type ? driverFocusByType[notification.type] : undefined;
+  const url = driverId && driverFocus
+    ? `/admin/conductores?driver=${driverId}&focus=${driverFocus}`
+    : (data.url || "/");
 
   // El icono/badge lo pone SIEMPRE el Service Worker (la "R" del logo),
   // así que el payload NO envía icon: payload más liviano y sin riesgo de
