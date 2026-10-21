@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
  * Cache de ciudades activas (5 min) en memoria + sessionStorage.
  * Evita repetir la RPC get_active_cities en cada navegacion.
  */
-const CACHE_KEY = 'rs_active_cities'
+const CACHE_KEY = 'rs_active_cities_v2'
 const TTL_MS = 5 * 60 * 1000
 
 let memory: { ts: number; data: any[] } | null = null

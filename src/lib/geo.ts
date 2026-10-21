@@ -55,3 +55,70 @@ export function nearestBarrio<T extends BarrioReference>(
 
   return best
 }
+
+function pointInRing(lat: number, lng: number, ring: number[][]): boolean {
+  if (!ring || ring.length < 3) return false
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    const intersects =
+      (yi > lat) !== (yj > lat) &&
+      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+    if (intersects) inside = !inside
+  }
+  return inside
+}
+
+function pointInRings(lat: number, lng: number, rings: number[][][]): boolean {
+  if (!rings?.length) return false
+  if (!pointInRing(lat, lng, rings[0])) return false
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lat, lng, rings[i])) return false
+  }
+  return true
+}
+
+/**
+ * Comprueba si un punto está dentro de un polígono GeoJSON.
+ * Se ejecuta localmente (sin consumir Supabase).
+ */
+export function isPointInGeoJson(lat: number, lng: number, geojson: any): boolean {
+  if (!geojson) return false
+  let geometry = geojson
+  if (typeof geojson === 'string') {
+    try { geometry = JSON.parse(geojson) } catch { return false }
+  }
+  if (geometry?.type === 'Feature') geometry = geometry.geometry
+  if (!geometry) return false
+  if (geometry.type === 'Polygon') return pointInRings(lat, lng, geometry.coordinates)
+  if (geometry.type === 'MultiPolygon') {
+    const polys = geometry.coordinates as number[][][][] | undefined
+    return polys ? polys.some((poly) => pointInRings(lat, lng, poly)) : false
+  }
+  return false
+}
+
+/**
+ * Convierte el GeoJSON de cobertura a anillos [lat, lng] para Leaflet.
+ * Devuelve un anillo por polígono (las zonas actuales no tienen huecos).
+ */
+export function geoJsonToLeafletRings(geojson: any): [number, number][][] {
+  if (!geojson) return []
+  let geometry = geojson
+  if (typeof geojson === 'string') {
+    try { geometry = JSON.parse(geojson) } catch { return [] }
+  }
+  if (geometry?.type === 'Feature') geometry = geometry.geometry
+  if (!geometry) return []
+  const toRing = (ring: number[][]) => ring.map(([lng, lat]) => [lat, lng] as [number, number])
+  if (geometry.type === 'Polygon') {
+    const outer = (geometry.coordinates as number[][][] | undefined)?.[0]
+    return outer ? [toRing(outer)] : []
+  }
+  if (geometry.type === 'MultiPolygon') {
+    const polys = geometry.coordinates as number[][][][] | undefined
+    return polys ? polys.flatMap((poly) => (poly[0] ? [toRing(poly[0])] : [])) : []
+  }
+  return []
+}

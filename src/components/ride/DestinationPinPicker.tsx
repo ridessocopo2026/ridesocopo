@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MapContainer, TileLayer, Marker, CircleMarker, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polygon, CircleMarker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { Check, MapPin, X } from 'lucide-react'
+import { geoJsonToLeafletRings } from '@/lib/geo'
 
 export type LatLngPoint = { lat: number; lng: number }
 
 export interface PinPickerHint {
   text: string
-  tone: 'muted' | 'ok' | 'warn'
+  tone: 'muted' | 'ok' | 'warn' | 'error'
 }
 
 interface DestinationPinPickerProps {
@@ -16,6 +17,8 @@ interface DestinationPinPickerProps {
   value: LatLngPoint | null
   onChange: (point: LatLngPoint | null) => void
   hint?: PinPickerHint | null
+  coveragePolygon?: any
+  blocked?: boolean
 }
 
 const pinIcon = L.divIcon({
@@ -51,19 +54,22 @@ function TapToPlace({ onPlace }: { onPlace: (point: LatLngPoint) => void }) {
   return null
 }
 
-export function DestinationPinPicker({ center, value, onChange, hint }: DestinationPinPickerProps) {
+export function DestinationPinPicker({ center, value, onChange, hint, coveragePolygon, blocked = false }: DestinationPinPickerProps) {
   const [open, setOpen] = useState(false)
 
   if (!center) return null
 
   const current = value || center
   const marked = !!value
+  const coverageRings = geoJsonToLeafletRings(coveragePolygon)
   const toneClass =
-    hint?.tone === 'ok'
-      ? 'text-emerald-700'
-      : hint?.tone === 'warn'
-        ? 'text-amber-700'
-        : 'text-surface-400'
+    hint?.tone === 'error'
+      ? 'text-red-600'
+      : hint?.tone === 'ok'
+        ? 'text-emerald-700'
+        : hint?.tone === 'warn'
+          ? 'text-amber-700'
+          : 'text-surface-400'
   const statusText = marked
     ? (hint?.text || '✓ Punto exacto marcado')
     : 'Usando el sector como referencia'
@@ -82,6 +88,14 @@ export function DestinationPinPicker({ center, value, onChange, hint }: Destinat
       />
       <Recenter center={center} focus={current} />
       <TapToPlace onPlace={onChange} />
+      {/* Polígono de cobertura de la ciudad */}
+      {coverageRings.map((ring, index) => (
+        <Polygon
+          key={`coverage-${index}`}
+          positions={ring}
+          pathOptions={{ color: '#059669', weight: 2, fillColor: '#10b981', fillOpacity: 0.05 }}
+        />
+      ))}
       {/* Referencia del sector elegido */}
       <CircleMarker
         center={[center.lat, center.lng]}
@@ -165,6 +179,11 @@ export function DestinationPinPicker({ center, value, onChange, hint }: Destinat
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-primary-600 inline-block" /> Tu pin
               </span>
+              {coverageRings.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" /> Área de cobertura
+                </span>
+              )}
             </div>
           </div>
 
@@ -182,8 +201,9 @@ export function DestinationPinPicker({ center, value, onChange, hint }: Destinat
               type="button"
               onClick={() => setOpen(false)}
               className="btn-primary flex-1"
+              disabled={blocked}
             >
-              <Check className="w-4 h-4" /> Listo
+              <Check className="w-4 h-4" /> {blocked ? 'Fuera de cobertura' : 'Listo'}
             </button>
           </div>
         </div>,

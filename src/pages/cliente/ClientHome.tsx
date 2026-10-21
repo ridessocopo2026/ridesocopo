@@ -14,7 +14,7 @@ import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
 import { DestinationPinPicker } from '@/components/ride/DestinationPinPicker'
-import { nearestBarrio } from '@/lib/geo'
+import { isPointInGeoJson, nearestBarrio } from '@/lib/geo'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
@@ -26,6 +26,7 @@ interface CityInfo {
   name: string
   center_lat: number | null
   center_lng: number | null
+  polygon?: any
 }
 
 const userIcon = L.divIcon({
@@ -65,7 +66,7 @@ function MapCenterController({ target }: { target: { lat: number; lng: number } 
 // Caché de ciudades en localStorage: el selector aparece al instante y el
 // invitado no arranca con la lista de sectores en blanco mientras responde
 // Supabase. La RPC siempre manda y sobreescribe la caché.
-const CITIES_CACHE_KEY = 'rider_cities_cache'
+const CITIES_CACHE_KEY = 'rider_cities_cache_v2'
 
 function readCitiesCache(): CityInfo[] {
   try {
@@ -589,6 +590,14 @@ export function ClientHome() {
     lat: number,
     lng: number
   ): Promise<{ found: boolean; id?: string } | null> => {
+    // Primero con los polígonos ya cargados: sin llamadas a Supabase.
+    const withPolygon = cities.filter((c) => c.polygon)
+    if (withPolygon.length > 0 && withPolygon.length === cities.length) {
+      const local = withPolygon.find((c) => isPointInGeoJson(lat, lng, c.polygon))
+      return local ? { found: true, id: local.id } : { found: false }
+    }
+
+    // Respaldo: si aún no cargaron las ciudades, una sola RPC.
     try {
       const { data, error } = await supabase.rpc('find_city', { p_lat: lat, p_lng: lng })
       if (error || !data) return null
@@ -625,19 +634,22 @@ export function ClientHome() {
         const address = await reverseGeocode(latitude, longitude)
         setOriginAddress(address)
 
-        // Si no se pudo verificar (red), no se bloquea al pasajero
-        const coverage = detected ? detected.found : true
-        setInCoverage(coverage)
-
-        if (!coverage) {
-          setError('Tu ubicación está fuera del área de cobertura de Socopó. No puedes solicitar un viaje.')
+        if (!detected) {
+          // No pudimos verificar (red): no asumimos que está dentro.
+          setInCoverage(false)
+          setError('No pudimos verificar el área de cobertura. Reintenta tu ubicación.')
         } else {
-          setError('')
-          // Si ya eligió destino, scroll automático a vehículos
-          if (destBarrioId && destAddress) {
-            setTimeout(() => {
-              document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }, 500)
+          setInCoverage(detected.found)
+          if (!detected.found) {
+            setError('Tu ubicación está fuera del área de cobertura de la app. No puedes solicitar un viaje.')
+          } else {
+            setError('')
+            // Si ya eligió destino, scroll automático a vehículos
+            if (destBarrioId && destAddress) {
+              setTimeout(() => {
+                document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }, 500)
+            }
           }
         }
       },
@@ -691,6 +703,14 @@ export function ClientHome() {
     }
   }
 
+  const isDestinationOutsideCoverage = (barrio: Barrio): boolean => {
+    const poly = cities.find((c) => c.id === selectedCityId)?.polygon
+    if (!poly) return false
+    return destPin
+      ? !isPointInGeoJson(destPin.lat, destPin.lng, poly)
+      : !isPointInGeoJson(Number(barrio.lat), Number(barrio.lng), poly)
+  }
+
   const handleCalculateFare = async () => {
     if (!origin) {
       setError('Primero debes usar tu ubicación actual con GPS')
@@ -736,6 +756,11 @@ export function ClientHome() {
       const barrio = barrios.find((b) => b.id === destBarrioId)
       if (!barrio?.lat || !barrio?.lng) {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
+      }
+
+      if (isDestinationOutsideCoverage(barrio)) {
+        setError(`El destino está fuera del área de cobertura de ${cities.find((c) => c.id === selectedCityId)?.name || 'la ciudad'}.`)
+        return
       }
 
       const destPoint = destPin ?? { lat: Number(barrio.lat), lng: Number(barrio.lng) }
@@ -815,6 +840,11 @@ export function ClientHome() {
       const barrio = barrios.find((b) => b.id === destBarrioId)
       if (!barrio?.lat || !barrio?.lng) {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
+      }
+
+      if (isDestinationOutsideCoverage(barrio)) {
+        setError(`El destino está fuera del área de cobertura de ${cities.find((c) => c.id === selectedCityId)?.name || 'la ciudad'}.`)
+        return
       }
 
       const destPoint = destPin ?? { lat: Number(barrio.lat), lng: Number(barrio.lng) }
@@ -1002,9 +1032,22 @@ export function ClientHome() {
 
   const sheetBarrio = barrios.find((b) => b.id === sheetBarrioId)
 
+  const cityPolygon = selectedCity?.polygon
+  const pinOutside = !!(sheetPin && cityPolygon) &&
+    !isPointInGeoJson(sheetPin.lat, sheetPin.lng, cityPolygon)
+  const barrioOutside = !!(sheetBarrio?.lat && sheetBarrio?.lng && cityPolygon) &&
+    !isPointInGeoJson(Number(sheetBarrio.lat), Number(sheetBarrio.lng), cityPolygon)
+
   const pinDetection = sheetPin ? nearestBarrio(sheetPin, barrios) : null
   const pinHint = (() => {
-    if (!sheetPin || !pinDetection) return null
+    if (!sheetPin) return null
+    if (pinOutside) {
+      return {
+        tone: 'error' as const,
+        text: `Este punto está fuera del área de cobertura de ${selectedCity?.name || 'la ciudad'}. Muévelo o usa el sector.`
+      }
+    }
+    if (!pinDetection) return null
     const distance = pinDetection.distanceMeters
     const distText = distance < 1000
       ? `${Math.round(distance)} m`
@@ -1639,8 +1682,16 @@ export function ClientHome() {
                   value={sheetPin}
                   onChange={setSheetPin}
                   hint={pinHint}
+                  coveragePolygon={cityPolygon}
+                  blocked={pinOutside}
                 />
               </div>
+            )}
+
+            {barrioOutside && !sheetPin && (
+              <p className="text-xs text-red-600 font-medium mb-3">
+                Este sector está fuera del área de cobertura. Elige otro sector.
+              </p>
             )}
 
             {/* Se oculta mientras el usuario debe elegir ciudad o reintentar:
@@ -1666,7 +1717,7 @@ export function ClientHome() {
                 }, 400)
               }}
               className="btn-primary w-full"
-              disabled={!sheetBarrioId || !sheetAddress.trim()}
+              disabled={!sheetBarrioId || !sheetAddress.trim() || (sheetPin ? pinOutside : barrioOutside)}
             >
               Confirmar destino
             </button>
