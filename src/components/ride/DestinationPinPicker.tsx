@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { MapPin, Maximize2, Minimize2, X } from 'lucide-react'
@@ -61,6 +62,35 @@ export function DestinationPinPicker({ center, value, onChange }: DestinationPin
   const current = value || center
   const marked = !!value
 
+  const map = (
+    <MapContainer
+      key={expanded ? 'full' : 'compact'}
+      center={[current.lat, current.lng]}
+      zoom={16}
+      className="h-full w-full"
+      scrollWheelZoom={false}
+    >
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
+      <Recenter center={center} focus={current} />
+      <Resize expanded={expanded} />
+      <TapToPlace onPlace={onChange} />
+      <Marker
+        position={[current.lat, current.lng]}
+        icon={pinIcon}
+        draggable
+        eventHandlers={{
+          dragend: (e) => {
+            const p = e.target.getLatLng()
+            onChange({ lat: p.lat, lng: p.lng })
+          }
+        }}
+      />
+    </MapContainer>
+  )
+
   return (
     <div className="rounded-2xl border border-surface-200 overflow-hidden bg-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-50 border-b border-surface-100">
@@ -91,35 +121,13 @@ export function DestinationPinPicker({ center, value, onChange }: DestinationPin
         </div>
       </div>
 
-      <div className={expanded ? 'fixed inset-0 z-[4000] bg-white' : 'relative h-[175px]'}>
-        <MapContainer
-          key={expanded ? 'full' : 'compact'}
-          center={[current.lat, current.lng]}
-          zoom={16}
-          className="h-full w-full"
-          scrollWheelZoom={false}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
-          <Recenter center={center} focus={current} />
-          <Resize expanded={expanded} />
-          <TapToPlace onPlace={onChange} />
-          <Marker
-            position={[current.lat, current.lng]}
-            icon={pinIcon}
-            draggable
-            eventHandlers={{
-              dragend: (e) => {
-                const p = e.target.getLatLng()
-                onChange({ lat: p.lat, lng: p.lng })
-              }
-            }}
-          />
-        </MapContainer>
+      {!expanded && (
+        <div className="relative h-[175px]">{map}</div>
+      )}
 
-        {expanded && (
+      {expanded && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[4000] bg-white">
+          <div className="h-full w-full">{map}</div>
           <button
             type="button"
             onClick={() => setExpanded(false)}
@@ -127,8 +135,9 @@ export function DestinationPinPicker({ center, value, onChange }: DestinationPin
           >
             Listo
           </button>
-        )}
-      </div>
+        </div>,
+        document.body
+      )}
 
       <div className="px-3 py-2">
         <p className={`text-[11px] font-medium ${marked ? 'text-emerald-700' : 'text-surface-400'}`}>
