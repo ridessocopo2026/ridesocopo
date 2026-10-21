@@ -130,6 +130,7 @@ export interface VehicleCategory {
 export interface Vehicle {
   id: string
   driver_id: string
+  max_passengers: number
   category: VehicleCategoryType
   brand: string
   model: string

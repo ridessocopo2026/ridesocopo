@@ -515,6 +515,7 @@ export function AdminDrivers() {
                           <p><strong>{v.brand} {v.model}</strong> ({v.year})</p>
                           <p>Color: {v.color} • Placa: {v.plate}</p>
                           <p>Categoría: {v.category}</p>
+                          <p>Capacidad: {v.max_passengers || 1} pasajero{(v.max_passengers || 1) === 1 ? '' : 's'}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-2">
                             <span className={`badge ${v.is_active_vehicle ? 'badge-success' : v.is_approved ? 'badge-info' : 'badge-warning'}`}>
                               {v.is_active_vehicle ? 'Activo' : v.is_approved ? 'Aprobado' : 'Pendiente'}

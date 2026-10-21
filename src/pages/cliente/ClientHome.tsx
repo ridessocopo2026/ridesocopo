@@ -1372,6 +1372,9 @@ export function ClientHome() {
                   <span className="block text-xs font-semibold text-primary-600 mt-1">
                     {cat.base_fare_usd.toFixed(2)}$
                   </span>
+                  <span className="block text-[10px] text-surface-400 mt-0.5">
+                    Hasta {cat.max_passengers} pasajero{cat.max_passengers === 1 ? '' : 's'}
+                  </span>
                   {noDisponible && (
                     <span className="block text-[10px] font-semibold text-amber-600 mt-0.5">
                       No disponible ahora
