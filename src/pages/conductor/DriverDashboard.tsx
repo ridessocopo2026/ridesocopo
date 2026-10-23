@@ -537,6 +537,11 @@ export function DriverDashboard() {
                 <p className="text-xs text-surface-600">
                   <strong>Vehículo activo:</strong> {activeVehicle.brand} {activeVehicle.model} ({activeVehicle.category}) • {activeVehicle.plate}
                 </p>
+                {activeVehicle.is_shared && (
+                  <p className="text-[11px] text-primary-700 mt-1">
+                    Compartido con {activeVehicle.shared_with_name || 'otro conductor'}. Solo uno de los dos puede estar en línea con este vehículo.
+                  </p>
+                )}
                 <span className={`badge mt-1 ${activeVehicle.is_approved ? 'badge-success' : 'badge-warning'}`}>
                   {activeVehicle.is_approved ? 'Aprobado' : 'Pendiente de aprobación'}
                 </span>

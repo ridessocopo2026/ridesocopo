@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom'
-import { Clock, ShieldCheck, LogOut, ClipboardList } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Clock, ShieldCheck, LogOut, ClipboardList, Car } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDriverProfileState } from '@/hooks/useDriverProfileState'
 import { HexUnderline } from '@/components/ui/HexUnderline'
@@ -7,8 +7,11 @@ import { HexUnderline } from '@/components/ui/HexUnderline'
 export function DriverPending() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { state: profileState, loading: loadingDocs } = useDriverProfileState()
   const incomplete = !!profileState && !profileState.complete
+  const pendingState = location.state as { sharedVehicle?: boolean; message?: string } | null
+  const sharedVehicle = !!pendingState?.sharedVehicle
 
   const handleSignOut = async () => {
     await signOut()
@@ -40,6 +43,18 @@ export function DriverPending() {
             </p>
           </div>
         </div>
+
+        {sharedVehicle && (
+          <div className="pending-banner mb-4 bg-primary-50 border-primary-200">
+            <Car className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
+            <div className="text-left">
+              <p className="text-sm font-medium text-primary-800">Solicitud de vehículo compartido</p>
+              <p className="text-xs text-primary-700 mt-1">
+                {pendingState?.message || 'Tu solicitud de vehículo compartido está en revisión. El administrador debe aprobarla.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {!loadingDocs && incomplete && (
           <button onClick={() => navigate('/conductor/onboarding')} className="btn-primary w-full mb-3">

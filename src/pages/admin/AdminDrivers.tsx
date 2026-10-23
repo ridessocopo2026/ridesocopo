@@ -61,6 +61,8 @@ export function AdminDrivers() {
   const [pendingChanges, setPendingChanges] = useState<Map<string, PendingChangeSummary>>(new Map())
   const [pendingChange, setPendingChange] = useState<DriverChangeRequest | null>(null)
   const [platesByDriver, setPlatesByDriver] = useState<Map<string, string[]>>(new Map())
+  const [sharedVehicleDrivers, setSharedVehicleDrivers] = useState<Set<string>>(new Set())
+  const [sharedWithNames, setSharedWithNames] = useState<Record<string, string>>({})
   const [filter, setFilter] = useState<DriverFilter>('all')
   const [query, setQuery] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -99,18 +101,21 @@ export function AdminDrivers() {
     // Conductores sin documentos o sin vehiculo (no se pueden aprobar) + placas
     const [{ data: docsRows }, { data: vehRows }] = await Promise.all([
       supabase.from('driver_documents').select('driver_id'),
-      supabase.from('vehicles').select('driver_id, plate, is_approved')
+      supabase.from('vehicles').select('driver_id, plate, is_approved, shared_with_vehicle_id')
     ])
     const withDocs = new Set<string>((docsRows || []).map((r: any) => r.driver_id))
     const pendingVehicleIds = new Set<string>()
     const plates = new Map<string, string[]>()
+    const sharedDrivers = new Set<string>()
     for (const r of (vehRows || [])) {
       if (!r.is_approved) pendingVehicleIds.add(r.driver_id)
+      if (r.shared_with_vehicle_id && !r.is_approved) sharedDrivers.add(r.driver_id)
       const list = plates.get(r.driver_id) || []
       list.push(r.plate)
       plates.set(r.driver_id, list)
     }
     setPendingVeh(pendingVehicleIds)
+    setSharedVehicleDrivers(sharedDrivers)
     setPlatesByDriver(plates)
     const withVeh = new Set<string>((vehRows || []).map((r: any) => r.driver_id))
     const incomplete = new Set<string>()
@@ -159,6 +164,7 @@ export function AdminDrivers() {
     setVehicles([])
     setImageUrls({})
     setPendingChange(null)
+    setSharedWithNames({})
 
     const [docRes, vehRes] = await Promise.all([
       supabase.from('driver_documents').select('*').eq('driver_id', driver.id).single(),
@@ -170,6 +176,57 @@ export function AdminDrivers() {
 
     setDocuments(newDoc)
     setVehicles(newVeh)
+
+    // Nombre del companero de vehiculo compartido (principal <-> compartida)
+    try {
+      const ownIds = newVeh.map((v) => v.id)
+      const primaryIds = [...new Set(newVeh.map((v) => v.shared_with_vehicle_id).filter(Boolean))] as string[]
+      let primaries: any[] = []
+      let secondaries: any[] = []
+
+      if (primaryIds.length > 0) {
+        const { data } = await supabase
+          .from('vehicles')
+          .select('id, driver_id')
+          .in('id', primaryIds)
+        primaries = data || []
+      }
+
+      if (ownIds.length > 0) {
+        const { data } = await supabase
+          .from('vehicles')
+          .select('id, driver_id, shared_with_vehicle_id')
+          .in('shared_with_vehicle_id', ownIds)
+        secondaries = data || []
+      }
+
+      const partnerByVehicle: Record<string, string> = {}
+      for (const v of newVeh) {
+        if (v.shared_with_vehicle_id) {
+          const primary = primaries.find((p: any) => p.id === v.shared_with_vehicle_id)
+          if (primary) partnerByVehicle[v.id] = primary.driver_id
+        } else {
+          const secondary = secondaries.find((s: any) => s.shared_with_vehicle_id === v.id)
+          if (secondary) partnerByVehicle[v.id] = secondary.driver_id
+        }
+      }
+
+      const partnerIds = [...new Set(Object.values(partnerByVehicle))]
+      if (partnerIds.length > 0) {
+        const { data: partnerProfiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', partnerIds)
+        const nameById = new Map((partnerProfiles || []).map((p: any) => [p.id, p.full_name]))
+        const names: Record<string, string> = {}
+        for (const [vehicleId, driverId] of Object.entries(partnerByVehicle)) {
+          names[vehicleId] = nameById.get(driverId) || ''
+        }
+        setSharedWithNames(names)
+      }
+    } catch {
+      // si falla el detalle de la pareja, el panel sigue funcionando
+    }
 
     // Obtener URLs firmadas de las fotos
     const urls: { [key: string]: string } = {}
@@ -362,6 +419,7 @@ export function AdminDrivers() {
     const types: string[] = []
     if (d.driver_status === 'pendiente') types.push('Conductor nuevo')
     if (pendingVeh.has(d.id)) types.push('Vehículo')
+    if (sharedVehicleDrivers.has(d.id)) types.push('Vehículo compartido')
     const change = pendingChanges.get(d.id)
     if (change) types.push(`Corrección: ${CHANGE_KIND_LABEL[change.kind] || change.kind}`)
     if (d.full_name_pending) types.push('Nombre')
@@ -792,6 +850,11 @@ export function AdminDrivers() {
                             <span className={`badge ${v.is_active_vehicle ? 'badge-success' : v.is_approved ? 'badge-info' : 'badge-warning'}`}>
                               {v.is_active_vehicle ? 'Activo' : v.is_approved ? 'Aprobado' : 'Pendiente'}
                             </span>
+                            {sharedWithNames[v.id] !== undefined && (
+                              <span className="badge-info">
+                                Compartido{sharedWithNames[v.id] ? ` con ${sharedWithNames[v.id]}` : ''}
+                              </span>
+                            )}
                             {!v.is_approved && (
                               <>
                                 <button onClick={() => handleVehicleReview(v.id, true)} className="btn-success px-2 py-1 text-xs">Aprobar</button>

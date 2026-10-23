@@ -141,6 +141,9 @@ export interface Vehicle {
   is_active: boolean
   is_approved?: boolean
   is_active_vehicle?: boolean
+  shared_with_vehicle_id?: string | null
+  is_shared?: boolean
+  shared_with_name?: string | null
   created_at: string
   updated_at: string
 }

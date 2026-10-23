@@ -185,8 +185,12 @@ export function DriverOnboarding() {
 
       if (rpcError) throw rpcError
 
-      const newStatus = (rpcData as { status?: string } | null)?.status
-      navigate(newStatus === 'aprobado' ? '/conductor' : '/conductor/pendiente')
+      const newStatus = (rpcData as { status?: string; shared_vehicle?: boolean; message?: string } | null)?.status
+      const sharedVehicle = !!(rpcData as { shared_vehicle?: boolean } | null)?.shared_vehicle
+      const sharedMessage = (rpcData as { message?: string } | null)?.message
+      navigate(newStatus === 'aprobado' ? '/conductor' : '/conductor/pendiente', {
+        state: sharedVehicle ? { sharedVehicle: true, message: sharedMessage } : undefined
+      })
     } catch (err: any) {
       setError(err.message || 'Error al enviar la solicitud')
       setLoading(false)
@@ -457,6 +461,9 @@ export function DriverOnboarding() {
                   onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
                   required
                 />
+                <p className="text-[11px] text-surface-400 mt-1">
+                  Si la placa ya está registrada por tu pareja o compañero, enviaremos una solicitud de vehículo compartido al administrador.
+                </p>
               </div>
             </div>
           )}
