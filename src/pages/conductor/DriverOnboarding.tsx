@@ -462,7 +462,7 @@ export function DriverOnboarding() {
                   required
                 />
                 <p className="text-[11px] text-surface-400 mt-1">
-                  Si la placa ya está registrada por tu pareja o compañero, enviaremos una solicitud de vehículo compartido al administrador.
+                  Si la placa ya está registrada por otro conductor, enviaremos una solicitud de vehículo compartido al administrador.
                 </p>
               </div>
             </div>
