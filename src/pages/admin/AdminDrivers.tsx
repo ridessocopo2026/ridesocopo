@@ -241,7 +241,12 @@ export function AdminDrivers() {
       if (url) urls.license = url
     }
 
-    if (newDoc?.profile_photo_url) {
+    // La foto vigente es la del perfil (aprobada por el admin).
+    // La foto de driver_documents solo se usa como respaldo para registros antiguos.
+    if (driver.avatar_url) {
+      const url = resolvePhotoUrl(driver.avatar_url, 'avatars')
+      if (url) urls.profile = url
+    } else if (newDoc?.profile_photo_url) {
       const url = await getSignedUrl('avatars', newDoc.profile_photo_url)
       if (url) urls.profile = url
     }
@@ -487,6 +492,10 @@ export function AdminDrivers() {
     return () => window.clearTimeout(timer)
   }, [selectedDriver, focusType, pendingChange, documents, vehicles])
 
+  const selectedProfilePhotoUrl = selectedDriver
+    ? imageUrls.profile || resolvePhotoUrl(selectedDriver.avatar_url, 'avatars')
+    : undefined
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -660,8 +669,8 @@ export function AdminDrivers() {
 
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {imageUrls.profile ? (
-                      <img src={imageUrls.profile} alt={selectedDriver.full_name} className="w-full h-full object-cover" />
+                    {selectedProfilePhotoUrl ? (
+                      <img src={selectedProfilePhotoUrl} alt={selectedDriver.full_name} className="w-full h-full object-cover" />
                     ) : (
                       <Users className="w-8 h-8 text-primary-600" />
                     )}

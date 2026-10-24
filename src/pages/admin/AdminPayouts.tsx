@@ -17,6 +17,7 @@ interface DriverWithWallet {
 export function AdminPayouts() {
   const [payouts, setPayouts] = useState<Payout[]>([])
   const [proofUrls, setProofUrls] = useState<Record<string, string | null>>({})
+  const [driverNames, setDriverNames] = useState<Record<string, string>>({})
   const [drivers, setDrivers] = useState<DriverWithWallet[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -62,8 +63,28 @@ export function AdminPayouts() {
 
     const { data: payoutData, error } = await supabase.rpc('get_payouts')
     if (!error && payoutData) {
-      setPayouts(payoutData as Payout[])
-      resolveProofs(payoutData as Payout[])
+      const items = payoutData as Payout[]
+      setPayouts(items)
+      resolveProofs(items)
+
+      // Identificar al conductor de cada pago. get_payouts ya limita los
+      // pagos por rol/ciudad, así que esta consulta respeta la misma RLS.
+      const payoutDriverIds = Array.from(new Set(items.map((p) => p.driver_id)))
+      if (payoutDriverIds.length > 0) {
+        const { data: payoutDriversData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', payoutDriverIds)
+
+        const namesMap: Record<string, string> = {}
+        const payoutDrivers = payoutDriversData as Pick<Profile, 'id' | 'full_name'>[] | null
+        payoutDrivers?.forEach((d) => {
+          namesMap[d.id] = d.full_name
+        })
+        setDriverNames(namesMap)
+      } else {
+        setDriverNames({})
+      }
     }
 
     // Cargar conductores con saldo (el encargado solo los de su ciudad)
@@ -280,6 +301,15 @@ export function AdminPayouts() {
                   {statusBadge[p.status]}
                 </div>
 
+                <p className="text-sm text-surface-600 mb-2 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-surface-400 flex-shrink-0" />
+                  <span>
+                    <span className="text-surface-400">Conductor: </span>
+                    <span className="font-medium text-surface-700">
+                      {driverNames[p.driver_id] || 'No identificado'}
+                    </span>
+                  </span>
+                </p>
                 <p className="text-2xl font-bold text-surface-800 mb-2">{p.amount_usd.toFixed(2)}$</p>
                 {p.description && <p className="text-sm text-surface-500 mb-2">{p.description}</p>}
                 <p className="text-xs text-surface-400 mb-3">

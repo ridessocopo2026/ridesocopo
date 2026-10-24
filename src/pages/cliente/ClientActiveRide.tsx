@@ -211,6 +211,21 @@ export function ClientActiveRide() {
     }
   }, [ride?.driver_id, rideId])
 
+  // Al volver a la app, actualizar la foto/nombre del conductor por si el admin
+  // aprobó un cambio de foto mientras el viaje estaba abierto.
+  useEffect(() => {
+    if (!rideId || !ride?.driver_id) return
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const { data } = await supabase.rpc('get_ride_driver_info', { p_ride_id: rideId })
+        if (data?.driver) setDriverInfo(data as DriverInfo)
+      } catch { /* silencioso */ }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [rideId, ride?.driver_id])
+
   // Abrir el mapa automáticamente cuando hay conductor, para verlo en vivo
   useEffect(() => {
     if (ride?.driver_id && (ride.status === 'aceptada' || ride.status === 'en_ruta')) {
