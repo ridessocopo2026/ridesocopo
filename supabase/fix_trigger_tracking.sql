@@ -1,12 +1,34 @@
 -- ============================================================
--- RIDESOCOPÓ - FIX: TRIGGER TRACKING_CODE (operador % inválido)
+-- RIDESOCOPÓ - FIX: TRIGGER TRACKING_CODE
 -- ============================================================
--- El trigger assign_tracking_code() usaba 26^x % 26 que genera
--- "operator does not exist: double precision % integer".
--- Esto rompía el INSERT de rides → 404 al solicitar viaje.
+-- Mantiene este script alineado con la migración 109:
+--   RS- + 6 dígitos aleatorios, sin duplicados.
 --
--- Fix: generar tracking con secuencia + LPAD (simple y robusto).
+-- No volver a usar la secuencia tracking_code_seq.
+-- Para reasignar los códigos de viajes existentes, aplicar
+-- supabase/migrations/109_codigo_viaje_aleatorio.sql
 -- ============================================================
+
+CREATE OR REPLACE FUNCTION public.generate_tracking_code()
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = public
+AS $$
+DECLARE
+  v_bytes bytea := pg_catalog.uuid_send(pg_catalog.gen_random_uuid());
+  v_num bigint;
+BEGIN
+  v_num := (
+    (get_byte(v_bytes, 0)::bigint * 16777216) +
+    (get_byte(v_bytes, 1)::bigint * 65536) +
+    (get_byte(v_bytes, 2)::bigint * 256) +
+    get_byte(v_bytes, 3)::bigint
+  ) % 1000000;
+
+  RETURN 'RS-' || lpad(v_num::text, 6, '0');
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.assign_tracking_code()
 RETURNS TRIGGER
@@ -15,21 +37,32 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_num INTEGER;
+  v_attempt integer := 0;
 BEGIN
   IF NEW.tracking_code IS NOT NULL THEN
     RETURN NEW;
   END IF;
 
-  SELECT nextval('public.tracking_code_seq') INTO v_num;
+  PERFORM pg_advisory_xact_lock(hashtext('public.assign_tracking_code'));
 
-  NEW.tracking_code := 'RS-' || UPPER(LPAD(v_num::text, 6, '0'));
+  LOOP
+    v_attempt := v_attempt + 1;
+    NEW.tracking_code := public.generate_tracking_code();
+
+    EXIT WHEN NOT EXISTS (
+      SELECT 1
+      FROM public.rides
+      WHERE tracking_code = NEW.tracking_code
+    );
+
+    IF v_attempt >= 50 THEN
+      RAISE EXCEPTION 'No se pudo generar un codigo de viaje unico';
+    END IF;
+  END LOOP;
+
   RETURN NEW;
 END;
 $$;
-
--- Verificar que la secuencia existe (si no, crearla)
-CREATE SEQUENCE IF NOT EXISTS public.tracking_code_seq START 1;
 
 -- Recrear el trigger por si no está
 DROP TRIGGER IF EXISTS trg_assign_tracking_code ON public.rides;
@@ -37,4 +70,9 @@ CREATE TRIGGER trg_assign_tracking_code
   BEFORE INSERT ON public.rides
   FOR EACH ROW EXECUTE FUNCTION public.assign_tracking_code();
 
-SELECT '✅ Trigger tracking_code reparado (RS + secuencia)' AS estado;
+REVOKE ALL ON FUNCTION public.generate_tracking_code() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.generate_tracking_code() FROM anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+SELECT '✅ Trigger tracking_code reparado (RS + 6 dígitos aleatorios)' AS estado;
