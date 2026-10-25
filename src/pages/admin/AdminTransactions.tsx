@@ -22,6 +22,7 @@ interface TransactionItem {
   viaje_id: string | null
   comprobante: string | null
   saldo_resultante: number
+  metodo: string | null
 }
 
 interface TransactionsResponse {
@@ -69,6 +70,8 @@ export function AdminTransactions() {
   const [applying, setApplying] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const [metodo, setMetodo] = useState(() => searchParams.get('metodo') || '')
+  const [methods, setMethods] = useState<string[]>([])
   const usuarioId = searchParams.get('usuario_id') || null
   const usuarioName = searchParams.get('usuario') || ''
 
@@ -80,6 +83,17 @@ export function AdminTransactions() {
   useEffect(() => {
     loadTransactions()
   }, [page, pageSize, usuarioId])
+
+  useEffect(() => {
+    supabase
+      .from('payment_methods')
+      .select('name')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        setMethods(((data || []) as { name: string }[]).map((m) => m.name))
+      })
+  }, [])
 
   const loadTransactions = async () => {
     setLoading(true)
@@ -93,7 +107,8 @@ export function AdminTransactions() {
         p_usuario_id: usuarioId,
         p_busqueda: busqueda.trim() || null,
         p_limit: pageSize,
-        p_offset: page * pageSize
+        p_offset: page * pageSize,
+        p_metodo: metodo || null
       })
       if (error) throw error
       const res = data as TransactionsResponse
@@ -145,7 +160,7 @@ export function AdminTransactions() {
               onKeyDown={(e) => { if (e.key === 'Enter') handleApply() }}
             />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div>
               <label className="label">Desde</label>
               <input type="date" className="input" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
@@ -174,6 +189,14 @@ export function AdminTransactions() {
                 <option value="cliente">Cliente</option>
                 <option value="conductor">Conductor</option>
                 <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Método</label>
+              <select className="input" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
+                <option value="">Todos</option>
+                {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+                <option value="sin_clasificar">Sin clasificar (externo)</option>
               </select>
             </div>
           </div>
@@ -224,6 +247,7 @@ export function AdminTransactions() {
                     <th className="px-4 py-3">Tipo</th>
                     <th className="px-4 py-3 text-right">Monto</th>
                     <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Método</th>
                     <th className="px-4 py-3">Detalle</th>
                   </tr>
                 </thead>
@@ -259,6 +283,17 @@ export function AdminTransactions() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-surface-500">{estadoLabels[t.estado] || t.estado}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] font-medium px-2 py-1 rounded-lg ${
+                            t.metodo
+                              ? (/efectivo/i.test(t.metodo)
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-blue-50 text-blue-700')
+                              : 'bg-surface-100 text-surface-500'
+                          }`}>
+                            {t.metodo || (t.origen === 'payout' ? 'Sin clasificar' : '—')}
+                          </span>
                         </td>
                         <td className="px-4 py-3 max-w-[180px]">
                           <p className="text-xs text-surface-500 truncate" title={t.descripcion || ''}>

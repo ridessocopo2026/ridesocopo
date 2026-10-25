@@ -38,6 +38,7 @@ import { AdminConfig } from '@/pages/admin/AdminConfig'
 import { AdminPaymentMethods } from '@/pages/admin/AdminPaymentMethods'
 import { AdminProofs } from '@/pages/admin/AdminProofs'
 import { AdminPayouts } from '@/pages/admin/AdminPayouts'
+import { EstadoCuentas } from '@/pages/admin/EstadoCuentas'
 import { AdminNotifications } from '@/pages/admin/AdminNotifications'
 import { AdminIncidents } from '@/pages/admin/AdminIncidents'
 import { AdminMetrics } from '@/pages/admin/AdminMetrics'
@@ -359,6 +360,11 @@ export default function App() {
               <AdminPayouts />
             </RoleRoute>
           } />
+          <Route path="/admin/cuentas" element={
+            <RoleRoute role="super_admin">
+              <EstadoCuentas />
+            </RoleRoute>
+          } />
           <Route path="/admin/notificaciones" element={
             <RoleRoute role="super_admin">
               <AdminNotifications />
@@ -450,6 +456,11 @@ export default function App() {
           <Route path="/encargado/liquidaciones" element={
             <RoleRoute role="encargado">
               <AdminPayouts />
+            </RoleRoute>
+          } />
+          <Route path="/encargado/cuentas" element={
+            <RoleRoute role="encargado">
+              <EstadoCuentas />
             </RoleRoute>
           } />
           <Route path="/encargado/perfil" element={

@@ -112,6 +112,7 @@ export interface Zone {
   support_whatsapp?: string
   polygon?: any
   is_active: boolean
+  cash_opening_balance_usd?: number
   created_by?: string
   created_at: string
   updated_at: string
@@ -383,6 +384,7 @@ export interface Payout {
   type: 'driver_pay_platform' | 'platform_pay_driver'
   status: 'pendiente' | 'aprobado' | 'rechazado' | 'confirmado'
   proof_url?: string
+  payment_method?: string | null
   created_by?: string
   reviewed_by?: string
   ride_id?: string
@@ -448,4 +450,79 @@ export interface CouponStats {
   descuento_promedio?: number
   cupones_activos?: number
   top_cupones?: { code: string; redemptions: number; discount: number }[]
+}
+
+// ============================================================
+// Estado de cuentas / tesorería (migración 111)
+// ============================================================
+export interface TreasuryZoneInfo {
+  zone_id: string | null
+  es_global: boolean
+  forzada_por_rol: boolean
+}
+
+export interface TreasuryOverview {
+  zona: TreasuryZoneInfo
+  banco: {
+    recargas: number
+    viajes_pago_movil: number
+    cobros_conductores: number
+    pagos_conductores: number
+    total: number
+    digital: { ingresos: number; egresos: number; neto: number }
+    billetera: { ingresos: number; egresos: number; neto: number }
+    sin_clasificar: { ingresos: number; egresos: number; neto: number }
+  }
+  efectivo: {
+    por_cobrar: number
+    recargas_efectivo: number
+    cobrado_conductores: number
+    pagado_conductores: number
+    en_caja: number
+    fondo_inicial: number
+    en_caja_total: number
+  }
+  deudas: {
+    conductores_deben: number
+    app_debe_conductores: number
+    neto_conductores: number
+    clientes_deben: number
+    app_debe_clientes: number
+    neto_general: number
+  }
+  conteos: {
+    conductores_total: number
+    conductores_con_deuda: number
+    conductores_con_saldo: number
+    conductores_sobre_limite: number
+  }
+  cuadre_diferencia: number
+}
+
+export interface DriverAccount {
+  id: string
+  full_name: string
+  email?: string | null
+  phone?: string | null
+  zone_id?: string | null
+  zone_name?: string | null
+  driver_status?: string | null
+  account_status?: string | null
+  balance_usd: number
+  debt_limit_usd: number
+  excede_limite: boolean
+  pending_payout_usd: number
+  last_movement_at?: string | null
+}
+
+export interface DriverAccountsResponse {
+  total: number
+  totales: {
+    suma_deben: number
+    suma_debo: number
+    con_deuda: number
+    con_saldo: number
+    sobre_limite: number
+  }
+  items: DriverAccount[]
 }

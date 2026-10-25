@@ -8,6 +8,7 @@ import { SkeletonList } from '@/components/ui/Skeleton'
 import { HexUnderline } from '@/components/ui/HexUnderline'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { AppLogo } from '@/components/ui/AppLogo'
+import type { TreasuryOverview } from '@/types/database'
 
 interface WalletOverview {
   total_banco: number
@@ -29,6 +30,7 @@ export function AdminDashboard() {
     totalRides: 0
   })
   const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null)
+  const [treasury, setTreasury] = useState<TreasuryOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -39,12 +41,13 @@ export function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      const [usersRes, driversRes, pendingRes, ridesRes, walletRes] = await Promise.all([
+      const [usersRes, driversRes, pendingRes, ridesRes, walletRes, treasuryRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'conductor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('driver_status', 'pendiente'),
         supabase.from('rides').select('id', { count: 'exact', head: true }),
-        supabase.rpc('get_wallet_overview')
+        supabase.rpc('get_wallet_overview'),
+        supabase.rpc('get_treasury_overview')
       ])
 
       setStats({
@@ -56,6 +59,9 @@ export function AdminDashboard() {
 
       if (walletRes.data) {
         setWalletOverview(walletRes.data as WalletOverview)
+      }
+      if (treasuryRes.data) {
+        setTreasury(treasuryRes.data as TreasuryOverview)
       }
     } catch (err) {
       console.error('Error cargando stats:', err)
@@ -78,6 +84,7 @@ export function AdminDashboard() {
     { to: '/admin/tasa', icon: <DollarSign className="w-6 h-6" />, title: 'Tasa de cambio', desc: 'Bs./USD' },
     { to: '/admin/comprobantes', icon: <ClipboardCheck className="w-6 h-6" />, title: 'Comprobantes', desc: 'Aprobar pagos de viajes' },
     { to: '/admin/liquidaciones', icon: <Banknote className="w-6 h-6" />, title: 'Liquidaciones', desc: 'Pagos entre conductores y plataforma' },
+    { to: '/admin/cuentas', icon: <Landmark className="w-6 h-6" />, title: 'Estado de cuentas', desc: 'Efectivo, banco y deudas por conductor' },
     { to: '/admin/notificaciones', icon: <Bell className="w-6 h-6" />, title: 'Notificaciones', desc: 'Enviar push a todos los usuarios' },
     { to: '/admin/pagos', icon: <Wallet className="w-6 h-6" />, title: 'Métodos de pago', desc: 'Activa/desactiva métodos de pago' },
     { to: '/admin/banners', icon: <Image className="w-6 h-6" />, title: 'Banners', desc: 'Publicidad y promociones' },
@@ -158,14 +165,49 @@ export function AdminDashboard() {
               <span className="text-sm font-medium">Saldo total de la app</span>
             </div>
 
-            {/* Total en banco */}
+            {/* En banco (digital exacto) */}
             <div className="flex items-center justify-between py-1.5 border-b border-white/15">
               <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-white/80" />
-                <span className="text-xs text-white/80">Total en banco (pago móvil/Zelle)</span>
+                <Landmark className="w-4 h-4 text-white/80" />
+                <span className="text-xs text-white/80">En banco (Pago Móvil/Zelle)</span>
               </div>
-              <p className="text-lg font-bold">{fmt(walletOverview.total_banco)}</p>
+              <p className="text-lg font-bold">
+                {fmt(treasury ? treasury.banco.digital.neto : walletOverview.total_banco)}
+              </p>
             </div>
+
+            {/* Efectivo en caja */}
+            <div className="flex items-center justify-between py-1.5 border-b border-white/15">
+              <div className="flex items-center gap-2">
+                <Banknote className="w-4 h-4 text-white/80" />
+                <span className="text-xs text-white/80">Efectivo en caja</span>
+              </div>
+              <p className="text-lg font-bold">
+                {treasury ? fmt(treasury.efectivo.en_caja_total) : '—'}
+              </p>
+            </div>
+
+            {/* Por cobrar a conductores */}
+            <div className="flex items-center justify-between py-1.5 border-b border-white/15">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-white/80" />
+                <span className="text-xs text-white/80">Por cobrar a conductores</span>
+              </div>
+              <p className="text-lg font-bold">
+                {treasury ? fmt(treasury.deudas.conductores_deben) : '—'}
+              </p>
+            </div>
+
+            {/* Sin clasificar (histórico) */}
+            {treasury && treasury.banco.sin_clasificar.neto !== 0 && (
+              <div className="flex items-center justify-between py-1.5 border-b border-white/15">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-white/80" />
+                  <span className="text-xs text-white/80">Sin clasificar (histórico)</span>
+                </div>
+                <p className="text-lg font-bold">{fmt(treasury.banco.sin_clasificar.neto)}</p>
+              </div>
+            )}
 
             {/* Deuda a wallets */}
             <div className="flex items-center justify-between py-1.5 border-b border-white/15">
@@ -186,8 +228,14 @@ export function AdminDashboard() {
             </div>
 
             <p className="text-[10px] text-white/60 mt-2">
-              Cuando conductores/clientes soliciten retiro, estos valores se ajustan automáticamente.
+              Banco y caja se calculan con el método real de cada movimiento. La conciliación completa está en Estado de cuentas.
             </p>
+            <button
+              onClick={() => navigate('/admin/cuentas')}
+              className="mt-3 w-full bg-white/15 hover:bg-white/25 rounded-lg py-2 text-xs font-semibold"
+            >
+              Ver estado de cuentas →
+            </button>
           </div>
         ) : (
           <div className="card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">

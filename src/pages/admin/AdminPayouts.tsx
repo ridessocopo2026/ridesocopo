@@ -27,6 +27,9 @@ export function AdminPayouts() {
   const [payAmount, setPayAmount] = useState('')
   const [payDesc, setPayDesc] = useState('')
   const [saving, setSaving] = useState(false)
+  const [methods, setMethods] = useState<string[]>([])
+  const [payMethod, setPayMethod] = useState('')
+  const [approveMethods, setApproveMethods] = useState<Record<string, string>>({})
   const { user } = useAuth()
   const isEncargado = user?.role === 'encargado'
   const [zoneName, setZoneName] = useState('')
@@ -57,6 +60,26 @@ export function AdminPayouts() {
   useEffect(() => {
     loadAll()
   }, [])
+
+  // Métodos válidos para mover dinero real (efectivo + recarga)
+  useEffect(() => {
+    supabase
+      .from('payment_methods')
+      .select('name, for_recharge')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        const all = ((data || []) as { name: string; for_recharge?: boolean }[])
+        const usable = all
+          .filter((m) => /efectivo/i.test(m.name) || m.for_recharge)
+          .map((m) => m.name)
+        const names = usable.length > 0 ? usable : all.map((m) => m.name)
+        setMethods(names)
+        setPayMethod((prev) => prev || names.find((n) => /efectivo/i.test(n)) || names[0] || '')
+      })
+  }, [])
+
+  const defaultMethod = methods.find((m) => /efectivo/i.test(m)) || methods[0] || ''
 
   const loadAll = async () => {
     setLoading(true)
@@ -127,13 +150,14 @@ export function AdminPayouts() {
     setLoading(false)
   }
 
-  const handleApprove = async (payoutId: string, approve: boolean) => {
+  const handleApprove = async (payoutId: string, approve: boolean, method?: string | null) => {
     setError('')
     setActionLoading(payoutId)
     try {
       const { error } = await supabase.rpc('approve_payout', {
         p_payout_id: payoutId,
-        p_approve: approve
+        p_approve: approve,
+        p_payment_method: method || null
       })
       if (error) throw error
       loadAll()
@@ -153,6 +177,10 @@ export function AdminPayouts() {
       setError('Ingresa un monto válido')
       return
     }
+    if (!payMethod) {
+      setError('Selecciona el método de pago')
+      return
+    }
     const driver = drivers.find((d) => d.id === selectedDriver)
     if (driver && parseFloat(payAmount) > driver.balance_usd) {
       setError(`El conductor solo tiene ${driver.balance_usd.toFixed(2)}$ disponible`)
@@ -165,7 +193,8 @@ export function AdminPayouts() {
       const { data, error } = await supabase.rpc('admin_pay_driver_manual', {
         p_driver_id: selectedDriver,
         p_amount_usd: parseFloat(payAmount),
-        p_description: payDesc || null
+        p_description: payDesc || null,
+        p_payment_method: payMethod
       })
       if (error) throw error
 
@@ -257,6 +286,13 @@ export function AdminPayouts() {
               />
             </div>
             <div>
+              <label className="label">Método de pago *</label>
+              <select className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                {methods.length === 0 && <option value="">Sin métodos activos</option>}
+                {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="label">Descripción (opcional)</label>
               <input
                 type="text"
@@ -311,6 +347,17 @@ export function AdminPayouts() {
                   </span>
                 </p>
                 <p className="text-2xl font-bold text-surface-800 mb-2">{p.amount_usd.toFixed(2)}$</p>
+                <div className="mb-2">
+                  <span className={`text-[11px] font-medium px-2 py-1 rounded-lg ${
+                    p.payment_method
+                      ? (/efectivo/i.test(p.payment_method)
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-blue-50 text-blue-700')
+                      : 'bg-surface-100 text-surface-500'
+                  }`}>
+                    {p.payment_method || 'Sin clasificar'}
+                  </span>
+                </div>
                 {p.description && <p className="text-sm text-surface-500 mb-2">{p.description}</p>}
                 <p className="text-xs text-surface-400 mb-3">
                   {new Date(p.created_at).toLocaleString('es-VE')}
@@ -328,10 +375,30 @@ export function AdminPayouts() {
                   </a>
                 )}
 
+                {p.status === 'pendiente' && p.type === 'platform_pay_driver' && (
+                  <div className="mb-2">
+                    <label className="label">Método con el que pagaste</label>
+                    <select
+                      className="input"
+                      value={approveMethods[p.id] ?? p.payment_method ?? defaultMethod}
+                      onChange={(e) => setApproveMethods((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    >
+                      {methods.length === 0 && <option value="">Sin métodos activos</option>}
+                      {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                )}
+
                 {p.status === 'pendiente' && (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleApprove(p.id, true)}
+                      onClick={() => handleApprove(
+                        p.id,
+                        true,
+                        p.type === 'platform_pay_driver'
+                          ? (approveMethods[p.id] ?? p.payment_method ?? defaultMethod)
+                          : p.payment_method
+                      )}
                       className="btn-success flex-1"
                       disabled={actionLoading === p.id}
                     >
@@ -343,7 +410,7 @@ export function AdminPayouts() {
                       )}
                     </button>
                     <button
-                      onClick={() => handleApprove(p.id, false)}
+                      onClick={() => handleApprove(p.id, false, null)}
                       className="btn-danger flex-1"
                       disabled={actionLoading === p.id}
                     >

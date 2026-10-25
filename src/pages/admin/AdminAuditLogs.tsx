@@ -35,6 +35,8 @@ const actionLabels: Record<string, string> = {
   ADMIN_PAY_DRIVER: 'Pago de plataforma a conductor',
   ADMIN_PAY_DRIVER_MANUAL: 'Pago manual a conductor',
   ADJUST_DRIVER_DEBT: 'Ajuste de deuda de conductor',
+  SET_CASH_OPENING_BALANCE: 'Fondo de caja inicial',
+  CLEANUP_TEST_DATA: 'Limpieza de datos de prueba',
   SET_ZONE_SUPPORT: 'Soporte de ciudad',
   REVIEW_DRIVER: 'Revisión de conductor',
   REVIEW_AVATAR: 'Cambio de foto de perfil',
@@ -69,6 +71,7 @@ const sensitiveActions = new Set([
   'ADMIN_PAY_DRIVER',
   'ADMIN_PAY_DRIVER_MANUAL',
   'ADJUST_DRIVER_DEBT',
+  'SET_CASH_OPENING_BALANCE',
   'REVIEW_DRIVER',
   'REVIEW_AVATAR',
   'REVIEW_DRIVER_CHANGE',
@@ -90,6 +93,12 @@ const LABELS: Record<string, string> = {
   app_credit: 'Crédito app',
   cash_received: 'Efectivo recibido',
   payment_method: 'Método de pago',
+  reference: 'Referencia',
+  previous_balance: 'Saldo anterior',
+  new_balance: 'Saldo nuevo',
+  previous: 'Valor anterior',
+  new: 'Valor nuevo',
+  source: 'Origen',
   fee: 'Cargo',
   at_fault: 'Culpable',
   compensation: 'Compensación',
@@ -133,7 +142,8 @@ const LABELS: Record<string, string> = {
 
 const MONEY_KEYS = new Set([
   'fare', 'final_fare', 'commission', 'app_credit', 'cash_received',
-  'fee', 'compensation', 'penalty', 'refund_client', 'compensate_driver', 'amount_usd'
+  'fee', 'compensation', 'penalty', 'refund_client', 'compensate_driver', 'amount_usd',
+  'previous_balance', 'new_balance'
 ])
 
 const ID_KEYS = new Set(['driver_id', 'client_id', 'user_id', 'ride_id', 'incident_id', 'zone_id', 'entity_id'])

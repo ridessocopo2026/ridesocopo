@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell, Activity, DollarSign } from 'lucide-react'
+import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell, Activity, DollarSign, Landmark } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { AppLogo } from '@/components/ui/AppLogo'
-import type { CouponStats } from '@/types/database'
+import type { CouponStats, TreasuryOverview } from '@/types/database'
 
 const modules = [
   { to: '/encargado/metricas', icon: <BarChart3 className="w-6 h-6" />, title: 'Dinero', desc: 'Montos y métricas de mi ciudad' },
+  { to: '/encargado/cuentas', icon: <Landmark className="w-6 h-6" />, title: 'Estado de cuentas', desc: 'Efectivo, banco y deudas' },
   { to: '/encargado/liquidaciones', icon: <HandCoins className="w-6 h-6" />, title: 'Liquidaciones', desc: 'Pagar y cobrar a conductores' },
   { to: '/encargado/comprobantes', icon: <ClipboardCheck className="w-6 h-6" />, title: 'Comprobantes', desc: 'Verificar pagos y recargas' },
   { to: '/encargado/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Atender incidentes de viajes' },
@@ -37,7 +38,7 @@ export function EncargadoDashboard() {
   const [zoneName, setZoneName] = useState('')
   const [couponStats, setCouponStats] = useState<CouponStats | null>(null)
   const [resumen, setResumen] = useState<ResumenCiudad | null>(null)
-  const [efectivoCiudad, setEfectivoCiudad] = useState<number | null>(null)
+  const [tesoreria, setTesoreria] = useState<TreasuryOverview | null>(null)
 
   useEffect(() => {
     if (user?.zone_id) {
@@ -84,11 +85,10 @@ export function EncargadoDashboard() {
       })
 
     supabase
-      .rpc('get_wallet_overview')
+      .rpc('get_treasury_overview')
       .then(({ data, error }) => {
         if (!error && data) {
-          const d = data as { total_banco: number }
-          setEfectivoCiudad(d.total_banco)
+          setTesoreria(data as TreasuryOverview)
         }
       })
   }, [user?.zone_id])
@@ -97,6 +97,9 @@ export function EncargadoDashboard() {
     await signOut()
     navigate('/login')
   }
+
+  const porCobrar = tesoreria?.deudas.conductores_deben ?? resumen?.deuda_conductores ?? 0
+  const deboAConductores = tesoreria?.deudas.app_debe_conductores ?? resumen?.deuda_con_conductores ?? 0
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -133,12 +136,12 @@ export function EncargadoDashboard() {
 
           <div className="grid grid-cols-2 gap-2 mt-3">
             <div className="bg-white/10 rounded-lg px-2 py-1.5">
-              <p className="text-[10px] text-white/70">Efectivo recibido</p>
-              <p className="text-sm font-semibold">{efectivoCiudad == null ? '—' : fmt(efectivoCiudad)}</p>
+              <p className="text-[10px] text-white/70">Banco (acumulado)</p>
+              <p className="text-sm font-semibold">{tesoreria ? fmt(tesoreria.banco.digital.neto) : '—'}</p>
             </div>
             <div className="bg-white/10 rounded-lg px-2 py-1.5">
-              <p className="text-[10px] text-white/70">Recargas</p>
-              <p className="text-sm font-semibold">{resumen ? fmt(resumen.total_recargas) : '—'}</p>
+              <p className="text-[10px] text-white/70">Caja (actual)</p>
+              <p className="text-sm font-semibold">{tesoreria ? fmt(tesoreria.efectivo.en_caja_total) : '—'}</p>
             </div>
             <div className="bg-white/10 rounded-lg px-2 py-1.5">
               <p className="text-[10px] text-white/70">Viajes completados</p>
@@ -146,26 +149,26 @@ export function EncargadoDashboard() {
             </div>
             <div className="bg-white/10 rounded-lg px-2 py-1.5">
               <p className="text-[10px] text-white/70">Debo a conductores</p>
-              <p className="text-sm font-semibold">{resumen ? fmt(resumen.deuda_con_conductores) : '—'}</p>
+              <p className="text-sm font-semibold">{tesoreria || resumen ? fmt(deboAConductores) : '—'}</p>
             </div>
           </div>
         </div>
 
         {/* 🔴 Por cobrar: conductores que deben a la app */}
-        {resumen && resumen.deuda_conductores > 0 && (
+        {porCobrar > 0 && (
           <button
-            onClick={() => navigate('/encargado/liquidaciones')}
+            onClick={() => navigate('/encargado/cuentas')}
             className="w-full card p-3 bg-red-50 border-red-200 flex items-center justify-between text-left"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               <div>
                 <p className="text-xs font-semibold text-red-700">Por cobrar a conductores</p>
-                <p className="text-[10px] text-red-600">Comisiones pendientes en mi ciudad</p>
+                <p className="text-[10px] text-red-600">Ver quién debe y cobrar</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <span className="font-bold text-red-700">{fmt(resumen.deuda_conductores)}</span>
+              <span className="font-bold text-red-700">{fmt(porCobrar)}</span>
               <ChevronRight className="w-4 h-4 text-red-400" />
             </div>
           </button>
