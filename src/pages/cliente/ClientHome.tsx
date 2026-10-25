@@ -11,9 +11,11 @@ import { supabase } from '@/lib/supabase'
 import { getActiveCities } from '@/lib/cities'
 import { fmt } from '@/lib/format'
 import { uploadImageToStorage } from '@/lib/uploadImage'
+import { type CashBills, canSubmitCash } from '@/lib/cash'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
 import { DestinationPinPicker } from '@/components/ride/DestinationPinPicker'
+import { CashPaymentPicker } from '@/components/ride/CashPaymentPicker'
 import { isPointInGeoJson, nearestBarrio } from '@/lib/geo'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -131,6 +133,8 @@ export function ClientHome() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('')
   const [methodFields, setMethodFields] = useState<Record<string, PaymentMethodField[]>>({})
+  // Billetes con los que pagará el pasajero cuando elige Efectivo (migración 110)
+  const [cashBills, setCashBills] = useState<CashBills | null>(null)
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [copiedField, setCopiedField] = useState('')
   const [error, setError] = useState('')
@@ -833,6 +837,12 @@ export function ClientHome() {
       return
     }
 
+    // Efectivo: el conductor debe saber con cuánto paga el pasajero antes de aceptar
+    if (selectedPaymentMethod === 'Efectivo' && !canSubmitCash(cashBills, fare?.final_fare ?? 0)) {
+      setError('Elige los billetes con los que vas a pagar o marca "Pago exacto".')
+      return
+    }
+
     setError('')
     setLoading(true)
 
@@ -893,7 +903,9 @@ export function ClientHome() {
           p_dest_address: destAddress,
           p_category: selectedCategory,
           p_payment_method: selectedPaymentMethod,
-          p_coupon_code: couponCode || null
+          p_coupon_code: couponCode || null,
+          // Solo viaja cuando paga en efectivo ({"b":{...}} o {"x":true})
+          p_cash_bills: selectedPaymentMethod === 'Efectivo' ? cashBills : null
         })
         if (error) throw error
         navigate(`/cliente/viaje/${data}`)
@@ -1818,7 +1830,11 @@ export function ClientHome() {
                     <button
                       key={method.id}
                       type="button"
-                      onClick={() => setSelectedPaymentMethod(method.name)}
+                      onClick={() => {
+                        setSelectedPaymentMethod(method.name)
+                        // Los billetes solo tienen sentido en efectivo
+                        if (method.name !== 'Efectivo') setCashBills(null)
+                      }}
                       className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         selectedPaymentMethod === method.name
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -1830,6 +1846,15 @@ export function ClientHome() {
                   ))}
                 </div>
               </div>
+
+              {/* Billetes: solo cuando el pago es en efectivo */}
+              {selectedPaymentMethod === 'Efectivo' && (
+                <CashPaymentPicker
+                  fareUsd={fare.final_fare}
+                  value={cashBills}
+                  onChange={setCashBills}
+                />
+              )}
 
               {/* Aviso preventivo de saldo insuficiente (Billetera) — visible sin scroll */}
               {selectedPaymentMethod === 'Billetera' && walletBalance !== null && walletBalance < fare.final_fare && (
@@ -1909,6 +1934,7 @@ export function ClientHome() {
               disabled={
                 loading ||
                 !selectedPaymentMethod ||
+                (selectedPaymentMethod === 'Efectivo' && !canSubmitCash(cashBills, fare.final_fare)) ||
                 (getSelectedMethod()?.proof_required && !proofFile)
               }
             >

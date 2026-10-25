@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { XCircle, ShieldAlert, CalendarDays, Receipt } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { describeCash, parseCashBills } from '@/lib/cash'
 import type { Ride, RideIncident, IncidentType, IncidentStatus } from '@/types/database'
 
 interface TripDetailInfoProps {
@@ -70,6 +71,9 @@ const fmtDate = (iso?: string): string | null => {
 
 export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdown = true }: TripDetailInfoProps) {
   const details = parseResolutionDetails(incident?.resolution_details)
+  // Efectivo con billetes (migración 110): cuánto entrega y cuánto vuelto llevar
+  const cashPayment = parseCashBills(ride.cash_bills)
+  const cashInfo = cashPayment ? describeCash(cashPayment, Number(ride.final_fare_usd)) : null
   const [couponCode, setCouponCode] = useState<string | null>(null)
 
   // Código del cupón usado en el viaje (para que el cliente vea cuál aplicó)
@@ -167,6 +171,12 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
             <span className="text-surface-500">Método de pago</span>
             <span className="text-surface-700">{ride.payment_method || 'No especificado'}</span>
           </div>
+          {cashInfo && (
+            <div className="flex justify-between gap-4">
+              <span className="text-surface-500">Efectivo</span>
+              <span className="font-medium text-emerald-700 text-right">{cashInfo}</span>
+            </div>
+          )}
         </div>
       </div>
 

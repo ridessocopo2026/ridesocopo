@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle, HandCoins, Smartphone } from 'lucide-react'
+import { MapPin, Navigation, Wallet, LogOut, Loader2, Car, Map as MapIcon, X, AlertTriangle, HandCoins, Smartphone, Banknote } from 'lucide-react'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
+import { describeCash, parseCashBills } from '@/lib/cash'
 import { useAuth } from '@/contexts/AuthContext'
 import { Switch } from '@/components/ui/Switch'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -56,6 +57,21 @@ const paymentBadge = (method?: string) => {
     <span className="badge-info">
       <Smartphone className="w-3 h-3" /> {method} · la plataforma ya cobró
     </span>
+  )
+}
+
+// Aviso de efectivo: con cuánto paga el pasajero y cuánto vuelto llevar.
+// Se muestra ANTES de aceptar (migración 110). Si el viaje no es en
+// efectivo o no trae billetes, no se renderiza nada.
+const cashHint = (ride: Ride) => {
+  const cash = parseCashBills(ride.cash_bills)
+  const text = cash ? describeCash(cash, ride.final_fare_usd) : null
+  if (!text) return null
+  return (
+    <p className="mt-1 inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+      <Banknote className="w-3 h-3" />
+      {text}
+    </p>
   )
 }
 
@@ -630,6 +646,7 @@ export function DriverDashboard() {
                         {ride.final_fare_usd.toFixed(2)}$
                       </span>
                       <div className="mt-1 flex justify-end">{paymentBadge(ride.payment_method)}</div>
+                      {cashHint(ride)}
                     </div>
                   </div>
 
@@ -722,6 +739,8 @@ export function DriverDashboard() {
                 <span className="text-xs text-surface-400">Método de pago</span>
                 {paymentBadge(mapRide.payment_method)}
               </div>
+
+              {cashHint(mapRide)}
             </div>
 
             {/* Aviso de error del viaje aquí mismo (saldo/deuda insuficiente) — sin scroll */}

@@ -1,3 +1,5 @@
+import type { CashBills } from '@/lib/cash'
+
 export type UserRole = 'cliente' | 'conductor' | 'encargado' | 'super_admin'
 export type DriverStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
 export type VehicleCategoryType = 'moto' | 'carro' | 'camioneta' | (string & {})
@@ -214,6 +216,8 @@ export interface Ride {
   commission_usd: number
   commission_rate: number
   payment_method: PaymentMethod
+  /** Efectivo: billetes con los que pagará el pasajero (migración 110) */
+  cash_bills?: CashBills | null
   status: RideStatus
   tracking_code?: string
   proof_url?: string
