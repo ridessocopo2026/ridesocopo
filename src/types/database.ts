@@ -5,7 +5,7 @@ export type DriverStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
 export type VehicleCategoryType = 'moto' | 'carro' | 'camioneta' | (string & {})
 export type RideStatus = 'buscando' | 'aceptada' | 'en_ruta' | 'completada' | 'cancelada' | 'incidente'
 export type ReimbursementStatus = 'auto_completado' | 'pendiente_manual' | 'no_aplica'
-export type IncidentType = 'accidente' | 'falla_mecanica' | 'urgencia_medica' | 'clima' | 'otro' | 'viaje_no_realizado' | 'disputa_cobro'
+export type IncidentType = 'accidente' | 'falla_mecanica' | 'urgencia_medica' | 'clima' | 'otro' | 'viaje_no_realizado' | 'disputa_cobro' | 'cancelacion_cliente'
 export type IncidentStatus = 'abierto' | 'en_revision' | 'resuelto' | 'cerrado'
 export type CancellationFault = 'cliente' | 'conductor' | 'accidente'
 export type PaymentMethod = string
@@ -296,6 +296,8 @@ export interface CancellationEstimate {
   fee: number
   compensation: number
   refund: number
+  /** Efectivo: cargo que se registrará y el admin deberá verificar */
+  charge?: number
   payment_method: string
   commission_refunded: boolean
   note?: string

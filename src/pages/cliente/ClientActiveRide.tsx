@@ -547,9 +547,15 @@ export function ClientActiveRide() {
   const clientConfirmed = ride.client_start_confirmed
   const bothConfirmed = driverConfirmed && clientConfirmed
 
-  // Si el viaje ya fue completado, el reporte es una DISPUTA post-viaje
-  const isDispute = ride.status === 'completada'
+  // Si el viaje ya fue completado o cancelado, el reporte es una DISPUTA
+  const isCancelledRide = ride.status === 'cancelada'
+  const isDispute = ride.status === 'completada' || isCancelledRide
   const reportTypes = isDispute ? disputeTypes : incidentTypes
+  // Solo se puede reclamar mientras el caso siga abierto (o si hay un cargo sin incidente)
+  const canDisputeCancellation = isCancelledRide && (
+    (!!incident && (incident.status === 'abierto' || incident.status === 'en_revision')) ||
+    (!incident && Number(ride.cancellation_fee_usd) > 0)
+  )
 
   // El conductor marco el viaje como completado y el cliente aun no confirma
   const needsCompletionConfirm =
@@ -953,6 +959,16 @@ export function ClientActiveRide() {
           </>
         )}
 
+        {canDisputeCancellation && (
+          <button
+            onClick={() => { setIncidentType('disputa_cobro'); setShowIncidentModal(true) }}
+            className="btn-outline w-full text-amber-700 border-amber-200 hover:border-amber-300"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            No estoy de acuerdo con el cargo
+          </button>
+        )}
+
         {/* Tarifa */}
         <div className="card">
           <div className="flex items-center justify-between">
@@ -1098,9 +1114,17 @@ export function ClientActiveRide() {
                       <span className="font-medium text-emerald-600">{cancellationEstimate.refund.toFixed(2)}$</span>
                     </div>
                   )}
+                  {(cancellationEstimate.charge ?? 0) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-surface-600">Cargo por verificar</span>
+                      <span className="font-medium text-amber-700">{(cancellationEstimate.charge ?? 0).toFixed(2)}$</span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-surface-400">
-                  La tarifa se cobra porque el conductor ya se desplazó hacia ti o el viaje ya está en curso.
+                  {(cancellationEstimate.charge ?? 0) > 0
+                    ? 'El cargo quedará pendiente y un administrador lo verificará. Si no estás de acuerdo, podrás reportar un incidente.'
+                    : 'La tarifa se cobra porque el conductor ya se desplazó hacia ti o el viaje ya está en curso.'}
                 </p>
               </div>
             ) : (
@@ -1138,7 +1162,7 @@ export function ClientActiveRide() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-surface-800">
-                  {isDispute ? 'Reportar un problema' : 'Reportar incidente'}
+                  {isCancelledRide ? 'Reclamar el cargo' : isDispute ? 'Reportar un problema' : 'Reportar incidente'}
                 </h2>
                 <p className="text-xs text-surface-500">La plataforma revisará tu reporte</p>
               </div>
@@ -1202,9 +1226,11 @@ export function ClientActiveRide() {
 
               <div className={`rounded-xl p-3 ${isDispute ? 'bg-amber-50 border border-amber-200' : 'bg-amber-50 border border-amber-200'}`}>
                 <p className="text-xs text-amber-700">
-                  {isDispute
-                    ? 'Tu reporte será revisado por un administrador. Si el viaje no se realizó o el cobro no corresponde, se te reembolsará el monto pagado.'
-                    : 'Al reportar un incidente, el viaje se pausa y un administrador lo revisará. No se cancelará automáticamente.'}
+                  {isCancelledRide
+                    ? 'Tu reclamo será revisado por un administrador. Si el cargo no corresponde, se anulará y no se te cobrará.'
+                    : isDispute
+                      ? 'Tu reporte será revisado por un administrador. Si el viaje no se realizó o el cobro no corresponde, se te reembolsará el monto pagado.'
+                      : 'Al reportar un incidente, el viaje se pausa y un administrador lo revisará. No se cancelará automáticamente.'}
                 </p>
               </div>
             </div>
@@ -1221,7 +1247,7 @@ export function ClientActiveRide() {
                 className="btn-danger flex-1"
                 disabled={loading}
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDispute ? 'Enviar reporte' : 'Reportar')}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCancelledRide ? 'Enviar reclamo' : isDispute ? 'Enviar reporte' : 'Reportar')}
               </button>
             </div>
           </div>

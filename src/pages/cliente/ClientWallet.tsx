@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Copy, Check } from 'lucide-react'
+import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Copy, Check, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { uploadImageToStorage } from '@/lib/uploadImage'
@@ -24,6 +24,7 @@ interface RechargeMethod {
 export function ClientWallet() {
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [pendingCharges, setPendingCharges] = useState<Transaction[]>([])
   const [showRecharge, setShowRecharge] = useState(false)
   const [amount, setAmount] = useState('')
   const [reference, setReference] = useState('')
@@ -39,6 +40,7 @@ export function ClientWallet() {
   useEffect(() => {
     loadWallet()
     loadTransactions()
+    loadPendingCharges()
     loadRechargeMethods()
   }, [])
 
@@ -84,6 +86,22 @@ export function ClientWallet() {
 
     if (!error && data) {
       setTransactions(data as Transaction[])
+    }
+  }
+
+  // Cargos por cancelación pendientes de verificación por el admin
+  const loadPendingCharges = async () => {
+    if (!user) return
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('id, type, description, created_at, amount_usd, status, ride_id')
+      .eq('user_id', user.id)
+      .eq('type', 'debito')
+      .eq('status', 'pendiente')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setPendingCharges(data as Transaction[])
     }
   }
 
@@ -177,6 +195,42 @@ export function ClientWallet() {
             Recargar saldo
           </button>
         </div>
+
+        {/* Cargos por cancelación pendientes de verificación */}
+        {pendingCharges.length > 0 && (
+          <div className="card border-2 border-amber-200 bg-amber-50">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <h2 className="font-semibold text-amber-800">Cargo pendiente por verificar</h2>
+            </div>
+            <p className="text-xs text-amber-700 mb-3">
+              Un administrador revisará este cargo por cancelar un viaje en curso.
+              Si no estás de acuerdo, entra al viaje y reporta un incidente.
+            </p>
+            <div className="space-y-2">
+              {pendingCharges.map((charge) => (
+                <div key={charge.id} className="bg-white rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-surface-800">{fmt(charge.amount_usd)}</p>
+                    <p className="text-[11px] text-surface-400">
+                      {new Date(charge.created_at).toLocaleDateString('es-VE', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                  {charge.ride_id && (
+                    <button
+                      onClick={() => navigate(`/cliente/viaje/${charge.ride_id}`)}
+                      className="btn-outline text-xs px-3 py-1.5 flex-shrink-0"
+                    >
+                      Ver viaje
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Formulario de recarga */}
         {showRecharge && (

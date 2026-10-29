@@ -14,7 +14,8 @@ const incidentTypeLabels: Record<IncidentType, string> = {
   clima: '🌧️ Clima',
   otro: '❓ Otro',
   viaje_no_realizado: '🚫 Viaje no realizado',
-  disputa_cobro: '💸 Disputa de cobro'
+  disputa_cobro: '💸 Disputa de cobro',
+  cancelacion_cliente: '🚫 Cancelación en curso'
 }
 
 const statusLabels: Record<IncidentStatus, { label: string; className: string }> = {
@@ -72,14 +73,30 @@ export function AdminIncidents() {
   const fare = selectedRide?.final_fare_usd ?? 0
   const commission = selectedRide?.commission_usd ?? 0
   const paymentMethod = selectedRide?.payment_method?.toLowerCase() ?? ''
+  // Incidente automático de cancelación (viaje ya aceptado / en curso)
+  const isCancellationIncident = selectedIncident?.incident_type === 'cancelacion_cliente'
+  const cancellationFee = selectedRide?.cancellation_fee_usd ?? 0
+  const alreadyCompensated = selectedRide?.driver_compensation_usd ?? 0
 
   // Al abrir el modal, pre-cargar montos sugeridos según el culpable
   const openIncident = (incident: RideIncident) => {
     setSelectedIncident(incident)
-    setAtFault('accidente')
     const ride = ridesMap[incident.ride_id]
     const f = ride?.final_fare_usd ?? 0
     const c = ride?.commission_usd ?? 0
+
+    if (incident.incident_type === 'cancelacion_cliente') {
+      // El culpable se deduce de quién canceló; el cargo ya está registrado
+      const byDriver = !!(ride && ride.cancelled_by && ride.cancelled_by === ride.driver_id)
+      setAtFault(byDriver ? 'conductor' : 'cliente')
+      setRefundClientAmount(0)
+      setPenalizeAmount(byDriver ? 0 : (ride?.cancellation_fee_usd ?? 0))
+      setCompensateDriverAmount(ride?.driver_compensation_usd ?? 0)
+      setCancelRide(true)
+      return
+    }
+
+    setAtFault('accidente')
     // Accidente por defecto: 100% reembolso + comisión devuelta
     setRefundClientAmount(f)
     setPenalizeAmount(0)
@@ -92,6 +109,13 @@ export function AdminIncidents() {
     const ride = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
     const f = ride?.final_fare_usd ?? 0
     const c = ride?.commission_usd ?? 0
+
+    if (selectedIncident?.incident_type === 'cancelacion_cliente') {
+      setRefundClientAmount(0)
+      setPenalizeAmount(fault === 'cliente' ? (ride?.cancellation_fee_usd ?? 0) : 0)
+      setCompensateDriverAmount(ride?.driver_compensation_usd ?? 0)
+      return
+    }
 
     if (fault === 'cliente') {
       // Cliente culpable: reembolso 20%, penaliza 50% de lo reembolsado, NO compensa conductor
@@ -416,62 +440,116 @@ export function AdminIncidents() {
                     <span className="text-surface-500">Método de pago</span>
                     <span className="font-medium">{selectedRide.payment_method}</span>
                   </div>
-                  <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
-                    <span className="text-emerald-600 font-medium">→ Reembolso al cliente</span>
-                    <span className="font-bold text-emerald-600">{refundClientAmount.toFixed(2)}$</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
-                    <span className="font-bold text-blue-600">{compensateDriverAmount.toFixed(2)}$</span>
-                  </div>
-                  {penalizeAmount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-red-600 font-medium">→ Penalización ({atFault})</span>
-                      <span className="font-bold text-red-600">-{penalizeAmount.toFixed(2)}$</span>
-                    </div>
+                  {isCancellationIncident ? (
+                    <>
+                      <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
+                        <span className={penalizeAmount > 0 ? 'text-red-600 font-medium' : 'text-surface-500 font-medium'}>
+                          {atFault === 'conductor'
+                            ? '→ Penalización al conductor'
+                            : penalizeAmount > 0 ? '→ Cargo al cliente' : '→ Cargo eximido'}
+                        </span>
+                        <span className={`font-bold ${penalizeAmount > 0 ? 'text-red-600' : 'text-surface-500'}`}>
+                          {penalizeAmount.toFixed(2)}$
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
+                        <span className="font-bold text-blue-600">{compensateDriverAmount.toFixed(2)}$</span>
+                      </div>
+                      <p className="text-[10px] text-surface-400 mt-2">
+                        {alreadyCompensated > 0
+                          ? `Ya se acreditaron ${alreadyCompensated.toFixed(2)}$ al conductor; si aumentas el monto solo se paga la diferencia.`
+                          : 'La compensación se acredita al conductor al resolver.'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="border-t border-surface-200 pt-2 flex justify-between text-sm">
+                        <span className="text-emerald-600 font-medium">→ Reembolso al cliente</span>
+                        <span className="font-bold text-emerald-600">{refundClientAmount.toFixed(2)}$</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
+                        <span className="font-bold text-blue-600">{compensateDriverAmount.toFixed(2)}$</span>
+                      </div>
+                      {penalizeAmount > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-red-600 font-medium">→ Penalización ({atFault})</span>
+                          <span className="font-bold text-red-600">-{penalizeAmount.toFixed(2)}$</span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-surface-400 mt-2">
+                        {atFault === 'cliente'
+                          ? 'El cliente es culpable: recibe menos reembolso, el conductor es compensado.'
+                          : atFault === 'conductor'
+                            ? 'El conductor es culpable: no recibe compensación y paga penalización.'
+                            : 'Accidente: ambos inocentes, se reembolsa y se devuelve comisión.'}
+                      </p>
+                    </>
                   )}
-                  <p className="text-[10px] text-surface-400 mt-2">
-                    {atFault === 'cliente'
-                      ? 'El cliente es culpable: recibe menos reembolso, el conductor es compensado.'
-                      : atFault === 'conductor'
-                        ? 'El conductor es culpable: no recibe compensación y paga penalización.'
-                        : 'Accidente: ambos inocentes, se reembolsa y se devuelve comisión.'}
-                  </p>
                 </div>
               )}
 
               <div className="space-y-3">
-                <div>
-                  <label className="label">Reembolso al cliente ($)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="input"
-                    max={fare}
-                    value={refundClientAmount}
-                    onChange={(e) => setRefundClientAmount(Math.max(0, Number(e.target.value)))}
-                  />
-                  <p className="text-xs text-surface-400 mt-1">Máximo {fare.toFixed(2)}$ (tarifa pagada)</p>
-                </div>
+                {!isCancellationIncident && (
+                  <div>
+                    <label className="label">Reembolso al cliente ($)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="input"
+                      max={fare}
+                      value={refundClientAmount}
+                      onChange={(e) => setRefundClientAmount(Math.max(0, Number(e.target.value)))}
+                    />
+                    <p className="text-xs text-surface-400 mt-1">Máximo {fare.toFixed(2)}$ (tarifa pagada)</p>
+                  </div>
+                )}
+
+                {isCancellationIncident ? (
+                  <div>
+                    <label className="label">
+                      {atFault === 'conductor' ? 'Penalización al conductor ($)' : 'Cargo al cliente ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="input"
+                      max={atFault === 'conductor' ? undefined : cancellationFee}
+                      value={penalizeAmount}
+                      onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
+                    />
+                    <p className="text-xs text-surface-400 mt-1">
+                      {atFault === 'conductor'
+                        ? 'Se descuenta de la billetera del conductor.'
+                        : <>Cargo registrado: {cancellationFee.toFixed(2)}$.{penalizeAmount > 0 ? ' Se descontará de la billetera del cliente.' : ' En 0 se exime el cargo.'}</>}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="label">
+                      Penalización al {atFault === 'cliente' ? 'cliente' : atFault === 'conductor' ? 'conductor' : '— no aplica'} ($)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="input"
+                      value={penalizeAmount}
+                      onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
+                    />
+                    <p className="text-xs text-surface-400 mt-1">
+                      {atFault === 'accidente' ? 'No se puede penalizar en un accidente' : 'Se descuenta de la billetera del culpable'}
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="label">
-                    Penalización al {atFault === 'cliente' ? 'cliente' : atFault === 'conductor' ? 'conductor' : '— no aplica'} ($)
+                    {isCancellationIncident ? 'Compensación al conductor (total, $)' : 'Compensación al conductor ($)'}
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="input"
-                    value={penalizeAmount}
-                    onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
-                  />
-                  <p className="text-xs text-surface-400 mt-1">
-                    {atFault === 'accidente' ? 'No se puede penalizar en un accidente' : 'Se descuenta de la billetera del culpable'}
-                  </p>
-                </div>
-                <div>
-                  <label className="label">Compensación al conductor ($)</label>
                   <input
                     type="number"
                     min={0}
@@ -480,21 +558,27 @@ export function AdminIncidents() {
                     value={compensateDriverAmount}
                     onChange={(e) => setCompensateDriverAmount(Math.max(0, Number(e.target.value)))}
                   />
-                  <p className="text-xs text-surface-400 mt-1">Se suma a la billetera del conductor</p>
+                  <p className="text-xs text-surface-400 mt-1">
+                    {isCancellationIncident && alreadyCompensated > 0
+                      ? `Ya acreditada: ${alreadyCompensated.toFixed(2)}$. Solo se paga la diferencia.`
+                      : 'Se suma a la billetera del conductor'}
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={cancelRide}
-                    onChange={(e) => setCancelRide(e.target.checked)}
-                    className="w-4 h-4 accent-primary-600"
-                  />
-                  <span className="text-sm text-surface-600">Cancelar el viaje</span>
-                </label>
-              </div>
+              {!isCancellationIncident && (
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cancelRide}
+                      onChange={(e) => setCancelRide(e.target.checked)}
+                      className="w-4 h-4 accent-primary-600"
+                    />
+                    <span className="text-sm text-surface-600">Cancelar el viaje</span>
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">

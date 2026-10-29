@@ -19,7 +19,8 @@ const incidentTypeLabels: Record<IncidentType, string> = {
   clima: '🌧️ Clima',
   otro: '❓ Otro',
   viaje_no_realizado: '🚫 Viaje no realizado',
-  disputa_cobro: '💸 Disputa de cobro'
+  disputa_cobro: '💸 Disputa de cobro',
+  cancelacion_cliente: '🚫 Cancelación en curso'
 }
 
 const incidentStatusLabels: Record<IncidentStatus, { label: string; className: string }> = {
@@ -218,6 +219,18 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
                 </span>
               </div>
             )}
+            {incident?.incident_type === 'cancelacion_cliente' &&
+             !incidentResolved &&
+             Number(ride.cancellation_fee_usd) > 0 &&
+             ride.payment_method === 'Efectivo' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-1">
+                <p className="text-xs font-semibold text-amber-700">Cargo pendiente de verificación</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Se registró un cargo de {fmt(ride.cancellation_fee_usd)} por cancelar el viaje en curso.
+                  Un administrador lo revisará. Si no estás de acuerdo, puedes reportar un incidente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -229,7 +242,9 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
             <div className="flex items-center gap-2">
               <ShieldAlert className={`w-5 h-5 ${incidentResolved ? 'text-emerald-600' : 'text-red-600'}`} />
               <h2 className="font-semibold text-surface-800">
-                {isDispute ? 'Disputa del viaje' : 'Incidente del viaje'}
+                {incident.incident_type === 'cancelacion_cliente'
+                  ? 'Cancelación del viaje'
+                  : isDispute ? 'Disputa del viaje' : 'Incidente del viaje'}
               </h2>
             </div>
             <span className={incidentStatusLabels[incident.status].className}>
