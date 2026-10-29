@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Receipt, Loader2, Search, Calendar, Filter, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, HandCoins, AlertTriangle } from 'lucide-react'
+import { Receipt, Loader2, Search, Calendar, Filter, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, HandCoins, AlertTriangle, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface TransactionItem {
   id: string
@@ -28,6 +29,28 @@ interface TransactionItem {
 interface TransactionsResponse {
   total: number
   items: TransactionItem[]
+}
+
+interface PendingRefund {
+  transaction_id: string
+  cliente_id: string
+  cliente: string | null
+  telefono: string | null
+  amount_usd: number
+  created_at: string
+  ride_id: string | null
+  tracking_code: string | null
+  payment_method: string | null
+  ride_status: string | null
+  final_fare_usd: number
+  tiene_incidente_abierto: boolean
+  puede_procesar: boolean
+  motivo_bloqueo: string | null
+}
+
+interface PendingRefundsResponse {
+  total: number
+  items: PendingRefund[]
 }
 
 const tipoLabels: Record<string, { label: string; color: string }> = {
@@ -75,6 +98,17 @@ export function AdminTransactions() {
   const usuarioId = searchParams.get('usuario_id') || null
   const usuarioName = searchParams.get('usuario') || ''
 
+  const { user } = useAuth()
+  const isEncargado = user?.role === 'encargado'
+
+  // Reembolsos manuales pendientes (Pago Móvil / heredados)
+  const [refunds, setRefunds] = useState<PendingRefund[]>([])
+  const [refundsLoading, setRefundsLoading] = useState(true)
+  const [refundAction, setRefundAction] = useState<{ item: PendingRefund; approve: boolean } | null>(null)
+  const [refundNote, setRefundNote] = useState('')
+  const [refundBusy, setRefundBusy] = useState(false)
+  const [success, setSuccess] = useState('')
+
   // Al cambiar el usuario filtrado (desde la lista de usuarios), volver a la página 1
   useEffect(() => {
     setPage(0)
@@ -83,6 +117,10 @@ export function AdminTransactions() {
   useEffect(() => {
     loadTransactions()
   }, [page, pageSize, usuarioId])
+
+  useEffect(() => {
+    loadPendingRefunds()
+  }, [])
 
   useEffect(() => {
     supabase
@@ -128,6 +166,64 @@ export function AdminTransactions() {
     setApplying(false)
   }
 
+  // Reembolsos manuales pendientes de aprobar/rechazar
+  const loadPendingRefunds = async () => {
+    setRefundsLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('get_pending_refunds')
+      if (error) throw error
+      const res = data as PendingRefundsResponse
+      setRefunds(res?.items || [])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRefundsLoading(false)
+    }
+  }
+
+  const openRefundAction = (item: PendingRefund, approve: boolean) => {
+    setError('')
+    setSuccess('')
+    setRefundNote('')
+    setRefundAction({ item, approve })
+  }
+
+  const handleProcessRefund = async () => {
+    if (!refundAction) return
+    if (!refundAction.approve && !refundNote.trim()) {
+      setError('Escribe el motivo del rechazo')
+      return
+    }
+
+    setRefundBusy(true)
+    setError('')
+
+    try {
+      const { data, error } = await supabase.rpc('admin_process_refund', {
+        p_transaction_id: refundAction.item.transaction_id,
+        p_approve: refundAction.approve,
+        p_note: refundNote.trim() || null
+      })
+      if (error) throw error
+
+      const res = data as { already_processed?: boolean }
+      setSuccess(
+        res?.already_processed
+          ? 'Ese reembolso ya había sido procesado.'
+          : refundAction.approve
+            ? `Reembolso de ${fmt(refundAction.item.amount_usd)} aprobado y acreditado.`
+            : `Reembolso de ${fmt(refundAction.item.amount_usd)} rechazado.`
+      )
+      setRefundAction(null)
+      setRefundNote('')
+      await Promise.all([loadPendingRefunds(), loadTransactions()])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRefundBusy(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -146,6 +242,91 @@ export function AdminTransactions() {
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+
+        {success && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+            <p className="text-sm text-emerald-700">{success}</p>
+            <button onClick={() => setSuccess('')} className="text-xs text-emerald-700 font-medium">✕</button>
+          </div>
+        )}
+
+        {/* Reembolsos manuales pendientes */}
+        {refunds.length > 0 && (
+          <div className="card border-2 border-amber-200 bg-amber-50">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <div>
+                  <h2 className="font-semibold text-amber-800">Reembolsos pendientes</h2>
+                  <p className="text-xs text-amber-700">{refunds.length} por procesar</p>
+                </div>
+              </div>
+              <button
+                onClick={loadPendingRefunds}
+                className="btn-outline text-xs px-3 py-1.5"
+                disabled={refundsLoading}
+                title="Actualizar reembolsos"
+              >
+                {refundsLoading
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <RefreshCw className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {refunds.map((r) => (
+                <div key={r.transaction_id} className="bg-white rounded-xl p-3 border border-amber-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-surface-800">
+                        {fmt(r.amount_usd)} · {r.cliente || 'Cliente'}
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        {r.payment_method || 'Método no especificado'}
+                        {r.tracking_code ? ` · ${r.tracking_code}` : ''}
+                        {' · '}
+                        {new Date(r.created_at).toLocaleDateString('es-VE', {
+                          day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                      {r.motivo_bloqueo && (
+                        <p className="text-[11px] text-amber-700 mt-1">{r.motivo_bloqueo}</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => openRefundAction(r, true)}
+                        disabled={!r.puede_procesar}
+                        className="btn-success text-xs px-3 py-1.5 disabled:opacity-40"
+                        title={r.motivo_bloqueo || 'Aprobar y acreditar a la billetera'}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Aprobar
+                      </button>
+                      <button
+                        onClick={() => openRefundAction(r, false)}
+                        disabled={r.tiene_incidente_abierto}
+                        className="btn-danger text-xs px-3 py-1.5 disabled:opacity-40"
+                        title={r.tiene_incidente_abierto ? (r.motivo_bloqueo || '') : 'Rechazar reembolso'}
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Rechazar
+                      </button>
+                    </div>
+                  </div>
+
+                  {r.tiene_incidente_abierto && (
+                    <a
+                      href={isEncargado ? '/encargado/incidentes' : '/admin/incidentes'}
+                      className="text-[11px] text-primary-700 underline mt-2 inline-block"
+                    >
+                      Resolver en Incidentes
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="card p-4 space-y-3">
@@ -331,6 +512,86 @@ export function AdminTransactions() {
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación de reembolso */}
+      {refundAction && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                refundAction.approve ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+              }`}>
+                {refundAction.approve
+                  ? <CheckCircle className="w-5 h-5" />
+                  : <XCircle className="w-5 h-5" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-surface-800">
+                  {refundAction.approve ? 'Aprobar reembolso' : 'Rechazar reembolso'}
+                </h2>
+                <p className="text-xs text-surface-500">{refundAction.item.cliente || 'Cliente'}</p>
+              </div>
+            </div>
+
+            <div className="bg-surface-50 rounded-xl p-4 space-y-1 mb-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-surface-500">Monto</span>
+                <span className="font-bold text-surface-800">{fmt(refundAction.item.amount_usd)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Método</span>
+                <span className="font-medium text-surface-700">{refundAction.item.payment_method || '—'}</span>
+              </div>
+              {refundAction.item.tracking_code && (
+                <div className="flex justify-between">
+                  <span className="text-surface-500">Viaje</span>
+                  <span className="font-mono text-surface-700">{refundAction.item.tracking_code}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-surface-500 mb-3">
+              {refundAction.approve
+                ? 'Se acreditará el monto a la billetera del cliente y la transacción quedará completada.'
+                : 'La transacción quedará rechazada y no se acreditará dinero.'}
+            </p>
+
+            <div>
+              <label className="label">
+                {refundAction.approve ? 'Nota (opcional)' : 'Motivo del rechazo *'}
+              </label>
+              <textarea
+                className="input min-h-[70px]"
+                maxLength={500}
+                value={refundNote}
+                onChange={(e) => setRefundNote(e.target.value)}
+                placeholder={refundAction.approve
+                  ? 'Ej: verificado con el banco'
+                  : 'Ej: el comprobante no corresponde'}
+              />
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setRefundAction(null)}
+                className="btn-outline flex-1"
+                disabled={refundBusy}
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleProcessRefund}
+                className={`${refundAction.approve ? 'btn-success' : 'btn-danger'} flex-1`}
+                disabled={refundBusy}
+              >
+                {refundBusy
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

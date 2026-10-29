@@ -25,6 +25,14 @@ const typeIcons: Record<string, React.ReactNode> = {
   recharge_approved: <Wallet className="w-4 h-4" />,
   recharge_rejected: <Wallet className="w-4 h-4" />,
   recharge_pending: <Wallet className="w-4 h-4" />,
+  refund_pending: <Wallet className="w-4 h-4" />,
+  refund_completed: <Wallet className="w-4 h-4" />,
+  refund_rejected: <Wallet className="w-4 h-4" />,
+  cancellation_charge_pending: <Wallet className="w-4 h-4" />,
+  cancellation_charge_approved: <Wallet className="w-4 h-4" />,
+  cancellation_charge_waived: <Wallet className="w-4 h-4" />,
+  driver_compensation: <Banknote className="w-4 h-4" />,
+  incident_resolved: <CheckCheck className="w-4 h-4" />,
   proof_pending: <ClipboardCheck className="w-4 h-4" />,
   proof_reviewed: <ClipboardCheck className="w-4 h-4" />,
   payout_driver_pay: <Banknote className="w-4 h-4" />,
@@ -57,6 +65,14 @@ const typeColors: Record<string, string> = {
   recharge_approved: 'bg-emerald-100 text-emerald-600',
   recharge_rejected: 'bg-red-100 text-red-500',
   recharge_pending: 'bg-amber-100 text-amber-600',
+  refund_pending: 'bg-amber-100 text-amber-600',
+  refund_completed: 'bg-emerald-100 text-emerald-600',
+  refund_rejected: 'bg-red-100 text-red-500',
+  cancellation_charge_pending: 'bg-amber-100 text-amber-600',
+  cancellation_charge_approved: 'bg-red-100 text-red-500',
+  cancellation_charge_waived: 'bg-emerald-100 text-emerald-600',
+  driver_compensation: 'bg-emerald-100 text-emerald-600',
+  incident_resolved: 'bg-emerald-100 text-emerald-600',
   proof_pending: 'bg-amber-100 text-amber-600',
   proof_reviewed: 'bg-emerald-100 text-emerald-600',
   payout_driver_pay: 'bg-primary-100 text-primary-600',
@@ -79,17 +95,41 @@ const driverNotificationFocus: Record<string, string> = {
   driver_change_request: 'change',
 }
 
-function getNotificationUrl(n: Notification): string {
+// Rutas del panel admin que tienen equivalente para el encargado de ciudad
+const ADMIN_TO_ENCARGADO: Record<string, string> = {
+  '/admin/transacciones': '/encargado/transacciones',
+  '/admin/incidentes': '/encargado/incidentes',
+  '/admin/comprobantes': '/encargado/comprobantes',
+  '/admin/recargas': '/encargado/recargas',
+  '/admin/conductores': '/encargado/conductores',
+  '/admin/usuarios': '/encargado/usuarios',
+  '/admin/operacion': '/encargado/operacion',
+  '/admin/metricas': '/encargado/metricas',
+  '/admin/liquidaciones': '/encargado/liquidaciones',
+  '/admin/cuentas': '/encargado/cuentas',
+  '/admin/banners': '/encargado/banners',
+  '/admin/notificaciones': '/encargado/notificaciones',
+  '/admin/precios-ciudad': '/encargado/precios-ciudad'
+}
+
+function mapUrlForRole(url: string, role?: string): string {
+  if (role !== 'encargado' || !url.startsWith('/admin/')) return url
+  const [path, query] = url.split('?')
+  const mapped = ADMIN_TO_ENCARGADO[path]
+  return mapped ? `${mapped}${query ? `?${query}` : ''}` : url
+}
+
+function getNotificationUrl(n: Notification, role?: string): string {
   const data = n.data || {}
 
   // Las notificaciones de conductores abren el conductor exacto en el admin.
   const driverId = data.driver_id as string | undefined
   const focus = n.type ? driverNotificationFocus[n.type] : undefined
   if (driverId && focus) {
-    return `/admin/conductores?driver=${driverId}&focus=${focus}`
+    return mapUrlForRole(`/admin/conductores?driver=${driverId}&focus=${focus}`, role)
   }
 
-  if (data.url) return data.url as string
+  if (data.url) return mapUrlForRole(data.url as string, role)
   if (n.type?.startsWith('ride_')) {
     const rideId = data.ride_id as string
     if (rideId) {
@@ -195,7 +235,7 @@ export function NotificationsPage() {
     if (!n.is_read) {
       await markAsRead(n.id)
     }
-    navigate(getNotificationUrl(n))
+    navigate(getNotificationUrl(n, user?.role))
   }
 
   // Al entrar a la bandeja, sincroniza con la base: las ofertas de viaje que
