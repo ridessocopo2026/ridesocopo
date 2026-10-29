@@ -53,6 +53,8 @@ const actionLabels: Record<string, string> = {
   RIDE_STARTED: 'Viaje iniciado',
   CONFIRM_RIDE_COMPLETION: 'Viaje completado',
   CANCEL_RIDE: 'Viaje cancelado',
+  FIX_CANCELLATION_COMPENSATION: 'Corrección de compensación',
+  VOID_PHANTOM_REFUND: 'Anulación de reembolso inexistente',
   SEND_BROADCAST: 'Notificación masiva',
   CLEANUP_OLD_DATA: 'Limpieza de datos',
   SAVE_LEGAL_PAGE: 'Página legal'
@@ -79,6 +81,8 @@ const sensitiveActions = new Set([
   'CATEGORY_UPDATE',
   'CATEGORY_DELETE',
   'RESOLVE_INCIDENT',
+  'FIX_CANCELLATION_COMPENSATION',
+  'VOID_PHANTOM_REFUND',
   'PROMOTE_SUPER_ADMIN',
   'SEND_BROADCAST'
 ])
