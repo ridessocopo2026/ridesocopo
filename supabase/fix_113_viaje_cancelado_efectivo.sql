@@ -78,6 +78,46 @@ BEGIN
   END IF;
 END $$;
 
+-- 3) Barrido general: cualquier reembolso pendiente de un viaje
+--    en EFECTIVO es inexistente (nunca hubo retención). Se anula.
+DO $$
+DECLARE
+  v_admin UUID := 'cbbd6371-d96b-44aa-8f32-460b8ade5594';
+  r RECORD;
+  v_count INTEGER := 0;
+BEGIN
+  FOR r IN
+    SELECT t.id, t.ride_id, t.amount_usd
+    FROM transactions t
+    JOIN rides rd ON rd.id = t.ride_id
+    WHERE t.type = 'credito'
+      AND t.status = 'pendiente'
+      AND t.description LIKE 'Reembolso%'
+      AND LOWER(rd.payment_method) = 'efectivo'
+    FOR UPDATE
+  LOOP
+    UPDATE transactions
+    SET status = 'rechazado',
+        reviewed_by = v_admin,
+        reviewed_at = NOW(),
+        description = 'Reembolso anulado: pago en efectivo (no hubo retención)'
+    WHERE id = r.id;
+
+    UPDATE rides
+    SET reimbursement_status = 'no_aplica', updated_at = NOW()
+    WHERE id = r.ride_id AND reimbursement_status = 'pendiente_manual';
+
+    INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
+    VALUES (v_admin, 'VOID_PHANTOM_REFUND', 'transaction', r.id,
+            jsonb_build_object('ride_id', r.ride_id, 'amount_usd', r.amount_usd,
+                               'reason', 'efectivo sin retención: el cliente nunca pagó a la plataforma'));
+
+    v_count := v_count + 1;
+  END LOOP;
+
+  RAISE NOTICE 'Reembolsos fantasma anulados: %', v_count;
+END $$;
+
 -- Verificación
 SELECT r.id, r.payment_method, r.cancellation_fee_usd, r.driver_compensation_usd, r.reimbursement_status
 FROM rides r WHERE r.id = 'de05e23a-e0f5-4504-9808-83a7dac22e64';
