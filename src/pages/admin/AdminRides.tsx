@@ -15,6 +15,7 @@ interface RideItem {
   commission_usd: number
   fecha: string
   origin_address: string | null
+  origin_barrio_name: string | null
   destination_address: string | null
   destination_barrio_name: string | null
   proof_status: string | null
@@ -219,7 +220,7 @@ export function AdminRides() {
                         </div>
                         <p className="text-xs text-surface-500 truncate">
                           <MapPin className="w-3 h-3 inline mr-1" />
-                          {r.origin_address} → {r.destination_address || r.destination_barrio_name}
+                          {r.origin_barrio_name || r.origin_address} → {r.destination_barrio_name || r.destination_address}
                         </p>
                         <p className="text-[10px] text-surface-400">
                           {new Date(r.fecha).toLocaleDateString('es-VE')} • {r.cliente || '—'} → {r.conductor || '—'}
@@ -240,6 +241,20 @@ export function AdminRides() {
                         <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
                       ) : detail ? (
                         <>
+                          {/* Sector real de recogida y referencia OSM */}
+                          <div className="bg-surface-50 rounded-lg p-2 text-xs space-y-1.5">
+                            <div>
+                              <p className="text-[10px] text-surface-400">Recogida (sector)</p>
+                              <p className="font-semibold text-surface-700">{r.origin_barrio_name || 'No registrado'}</p>
+                              <p className="text-[10px] text-surface-400">Referencia: {r.origin_address || '—'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-surface-400">Destino (sector)</p>
+                              <p className="font-semibold text-surface-700">{r.destination_barrio_name || 'No registrado'}</p>
+                              <p className="text-[10px] text-surface-400">Referencia: {r.destination_address || '—'}</p>
+                            </div>
+                          </div>
+
                           {/* Info del viaje */}
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div className="bg-surface-50 rounded-lg p-2">

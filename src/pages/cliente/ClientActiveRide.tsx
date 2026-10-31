@@ -900,7 +900,10 @@ export function ClientActiveRide() {
               <div className="w-2 h-2 bg-accent-600 rounded-full mt-1.5 flex-shrink-0" />
               <div>
                 <p className="text-xs text-surface-400">Origen</p>
-                <p className="text-sm text-surface-700">{ride.origin_address || 'Ubicación actual'}</p>
+                <p className="text-sm font-medium text-surface-800">{ride.origin_barrio_name || ride.origin_address || 'Ubicación actual'}</p>
+                {ride.origin_barrio_name && ride.origin_address && (
+                  <p className="text-[11px] text-surface-400">Referencia: {ride.origin_address}</p>
+                )}
               </div>
             </div>
             <div className="flex items-start gap-3">

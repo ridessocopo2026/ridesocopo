@@ -200,6 +200,8 @@ export interface Ride {
   origin_lng: number
   origin_address?: string
   origin_zone_id?: string
+  origin_barrio_id?: string
+  origin_barrio_name?: string
   destination_lat: number
   destination_lng: number
   destination_address?: string
