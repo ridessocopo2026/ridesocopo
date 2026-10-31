@@ -105,6 +105,7 @@ export function ClientHome() {
   const [categories, setCategories] = useState<VehicleCategory[]>([])
   const [barrios, setBarrios] = useState<Barrio[]>([])
   const [barrioExtras, setBarrioExtras] = useState<Record<string, number>>({})
+  const [originBarrioExtras, setOriginBarrioExtras] = useState<Record<string, number>>({})
   const [driverCounts, setDriverCounts] = useState<Record<string, number>>({})
   // Conductores OCUPADOS por categoría: permite decir "todos en viaje"
   // en vez del genérico "no hay disponibles"
@@ -425,6 +426,9 @@ export function ClientHome() {
     setLoadingBarrios(false)
   }
 
+  // Barrio/sector de ORIGEN: el más cercano al pin de recogida
+  const originBarrio = origin ? nearestBarrio(origin, barrios)?.barrio : undefined
+
   // Recargos efectivos (barrio × categoría) del destino elegido, desde la vista
   useEffect(() => {
     setBarrioExtras({})
@@ -446,6 +450,28 @@ export function ClientHome() {
       cancelled = true
     }
   }, [destBarrioId])
+
+  // Recargos efectivos (barrio × categoría) del ORIGEN
+  useEffect(() => {
+    setOriginBarrioExtras({})
+    if (!originBarrio?.id) return
+    let cancelled = false
+    supabase
+      .from('v_barrio_surcharges')
+      .select('category, surcharge_usd')
+      .eq('barrio_id', originBarrio.id)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return
+        const map: Record<string, number> = {}
+        ;(data as Array<{ category: string; surcharge_usd: number }>).forEach((r) => {
+          map[r.category] = Number(r.surcharge_usd)
+        })
+        setOriginBarrioExtras(map)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [originBarrio?.id])
 
   // Si el cliente ajusta el pin del destino, la tarifa anterior deja de ser válida.
   useEffect(() => {
@@ -957,12 +983,19 @@ export function ClientHome() {
     return eff !== undefined ? eff : legacyBarrioSurcharge(barrio, cat)
   }
 
+  // Extra del sector de ORIGEN para una categoría
+  const getOriginExtraForCategory = (cat: VehicleCategoryType): number => {
+    if (!originBarrio) return 0
+    const eff = originBarrioExtras[cat]
+    return eff !== undefined ? eff : legacyBarrioSurcharge(originBarrio, cat)
+  }
+
   // Total estimado (tarifa base + extra del barrio) para validar el cupón en vivo
   const estimateTotalForCoupon = (): number => {
     const cat = categories.find((c) => c.name === selectedCategory)
     const barrio = barrios.find((b) => b.id === destBarrioId)
     if (!cat || !barrio) return 0
-    return cat.base_fare_usd + getExtraForCategory(barrio, cat.name)
+    return cat.base_fare_usd + getOriginExtraForCategory(cat.name) + getExtraForCategory(barrio, cat.name)
   }
 
   // Validación del cupón en vivo (con retardo) mientras el cliente escribe
@@ -993,7 +1026,7 @@ export function ClientHome() {
     }, 500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [couponCode, user?.id, destBarrioId, selectedCategory, barrioExtras])
+  }, [couponCode, user?.id, destBarrioId, selectedCategory, barrioExtras, originBarrioExtras, originBarrio?.id])
 
   // Disponibilidad real por categoría (polling barato: 1 request/min,
   // solo con la pestaña visible y sin viaje activo)
@@ -1459,6 +1492,9 @@ export function ClientHome() {
             {categories.map((cat) => {
               const count = driverCounts[cat.name]
               const noDisponible = count === 0
+              const originExtra = getOriginExtraForCategory(cat.name)
+              const destExtra = getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name)
+              const sectorExtra = originExtra + destExtra
               return (
                 <button
                   key={cat.id}
@@ -1496,9 +1532,12 @@ export function ClientHome() {
                       No disponible ahora
                     </span>
                   )}
-                  {!noDisponible && getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name) > 0 && (
-                    <span className="block text-[10px] text-accent-600 mt-0.5">
-                      + {getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name).toFixed(2)}$ extra por sector
+                  {!noDisponible && sectorExtra > 0 && (
+                    <span
+                      className="block text-[10px] text-accent-600 mt-0.5"
+                      title="Incluye recargos del sector de origen y de destino"
+                    >
+                      + {sectorExtra.toFixed(2)}$ extra por sector
                     </span>
                   )}
                 </button>
