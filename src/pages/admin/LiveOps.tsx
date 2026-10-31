@@ -229,8 +229,15 @@ export function LiveOps() {
   const filteredActive = statusFilter === 'todos'
     ? sortedActive
     : sortedActive.filter((r) => r.status === statusFilter)
-  const selectedRide = activeRides.find((r) => r.ride_id === selectedRideId) || sortedActive[0] || null
+  const selectedRide = filteredActive.find((r) => r.ride_id === selectedRideId) || filteredActive[0] || null
   const activeTotal = activeCounts?.total ?? activeRides.length
+
+  // Mantiene el mapa y el canal Realtime alineados con el filtro seleccionado.
+  useEffect(() => {
+    if (selectedRide && selectedRide.ride_id !== selectedRideId) {
+      setSelectedRideId(selectedRide.ride_id)
+    }
+  }, [selectedRide, selectedRideId])
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
