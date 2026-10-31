@@ -1121,7 +1121,7 @@ export function ClientHome() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <SupportButton />
+              <SupportButton zoneId={selectedCityId || undefined} />
               <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
             </div>
           </div>
@@ -1211,7 +1211,7 @@ export function ClientHome() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <SupportButton />
+            <SupportButton zoneId={selectedCityId || undefined} />
             <NotificationBell className="p-2 text-white hover:text-white/70 transition-colors" />
           </div>
         </div>
@@ -1266,9 +1266,15 @@ export function ClientHome() {
           </div>
         )}
 
+
+
+        {/* Invitado: atajo claro para resolver dudas por WhatsApp */}
+        {!user && (
+          <SupportButton variant="card" zoneId={selectedCityId || undefined} />
+        )}
+
         {/* Activar notificaciones push (si no están activas) */}
         <PushNotificationCard />
-
         {banners.length > 0 && (
           <div
             className="relative overflow-hidden rounded-2xl shadow-card"
