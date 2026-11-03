@@ -1,15 +1,19 @@
 /**
  * Ruteo por carretera con OSRM (Open Source Routing Machine).
  *
- * Usamos el servidor publico de demostracion de OSRM:
- *   https://project-osrm.org
- * Es GRATIS y NO requiere API key -> sin costos extra.
+ * Usamos servidores publicos OSRM:
+ *   https://project-osrm.org  (principal)
+ *   https://routing.openstreetmap.de  (respaldo, misma API)
+ * Son GRATIS y NO requieren API key -> sin costos extra.
  *
  * Nota: el servidor demo es para uso ligero. Si el volumen crece mucho se
- * puede auto-hospedar OSRM y solo cambiar OSRM_BASE (misma API).
+ * puede auto-hospedar OSRM y solo cambiar la lista OSRM_BASES.
  */
 
-const OSRM_BASE = 'https://router.project-osrm.org'
+const OSRM_BASES = [
+  'https://router.project-osrm.org',
+  'https://routing.openstreetmap.de/routed-car'
+] as const
 
 export type LatLng = [number, number]
 
@@ -29,18 +33,19 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
-/**
- * Devuelve la geometria de la ruta en carretera de `from` a `to` como lista
- * de puntos [lat, lng], o `null` si falla (sin red, limite, etc.).
- */
-export async function fetchRoute(from: LatLng, to: LatLng): Promise<LatLng[] | null> {
+/** Peticion a UN servidor OSRM. Devuelve null si falla o expira. */
+async function fetchRouteFrom(
+  base: string,
+  from: LatLng,
+  to: LatLng
+): Promise<LatLng[] | null> {
   // OSRM usa orden lng,lat y overview=full para devolver toda la geometria.
   const url =
-    `${OSRM_BASE}/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}` +
+    `${base}/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}` +
     `?overview=full&geometries=geojson&alternatives=false&steps=false`
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
+  const timeout = setTimeout(() => controller.abort(), 7000)
 
   try {
     const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
@@ -55,4 +60,17 @@ export async function fetchRoute(from: LatLng, to: LatLng): Promise<LatLng[] | n
   } finally {
     clearTimeout(timeout)
   }
+}
+
+/**
+ * Devuelve la geometria de la ruta en carretera de `from` a `to` como lista
+ * de puntos [lat, lng], o `null` si falla (sin red, limite, etc.).
+ * Si el servidor principal falla se intenta el de respaldo.
+ */
+export async function fetchRoute(from: LatLng, to: LatLng): Promise<LatLng[] | null> {
+  for (const base of OSRM_BASES) {
+    const pts = await fetchRouteFrom(base, from, to)
+    if (pts) return pts
+  }
+  return null
 }

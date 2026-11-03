@@ -13,12 +13,14 @@ import { useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
 import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import { resolvePhotoUrl } from '@/lib/photos'
-import { fetchRoute } from '@/lib/routing'
+import { fetchRoute, distanceMeters } from '@/lib/routing'
 import type { Ride, CancellationEstimate, IncidentType, RideClientInfo } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 
 // Iconos personalizados
 const SECTOR_REFERENCE_RADIUS_M = 350
+/** Si el vehículo se movió menos de esto, no se pide de nuevo la ruta */
+const ROUTE_MIN_MOVE_M = 150
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
   html: `<div class="w-10 h-10 bg-primary-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
@@ -125,6 +127,8 @@ export function ActiveRide() {
   // Ruta por carretera (OSRM) hacia el siguiente punto del viaje
   const [route, setRoute] = useState<[number, number][] | null>(null)
   const lastRouteRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null)
+  // Identificador de la última petición de ruta (descarta respuestas viejas)
+  const routeReqRef = useRef(0)
   // Pantalla completa del mapa
   const [mapExpanded, setMapExpanded] = useState(false)
   // Fuerza un recalculo manual de la ruta (boton recargar)
@@ -244,13 +248,18 @@ export function ActiveRide() {
     }
   }, [vehiclePos])
 
-  // Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
-  // No pide de mas: solo si cambia el objetivo o el vehiculo avanzo >= 150 m.
+  // 🗺️ Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
+  // 💰 Costo: solo se pide si cambia el objetivo o el vehículo avanzó >= 150 m.
+  // 🐞 Antes se marcaba `lastRouteRef` ANTES de recibir la ruta y el cleanup
+  //    cancelaba la petición cada vez que llegaba una nueva posición GPS, así
+  //    que la ruta no se pintaba hasta recargar la app. Ahora la marca se pone
+  //    solo al recibir una ruta válida y las respuestas viejas se descartan.
   useEffect(() => {
     if (!ride) return
     const active = ride.status === 'aceptada' || ride.status === 'en_ruta'
     if (!active) {
       lastRouteRef.current = null
+      routeReqRef.current += 1
       setRoute(null)
       return
     }
@@ -266,17 +275,21 @@ export function ActiveRide() {
         : [ride.destination_lat, ride.destination_lng]
 
     const prev = lastRouteRef.current
-    const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
-    if (prev && sameTarget) return
+    if (prev) {
+      const sameTarget = prev.to[0] === to[0] && prev.to[1] === to[1]
+      // Mismo destino y el vehículo casi no se movió → no gastar petición
+      if (sameTarget && distanceMeters(prev.from, from) < ROUTE_MIN_MOVE_M) return
+    }
 
-    lastRouteRef.current = { from, to }
-    let cancelled = false
-    ;(async () => {
-      const pts = await fetchRoute(from, to)
-      if (cancelled || !pts) return
+    const reqId = ++routeReqRef.current
+    void fetchRoute(from, to).then((pts) => {
+      // Llegó una respuesta vieja: ya hay una petición más reciente
+      if (routeReqRef.current !== reqId) return
+      // Falló o expiró: no se marca nada, el próximo GPS vuelve a intentar
+      if (!pts || pts.length < 2) return
+      lastRouteRef.current = { from, to }
       setRoute(pts)
-    })()
-    return () => { cancelled = true }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     vehiclePos?.[0],

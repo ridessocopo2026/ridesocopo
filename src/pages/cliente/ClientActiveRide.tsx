@@ -17,9 +17,11 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
-import { fetchRoute } from '@/lib/routing'
+import { fetchRoute, distanceMeters } from '@/lib/routing'
 
 const SECTOR_REFERENCE_RADIUS_M = 350
+/** Si el vehículo se movió menos de esto, no se pide de nuevo la ruta */
+const ROUTE_MIN_MOVE_M = 150
 
 const vehicleIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -156,6 +158,8 @@ export function ClientActiveRide() {
   // Ruta por carretera (OSRM) hacia el siguiente punto del viaje
   const [route, setRoute] = useState<[number, number][] | null>(null)
   const lastRouteRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null)
+  // Identificador de la última petición de ruta (descarta respuestas viejas)
+  const routeReqRef = useRef(0)
   // Pantalla completa del mapa
   const [mapExpanded, setMapExpanded] = useState(false)
 
@@ -288,12 +292,18 @@ export function ClientActiveRide() {
     }
   }, [ride?.driver_location_lat, ride?.driver_location_lng])
 
-  // Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
+  // 🗺️ Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
+  // 💰 Costo: solo se pide si cambia el objetivo o el conductor avanzó >= 150 m.
+  // 🐞 Igual que en la pantalla del conductor: antes se marcaba la ruta antes
+  //    de recibirla y el cleanup cancelaba la petición, dejando el mapa sin
+  //    ruta hasta recargar. Ahora se marca solo al recibirla y las respuestas
+  //    viejas se descartan.
   useEffect(() => {
     if (!ride) return
     const active = ride.status === 'aceptada' || ride.status === 'en_ruta'
     if (!active) {
       lastRouteRef.current = null
+      routeReqRef.current += 1
       setRoute(null)
       return
     }
@@ -308,17 +318,18 @@ export function ClientActiveRide() {
         : [ride.destination_lat, ride.destination_lng]
 
     const prev = lastRouteRef.current
-    const sameTarget = prev ? prev.to[0] === to[0] && prev.to[1] === to[1] : false
-    if (prev && sameTarget) return
+    if (prev) {
+      const sameTarget = prev.to[0] === to[0] && prev.to[1] === to[1]
+      if (sameTarget && distanceMeters(prev.from, from) < ROUTE_MIN_MOVE_M) return
+    }
 
-    lastRouteRef.current = { from, to }
-    let cancelled = false
-    ;(async () => {
-      const pts = await fetchRoute(from, to)
-      if (cancelled || !pts) return
+    const reqId = ++routeReqRef.current
+    void fetchRoute(from, to).then((pts) => {
+      if (routeReqRef.current !== reqId) return
+      if (!pts || pts.length < 2) return
+      lastRouteRef.current = { from, to }
       setRoute(pts)
-    })()
-    return () => { cancelled = true }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ride?.status,
