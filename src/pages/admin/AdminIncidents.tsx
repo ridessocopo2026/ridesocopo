@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign, Camera, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign, Camera, ChevronLeft, ChevronRight, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmt } from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -111,9 +112,24 @@ const buildIncidentPeople = (incident: AdminIncidentRow): IncidentPerson[] => {
     })
   }
 
-  return people.map((p) =>
-    p.isReporter ? { ...p, note: 'Reportó este incidente' } : p
-  )
+  // Notas: quién reportó y quién canceló el viaje
+  const notesFor = (personId: string | null | undefined): string => {
+    const parts: string[] = []
+    if (personId && incident.reported_by === personId) parts.push('Reportó este incidente')
+    if (personId && incident.cancelled_by === personId) parts.push('Canceló el viaje')
+    return parts.join(' · ')
+  }
+
+  return people.map((p) => {
+    const personId =
+      p.kind === 'cliente'
+        ? incident.client_id
+        : p.kind === 'conductor'
+          ? incident.driver_id
+          : incident.reported_by
+    const note = notesFor(personId)
+    return note ? { ...p, note } : { ...p, note: undefined }
+  })
 }
 
 /** Mensaje de WhatsApp ya escrito con el contexto del incidente. */
@@ -163,6 +179,28 @@ export function AdminIncidents() {
   // Negativo = hay que revertir lo ya pagado al conductor
   const compensationDelta = compensateDriverAmount - alreadyCompensated
 
+  // ── Estado real del dinero del incidente (migración 129) ──
+  const methodLower = (selectedIncident?.payment_method || '').toLowerCase()
+  const isCashIncident = methodLower.includes('efectivo')
+  const pendingChargeUsd = selectedIncident?.charge_pending_usd ?? 0
+  const refundPendingUsd = selectedIncident?.refund_pending_usd ?? 0
+  const refundCreditedUsd = selectedIncident?.refund_credited_usd ?? 0
+  const chargeWaivedUsd = selectedIncident?.charge_waived_usd ?? 0
+  const hasPendingCharge = pendingChargeUsd > 0
+  // El cliente solo paga un cargo extra en efectivo (ahí no se retuvo nada).
+  // En Pago Móvil/Billetera el fee ya salió del dinero cobrado.
+  const showPenaltyField = isCancellationIncident
+    ? (hasPendingCharge || atFault === 'conductor')
+    : atFault !== 'accidente'
+  // ¿La app llegó a cobrar el viaje?
+  const collectedLabel = isCashIncident
+    ? 'No — el cliente paga directo al conductor'
+    : methodLower.includes('billetera')
+      ? 'Sí — se descontó de su billetera'
+      : selectedIncident?.proof_status === 'aprobado'
+        ? 'Sí — comprobante aprobado'
+        : 'No — comprobante sin aprobar'
+
   // Al abrir el modal, pre-cargar montos sugeridos según el culpable
   const openIncident = (incident: AdminIncidentRow) => {
     setSelectedIncident(incident)
@@ -174,9 +212,11 @@ export function AdminIncidents() {
     if (incident.incident_type === 'cancelacion_cliente') {
       // El culpable se deduce de quién canceló; el cargo ya está registrado
       const byDriver = !!(ride && ride.cancelled_by && ride.cancelled_by === ride.driver_id)
+      const charge = incident.charge_pending_usd ?? 0
       setAtFault(byDriver ? 'conductor' : 'cliente')
       setRefundClientAmount(0)
-      setPenalizeAmount(byDriver ? 0 : (ride?.cancellation_fee_usd ?? 0))
+      // Solo hay algo que cobrar al cliente si existe un cargo pendiente (efectivo).
+      setPenalizeAmount(!byDriver && charge > 0 ? charge : 0)
       // La compensación NO se paga automáticamente: arranca en 0 y el admin decide.
       setCompensateDriverAmount(0)
       setCancelRide(true)
@@ -198,8 +238,9 @@ export function AdminIncidents() {
     const c = ride?.commission_usd ?? 0
 
     if (selectedIncident?.incident_type === 'cancelacion_cliente') {
+      const charge = selectedIncident.charge_pending_usd ?? 0
       setRefundClientAmount(0)
-      setPenalizeAmount(fault === 'cliente' ? (ride?.cancellation_fee_usd ?? 0) : 0)
+      setPenalizeAmount(fault === 'cliente' && charge > 0 ? charge : 0)
       // No tocar la compensación: es decisión explícita del admin.
       return
     }
@@ -550,6 +591,70 @@ export function AdminIncidents() {
               className="rounded-xl border border-primary-100 bg-primary-50/40 p-3 mb-4"
             />
 
+            {/* Estado real del dinero del viaje: qué existe y qué no */}
+            <div className="rounded-xl border border-surface-200 bg-surface-50 p-3 mb-4 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-surface-400 flex items-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5" /> Estado del dinero
+              </p>
+              <div className="flex justify-between gap-2 text-sm">
+                <span className="text-surface-500">Método de pago</span>
+                <span className="font-medium text-surface-700">{selectedIncident.payment_method || '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2 text-sm">
+                <span className="text-surface-500">Cobrado por la app</span>
+                <span className="font-medium text-surface-700 text-right">{collectedLabel}</span>
+              </div>
+              <div className="flex justify-between gap-2 text-sm">
+                <span className="text-surface-500">Tarifa del viaje</span>
+                <span className="font-medium text-surface-700">{fmt(fare)}</span>
+              </div>
+              <div className="flex justify-between gap-2 text-sm">
+                <span className="text-surface-500">Fee de cancelación</span>
+                <span className="font-medium text-surface-700">{fmt(cancellationFee)}</span>
+              </div>
+
+              {hasPendingCharge && (
+                <div className="flex justify-between gap-2 text-sm">
+                  <span className="text-amber-700">Cargo al cliente</span>
+                  <span className="font-semibold text-amber-700">
+                    Pendiente de verificar {fmt(pendingChargeUsd)}
+                  </span>
+                </div>
+              )}
+              {!hasPendingCharge && chargeWaivedUsd > 0 && (
+                <div className="flex justify-between gap-2 text-sm">
+                  <span className="text-surface-500">Cargo al cliente</span>
+                  <span className="font-medium text-emerald-700">Eximido {fmt(chargeWaivedUsd)}</span>
+                </div>
+              )}
+              {refundCreditedUsd > 0 && (
+                <div className="flex justify-between gap-2 text-sm">
+                  <span className="text-emerald-700">Reembolso al cliente</span>
+                  <span className="font-semibold text-emerald-700 text-right">
+                    Acreditado en su billetera {fmt(refundCreditedUsd)}
+                  </span>
+                </div>
+              )}
+              {refundPendingUsd > 0 && (
+                <div className="flex justify-between gap-2 text-sm">
+                  <span className="text-amber-700">Reembolso al cliente</span>
+                  <span className="font-semibold text-amber-700">Pendiente {fmt(refundPendingUsd)}</span>
+                </div>
+              )}
+
+              {isCancellationIncident && isCashIncident && (
+                <p className="text-[11px] text-surface-500 pt-1 border-t border-surface-200">
+                  En efectivo el cliente nunca entregó el dinero: no hay nada que reembolsar.
+                  La compensación al conductor la paga la plataforma.
+                </p>
+              )}
+              {isCancellationIncident && !isCashIncident && (
+                <p className="text-[11px] text-surface-500 pt-1 border-t border-surface-200">
+                  El fee ya quedó retenido del dinero cobrado: no se le cobra un cargo extra al cliente.
+                </p>
+              )}
+            </div>
+
             <div className="space-y-4 mb-4">
               <div>
                 <label className="label">Resolución *</label>
@@ -669,25 +774,36 @@ export function AdminIncidents() {
                 )}
 
                 {isCancellationIncident ? (
-                  <div>
-                    <label className="label">
-                      {atFault === 'conductor' ? 'Penalización al conductor ($)' : 'Cargo al cliente ($)'}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      className="input"
-                      max={atFault === 'conductor' ? undefined : cancellationFee}
-                      value={penalizeAmount}
-                      onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
-                    />
-                    <p className="text-xs text-surface-400 mt-1">
-                      {atFault === 'conductor'
-                        ? 'Se descuenta de la billetera del conductor.'
-                        : <>Cargo registrado: {cancellationFee.toFixed(2)}$.{penalizeAmount > 0 ? ' Se descontará de la billetera del cliente.' : ' En 0 se exime el cargo.'}</>}
-                    </p>
-                  </div>
+                  showPenaltyField ? (
+                    <div>
+                      <label className="label">
+                        {atFault === 'conductor' ? 'Penalización al conductor ($)' : 'Cargo al cliente ($)'}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="input"
+                        max={atFault === 'conductor' ? undefined : pendingChargeUsd}
+                        value={penalizeAmount}
+                        onChange={(e) => setPenalizeAmount(Math.max(0, Number(e.target.value)))}
+                      />
+                      <p className="text-xs text-surface-400 mt-1">
+                        {atFault === 'conductor'
+                          ? 'Se descuenta de la billetera del conductor.'
+                          : <>Cargo pendiente: {pendingChargeUsd.toFixed(2)}$.{penalizeAmount > 0 ? ' Se descontará de la billetera del cliente.' : ' En 0 se exime el cargo.'}</>}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-surface-200 bg-surface-50 p-3">
+                      <p className="text-xs text-surface-500">
+                        No hay ningún cargo pendiente que cobrar en este incidente.
+                        {isCashIncident
+                          ? ' En efectivo no se retuvo dinero; si hace falta cobrarle al cliente, usa “Cargos por verificar” en Transacciones.'
+                          : ' El fee ya quedó retenido del dinero cobrado.'}
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div>
                     <label className="label">
@@ -725,9 +841,15 @@ export function AdminIncidents() {
                         {alreadyCompensated > 0
                           ? `Ya pagado: ${alreadyCompensated.toFixed(2)}$.`
                           : 'No se ha pagado nada todavía.'}
-                        {' '}Sugerencia: {suggestedCompensation.toFixed(2)}$.
+                        {' '}Sugerencia de la política: {suggestedCompensation.toFixed(2)}$.
                       </p>
-                      {suggestedCompensation > 0 && compensateDriverAmount !== suggestedCompensation && (
+                      {isCashIncident && (
+                        <p className="text-[11px] text-amber-700">
+                          En efectivo no se cobró nada al cliente: esta compensación sale de la caja de la plataforma.
+                          Escribe un monto solo si el conductor ya se había desplazado.
+                        </p>
+                      )}
+                      {suggestedCompensation > 0 && !isCashIncident && compensateDriverAmount !== suggestedCompensation && (
                         <button
                           type="button"
                           onClick={() => setCompensateDriverAmount(suggestedCompensation)}

@@ -54,6 +54,8 @@ const actionLabels: Record<string, string> = {
   RIDE_STARTED: 'Viaje iniciado',
   CONFIRM_RIDE_COMPLETION: 'Viaje completado',
   CANCEL_RIDE: 'Viaje cancelado',
+  APPROVE_CANCELLATION_CHARGE: 'Cargo por cancelación cobrado',
+  WAIVE_CANCELLATION_CHARGE: 'Cargo por cancelación eximido',
   FIX_CANCELLATION_COMPENSATION: 'Corrección de compensación',
   REVERSE_DRIVER_COMPENSATION: 'Reversión de compensación al conductor',
   VOID_PHANTOM_REFUND: 'Anulación de reembolso inexistente',

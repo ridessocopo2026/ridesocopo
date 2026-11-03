@@ -140,6 +140,9 @@ export function ClientHome() {
   const [copiedField, setCopiedField] = useState('')
   const [error, setError] = useState('')
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  // Bloqueo por deuda: el cliente debe recargar antes de pedir otro viaje
+  const [showDebtBlock, setShowDebtBlock] = useState(false)
+  const [debtAmount, setDebtAmount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [pulseUbicacion, setPulseUbicacion] = useState(false)
@@ -283,10 +286,10 @@ export function ClientHome() {
   }, [user?.id])
 
   // Cargar el saldo de la billetera del cliente (para avisar de saldo insuficiente antes de fallar)
-  const loadWalletBalance = async () => {
+  const loadWalletBalance = async (): Promise<number | null> => {
     if (!user) {
       setWalletBalance(null)
-      return
+      return null
     }
     const { data, error } = await supabase
       .from('wallets')
@@ -294,8 +297,11 @@ export function ClientHome() {
       .eq('user_id', user.id)
       .single()
     if (!error && data) {
-      setWalletBalance(Number(data.balance_usd))
+      const value = Number(data.balance_usd)
+      setWalletBalance(value)
+      return value
     }
+    return null
   }
 
   // Aviso de error SIEMPRE visible: scroll suave hasta el banner cuando no hay sheet abierto
@@ -779,6 +785,14 @@ export function ClientHome() {
       return
     }
 
+    // 🚫 Si debe dinero, no puede pedir más viajes hasta recargar
+    const balance = await loadWalletBalance()
+    if (balance !== null && balance < 0) {
+      setDebtAmount(Math.abs(balance))
+      setShowDebtBlock(true)
+      return
+    }
+
     setError('')
     setLoading(true)
 
@@ -805,8 +819,7 @@ export function ClientHome() {
           )
         }
         setShowFareSheet(true)
-        // Cargar saldo de la billetera para avisar del saldo insuficiente sin esperar el fallo
-        void loadWalletBalance()
+        // El saldo ya se cargó (y se validó la deuda) al abrir la hoja
       }
 
       // Cache corto por origen/destino/categoria/cupon
@@ -856,6 +869,13 @@ export function ClientHome() {
   const handleRequestRide = async () => {
     if (!origin || !destBarrioId || !selectedCategory || !selectedPaymentMethod) return
     if (!user) return // Ya se valida en handleCalculateFare
+
+    // 🚫 Segunda barrera: si debe dinero no se crea el viaje (el servidor también lo bloquea)
+    if (walletBalance !== null && walletBalance < 0) {
+      setDebtAmount(Math.abs(walletBalance))
+      setShowDebtBlock(true)
+      return
+    }
 
     if (driverCounts[selectedCategory] === 0) {
       const label = categories.find((c) => c.name === selectedCategory)?.display_name || 'ese vehículo'
@@ -1779,6 +1799,48 @@ export function ClientHome() {
               Confirmar destino
             </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Bloqueo por deuda en la billetera */}
+      {showDebtBlock && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-elevated">
+            <button
+              onClick={() => setShowDebtBlock(false)}
+              className="float-right text-surface-400 hover:text-surface-600 transition-colors"
+              aria-label="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold text-surface-800 mb-2">Tienes un saldo pendiente</h2>
+              <p className="text-sm text-surface-500 mb-2">
+                Debes <strong className="text-red-600">{fmt(debtAmount)}</strong> en tu billetera.
+              </p>
+              <p className="text-sm text-surface-500 mb-6">
+                Recarga al menos {fmt(debtAmount)} para volver a pedir viajes.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowDebtBlock(false)
+                navigate('/cliente/billetera')
+              }}
+              className="btn-primary w-full"
+            >
+              Recargar ahora
+            </button>
+            <button
+              onClick={() => setShowDebtBlock(false)}
+              className="btn-outline w-full mt-2"
+            >
+              Ahora no
+            </button>
           </div>
         </div>
       )}

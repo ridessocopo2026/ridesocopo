@@ -328,6 +328,13 @@ export interface AdminIncidentRow extends RideIncident {
   destination_address?: string | null
   client_id: string
   driver_id?: string | null
+  /** Estado del dinero del viaje (migración 129) */
+  reimbursement_status?: string | null
+  proof_status?: string | null
+  charge_pending_usd?: number
+  refund_pending_usd?: number
+  refund_credited_usd?: number
+  charge_waived_usd?: number
   // Contactos
   client_name: string | null
   client_phone: string | null
@@ -344,6 +351,33 @@ export interface AdminIncidentsPage {
   limit: number
   offset: number
   items: AdminIncidentRow[]
+}
+
+/**
+ * Cargo por cancelación pendiente de verificar (efectivo).
+ * Lo devuelve `get_pending_charges` (migración 130).
+ */
+export interface PendingCharge {
+  id: string
+  user_id: string
+  amount_usd: number
+  created_at: string
+  description: string
+  client_name: string | null
+  client_phone: string | null
+  ride_id: string | null
+  tracking_code: string | null
+  incident_id: string | null
+  incident_status: string | null
+  client_balance: number
+  debt_limit_usd: number
+  /** Máximo que se puede cobrar ahora sin pasar el límite de deuda */
+  max_chargeable_usd: number
+}
+
+export interface PendingChargesResponse {
+  total: number
+  items: PendingCharge[]
 }
 
 export interface CancellationEstimate {

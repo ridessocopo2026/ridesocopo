@@ -7,6 +7,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { useAuth } from '@/contexts/AuthContext'
+import type { PendingCharge, PendingChargesResponse } from '@/types/database'
 
 interface TransactionItem {
   id: string
@@ -109,6 +110,14 @@ export function AdminTransactions() {
   const [refundBusy, setRefundBusy] = useState(false)
   const [success, setSuccess] = useState('')
 
+  // Cargos por cancelación en efectivo pendientes de verificar
+  const [charges, setCharges] = useState<PendingCharge[]>([])
+  const [chargesLoading, setChargesLoading] = useState(true)
+  const [chargeAction, setChargeAction] = useState<{ item: PendingCharge; approve: boolean } | null>(null)
+  const [chargeAmount, setChargeAmount] = useState('')
+  const [chargeNote, setChargeNote] = useState('')
+  const [chargeBusy, setChargeBusy] = useState(false)
+
   // Al cambiar el usuario filtrado (desde la lista de usuarios), volver a la página 1
   useEffect(() => {
     setPage(0)
@@ -120,6 +129,10 @@ export function AdminTransactions() {
 
   useEffect(() => {
     loadPendingRefunds()
+  }, [])
+
+  useEffect(() => {
+    loadPendingCharges()
   }, [])
 
   useEffect(() => {
@@ -226,6 +239,65 @@ export function AdminTransactions() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  // ── Cargos por cancelación (efectivo) pendientes de verificar ──
+  const loadPendingCharges = async () => {
+    setChargesLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('get_pending_charges')
+      if (error) throw error
+      const res = data as PendingChargesResponse
+      setCharges(res?.items || [])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setChargesLoading(false)
+    }
+  }
+
+  const openChargeAction = (item: PendingCharge, approve: boolean) => {
+    setError('')
+    setSuccess('')
+    setChargeNote('')
+    setChargeAmount(item.amount_usd.toFixed(2))
+    setChargeAction({ item, approve })
+  }
+
+  const handleProcessCharge = async () => {
+    if (!chargeAction) return
+
+    const amount = chargeAction.approve ? Number(chargeAmount) : null
+    if (chargeAction.approve && (!Number.isFinite(amount) || (amount as number) <= 0)) {
+      setError('Escribe un monto válido para cobrar')
+      return
+    }
+
+    setChargeBusy(true)
+    setError('')
+
+    try {
+      const { error } = await supabase.rpc('admin_process_charge', {
+        p_transaction_id: chargeAction.item.id,
+        p_approve: chargeAction.approve,
+        p_note: chargeNote.trim() || null,
+        p_amount: amount
+      })
+      if (error) throw error
+
+      setSuccess(
+        chargeAction.approve
+          ? `Cargo de ${fmt(Number(chargeAmount))} aprobado y descontado de la billetera del cliente.`
+          : `Cargo de ${fmt(chargeAction.item.amount_usd)} eximido.`
+      )
+      setChargeAction(null)
+      setChargeNote('')
+      await Promise.all([loadPendingCharges(), loadTransactions()])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setChargeBusy(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       <div className="bg-white border-b border-surface-100 px-6 py-4">
@@ -247,6 +319,82 @@ export function AdminTransactions() {
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
             <p className="text-sm text-emerald-700">{success}</p>
             <button onClick={() => setSuccess('')} className="text-xs text-emerald-700 font-medium">✕</button>
+          </div>
+        )}
+
+        {/* Cargos por cancelación (efectivo) pendientes de verificar */}
+        {charges.length > 0 && (
+          <div className="card border-2 border-red-200 bg-red-50">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <HandCoins className="w-5 h-5 text-red-600" />
+                <div>
+                  <h2 className="font-semibold text-red-800">Cargos por verificar</h2>
+                  <p className="text-xs text-red-700">
+                    {charges.length} cargo{charges.length !== 1 ? 's' : ''} de cancelación en efectivo
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={loadPendingCharges}
+                className="btn-outline text-xs px-3 py-1.5"
+                disabled={chargesLoading}
+                title="Actualizar cargos"
+              >
+                {chargesLoading
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <RefreshCw className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {charges.map((c) => (
+                <div key={c.id} className="bg-white rounded-xl p-3 border border-red-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-surface-800">
+                        {fmt(c.amount_usd)} · {c.client_name || 'Cliente'}
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Efectivo{c.tracking_code ? ` · ${c.tracking_code}` : ''}
+                        {' · '}
+                        {new Date(c.created_at).toLocaleDateString('es-VE', {
+                          day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                      <p className="text-[11px] text-surface-500 mt-0.5">
+                        Saldo del cliente: {fmt(c.client_balance)} · Cobrable ahora: {fmt(c.max_chargeable_usd)}
+                      </p>
+                      {c.incident_id && (
+                        <a
+                          href={isEncargado ? '/encargado/incidentes' : '/admin/incidentes'}
+                          className="text-[11px] text-primary-700 underline mt-1 inline-block"
+                        >
+                          Ver incidente{c.incident_status ? ` (${c.incident_status})` : ''}
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => openChargeAction(c, true)}
+                        className="btn-success text-xs px-3 py-1.5"
+                        title="Descontar de la billetera del cliente"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Cobrar
+                      </button>
+                      <button
+                        onClick={() => openChargeAction(c, false)}
+                        className="btn-danger text-xs px-3 py-1.5"
+                        title="No cobrar este cargo"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Eximir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -585,6 +733,117 @@ export function AdminTransactions() {
                 disabled={refundBusy}
               >
                 {refundBusy
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de cobro / exención de cargo pendiente */}
+      {chargeAction && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                chargeAction.approve ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+              }`}>
+                {chargeAction.approve
+                  ? <CheckCircle className="w-5 h-5" />
+                  : <XCircle className="w-5 h-5" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-surface-800">
+                  {chargeAction.approve ? 'Cobrar cargo al cliente' : 'Eximir cargo'}
+                </h2>
+                <p className="text-xs text-surface-500">
+                  {chargeAction.item.client_name || 'Cliente'}
+                  {chargeAction.item.tracking_code ? ` · ${chargeAction.item.tracking_code}` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-surface-50 rounded-xl p-4 space-y-1 mb-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-surface-500">Cargo pendiente</span>
+                <span className="font-bold text-surface-800">{fmt(chargeAction.item.amount_usd)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Saldo del cliente</span>
+                <span className="font-medium text-surface-700">{fmt(chargeAction.item.client_balance)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Cobrable ahora</span>
+                <span className="font-medium text-surface-700">{fmt(chargeAction.item.max_chargeable_usd)}</span>
+              </div>
+            </div>
+
+            {chargeAction.approve ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Monto a cobrar ($)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="input"
+                    value={chargeAmount}
+                    onChange={(e) => setChargeAmount(e.target.value)}
+                  />
+                  {Number(chargeAmount) > chargeAction.item.max_chargeable_usd && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Supera lo cobrable ahora ({fmt(chargeAction.item.max_chargeable_usd)}).
+                      Reduce el monto o sube el límite de deuda.
+                    </p>
+                  )}
+                  <p className="text-xs text-surface-400 mt-1">
+                    Se descuenta de la billetera del cliente. Puede quedar en negativo hasta su límite de deuda.
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Nota (opcional)</label>
+                  <textarea
+                    className="input min-h-[60px]"
+                    maxLength={300}
+                    value={chargeNote}
+                    onChange={(e) => setChargeNote(e.target.value)}
+                    placeholder="Ej: confirmado por el cliente"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-surface-500">
+                  El cargo quedará rechazado y no se descontará dinero al cliente.
+                </p>
+                <div>
+                  <label className="label">Nota (opcional)</label>
+                  <textarea
+                    className="input min-h-[60px]"
+                    maxLength={300}
+                    value={chargeNote}
+                    onChange={(e) => setChargeNote(e.target.value)}
+                    placeholder="Ej: el conductor no llegó a moverse"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setChargeAction(null)}
+                className="btn-outline flex-1"
+                disabled={chargeBusy}
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleProcessCharge}
+                className={`${chargeAction.approve ? 'btn-success' : 'btn-danger'} flex-1`}
+                disabled={chargeBusy}
+              >
+                {chargeBusy
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : 'Confirmar'}
               </button>

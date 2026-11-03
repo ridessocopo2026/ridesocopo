@@ -532,6 +532,16 @@ export function EstadoCuentas() {
                 {overview.deudas.clientes_deben > 0 && (
                   <li>Clientes con deuda: {fmt(overview.deudas.clientes_deben)} · la app debe a clientes: {fmt(overview.deudas.app_debe_clientes)}.</li>
                 )}
+                <li>
+                  Cargos por cancelación en efectivo:{' '}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`${isEncargado ? '/encargado' : '/admin'}/transacciones`)}
+                    className="text-primary-700 underline"
+                  >
+                    revísalos en Transacciones
+                  </button>.
+                </li>
               </ul>
             </div>
           </>

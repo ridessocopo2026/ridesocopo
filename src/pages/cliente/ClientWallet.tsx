@@ -196,6 +196,22 @@ export function ClientWallet() {
           </button>
         </div>
 
+        {/* Aviso: saldo negativo bloquea nuevos viajes hasta recargar */}
+        {wallet && Number(wallet.balance_usd) < 0 && (
+          <div className="card border-2 border-red-200 bg-red-50">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div>
+                <h2 className="font-semibold text-red-800">Tienes un saldo pendiente</h2>
+                <p className="text-sm text-red-700 mt-1">
+                  Debes {fmt(Math.abs(Number(wallet.balance_usd)))}. Recarga al menos ese monto
+                  para volver a pedir viajes.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cargos por cancelación pendientes de verificación */}
         {pendingCharges.length > 0 && (
           <div className="card border-2 border-amber-200 bg-amber-50">
