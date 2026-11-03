@@ -13,6 +13,13 @@ import type { TreasuryOverview } from '@/types/database'
 interface WalletOverview {
   total_banco: number
   deuda_wallets: number
+  /** Desglose de la deuda de billeteras (migración 127) */
+  deuda_conductores?: number
+  deuda_clientes?: number
+  conteos?: {
+    conductores_con_saldo: number
+    clientes_con_saldo: number
+  }
   patrimonio_app: number
   detalle?: {
     recargas_clientes: number
@@ -209,13 +216,20 @@ export function AdminDashboard() {
               </div>
             )}
 
-            {/* Deuda a wallets */}
-            <div className="flex items-center justify-between py-1.5 border-b border-white/15">
-              <div className="flex items-center gap-2">
-                <ArrowDownUp className="w-4 h-4 text-white/80" />
-                <span className="text-xs text-white/80">Debe a clientes y conductores</span>
+            {/* Saldo a favor de usuarios (dinero que la app guarda por ellos) */}
+            <div className="flex items-center justify-between gap-2 py-1.5 border-b border-white/15">
+              <div className="flex items-center gap-2 min-w-0">
+                <ArrowDownUp className="w-4 h-4 text-white/80 flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs text-white/80">Saldo a favor de usuarios</span>
+                  <span className="text-[10px] text-white/60">
+                    Conductores {fmt(walletOverview.deuda_conductores ?? 0)}
+                    {' · '}
+                    En billetera de clientes {fmt(walletOverview.deuda_clientes ?? 0)}
+                  </span>
+                </div>
               </div>
-              <p className="text-lg font-bold">{fmt(walletOverview.deuda_wallets)}</p>
+              <p className="text-lg font-bold flex-shrink-0">{fmt(walletOverview.deuda_wallets)}</p>
             </div>
 
             {/* Patrimonio de la app */}
