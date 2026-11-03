@@ -1108,7 +1108,7 @@ export function ClientActiveRide() {
                     <span className="font-bold text-red-600">{cancellationEstimate.fee.toFixed(2)}$</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-surface-600">Compensación al conductor</span>
+                    <span className="text-surface-600">Compensación sugerida al conductor</span>
                     <span className="font-medium text-surface-700">{cancellationEstimate.compensation.toFixed(2)}$</span>
                   </div>
                   {cancellationEstimate.refund > 0 && (
@@ -1128,6 +1128,9 @@ export function ClientActiveRide() {
                   {(cancellationEstimate.charge ?? 0) > 0
                     ? 'El cargo quedará pendiente y un administrador lo verificará. Si no estás de acuerdo, podrás reportar un incidente.'
                     : 'La tarifa se cobra porque el conductor ya se desplazó hacia ti o el viaje ya está en curso.'}
+                </p>
+                <p className="text-xs text-surface-400">
+                  La compensación final al conductor la decide un administrador al revisar la cancelación.
                 </p>
               </div>
             ) : (
