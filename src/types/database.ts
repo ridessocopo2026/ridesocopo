@@ -296,6 +296,56 @@ export interface RideIncident {
   updated_at: string
 }
 
+/**
+ * Persona involucrada en un incidente, tal como la devuelve la RPC
+ * `get_admin_incidents` (migración 126). Incluye el teléfono para que el
+ * administrador pueda llamar o escribir por WhatsApp sin consultas extra.
+ */
+export interface IncidentContact {
+  id: string | null
+  full_name: string | null
+  phone: string | null
+  /** Rol del perfil cuando corresponde (cliente, conductor, encargado...) */
+  role?: UserRole | null
+}
+
+/**
+ * Fila completa de un incidente para el panel de administración:
+ * incidente + datos del viaje + contactos de cliente, conductor y de
+ * quien reportó. Todo llega en UNA sola llamada a la base de datos.
+ */
+export interface AdminIncidentRow extends RideIncident {
+  // Viaje
+  tracking_code?: string | null
+  ride_status: RideStatus
+  payment_method: string
+  final_fare_usd: number
+  commission_usd: number
+  cancellation_fee_usd: number
+  driver_compensation_usd: number
+  cancelled_by?: string | null
+  origin_address?: string | null
+  destination_address?: string | null
+  client_id: string
+  driver_id?: string | null
+  // Contactos
+  client_name: string | null
+  client_phone: string | null
+  driver_name: string | null
+  driver_phone: string | null
+  reporter_name: string | null
+  reporter_phone: string | null
+  reporter_role?: string | null
+}
+
+/** Respuesta paginada de `get_admin_incidents` */
+export interface AdminIncidentsPage {
+  total: number
+  limit: number
+  offset: number
+  items: AdminIncidentRow[]
+}
+
 export interface CancellationEstimate {
   fee: number
   compensation: number

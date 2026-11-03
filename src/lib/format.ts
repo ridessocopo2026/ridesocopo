@@ -71,3 +71,20 @@ export function whatsappNumber(phone: string | null | undefined): string | null 
 
   return number && number.length >= 11 && number.length <= 15 ? number : null
 }
+
+/**
+ * Enlace de WhatsApp con mensaje precargado.
+ * Devuelve null si el teléfono no es válido (así la UI puede ocultar el botón).
+ *
+ * @param phone   teléfono en cualquier formato venezolano (0412..., +58...)
+ * @param message texto que se abre ya escrito en el chat
+ */
+export function whatsappLink(
+  phone: string | null | undefined,
+  message: string
+): string | null {
+  const number = whatsappNumber(phone)
+  if (!number) return null
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
+}
+

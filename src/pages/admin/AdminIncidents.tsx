@@ -1,68 +1,22 @@
-import { useState, useEffect } from 'react'
-import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign, Phone } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign, Camera, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
-import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
-import { whatsappNumber } from '@/lib/format'
-import type { RideIncident, Ride, IncidentType, IncidentStatus } from '@/types/database'
+import { ImageLightbox } from '@/components/ui/ImageLightbox'
+import { IncidentContacts } from '@/components/admin/IncidentContacts'
+import type { IncidentPerson } from '@/components/admin/IncidentContacts'
+import { resolveProofUrl } from '@/lib/storageUtils'
+import type {
+  AdminIncidentRow,
+  AdminIncidentsPage,
+  IncidentType,
+  IncidentStatus
+} from '@/types/database'
 
-interface ContactProfile {
-  id: string
-  full_name: string | null
-  phone: string | null
-}
-
-/** Persona involucrada en el incidente, con botones para llamar y WhatsApp. */
-function PersonContact({
-  label,
-  name,
-  phone,
-  note
-}: {
-  label: string
-  name?: string | null
-  phone?: string | null
-  note?: string
-}) {
-  const wa = whatsappNumber(phone)
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-surface-200 bg-white p-3">
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wide text-surface-400">{label}</p>
-        <p className="text-sm font-semibold text-surface-800 truncate">{name || 'No disponible'}</p>
-        {phone
-          ? <p className="text-xs text-surface-500">{phone}</p>
-          : <p className="text-xs text-surface-400">Sin teléfono registrado</p>}
-        {note && <p className="text-[10px] text-primary-600 mt-0.5">{note}</p>}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {phone && (
-          <a
-            href={`tel:${phone}`}
-            className="w-8 h-8 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center"
-            aria-label={`Llamar a ${label.toLowerCase()}`}
-          >
-            <Phone className="w-4 h-4" />
-          </a>
-        )}
-        {wa && (
-          <a
-            href={`https://wa.me/${wa}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center"
-            aria-label={`WhatsApp a ${label.toLowerCase()}`}
-          >
-            <WhatsAppIcon className="w-4 h-4" />
-          </a>
-        )}
-      </div>
-    </div>
-  )
-}
+/** Incidentes por página: paginar en el servidor ahorra egress. */
+const PAGE_SIZE = 20
 
 const incidentTypeLabels: Record<IncidentType, string> = {
   accidente: '🚨 Accidente',
@@ -109,15 +63,82 @@ const parseResolutionDetails = (details: any): any => {
   return details
 }
 
+/** Texto del incidente sin el emoji inicial: "🚨 Accidente" → "Accidente" */
+const incidentTypeName = (type: IncidentType): string =>
+  incidentTypeLabels[type].split(' ').slice(1).join(' ') || incidentTypeLabels[type]
+
+/**
+ * Personas involucradas de un incidente, listas para el componente de
+ * contactos. Se agrega a quien reportó cuando no es el cliente ni el
+ * conductor (por ejemplo un encargado), para no dejarlo sin contacto.
+ */
+const buildIncidentPeople = (incident: AdminIncidentRow): IncidentPerson[] => {
+  const people: IncidentPerson[] = []
+
+  if (incident.client_id) {
+    people.push({
+      key: `cliente-${incident.id}`,
+      label: 'Cliente',
+      kind: 'cliente',
+      name: incident.client_name,
+      phone: incident.client_phone,
+      isReporter: incident.reported_by === incident.client_id
+    })
+  }
+
+  if (incident.driver_id) {
+    people.push({
+      key: `conductor-${incident.id}`,
+      label: 'Conductor',
+      kind: 'conductor',
+      name: incident.driver_name,
+      phone: incident.driver_phone,
+      isReporter: incident.reported_by === incident.driver_id
+    })
+  }
+
+  const reporterIsParticipant =
+    incident.reported_by === incident.client_id || incident.reported_by === incident.driver_id
+
+  if (incident.reported_by && !reporterIsParticipant) {
+    people.push({
+      key: `reporto-${incident.id}`,
+      label: `Reportó (${incident.reporter_role || 'usuario'})`,
+      kind: 'soporte',
+      name: incident.reporter_name,
+      phone: incident.reporter_phone,
+      isReporter: true
+    })
+  }
+
+  return people.map((p) =>
+    p.isReporter ? { ...p, note: 'Reportó este incidente' } : p
+  )
+}
+
+/** Mensaje de WhatsApp ya escrito con el contexto del incidente. */
+const incidentWhatsAppMessage =
+  (incident: AdminIncidentRow) =>
+  (person: IncidentPerson): string => {
+    const firstName = person.name ? person.name.trim().split(' ')[0] : ''
+    const saludo = firstName ? `Hola ${firstName}, ` : 'Hola, '
+    const viaje = incident.tracking_code ? ` del viaje ${incident.tracking_code}` : ''
+    return (
+      `${saludo}te escribimos de BunRider por el incidente${viaje} ` +
+      `(${incidentTypeName(incident.incident_type)}). ` +
+      `Necesitamos confirmar unos datos para resolverlo.`
+    )
+  }
+
 export function AdminIncidents() {
-  const [incidents, setIncidents] = useState<(RideIncident & { ride?: Ride })[]>([])
-  const [ridesMap, setRidesMap] = useState<Record<string, Ride>>({})
-  const [profilesMap, setProfilesMap] = useState<Record<string, ContactProfile>>({})
+  const [incidents, setIncidents] = useState<AdminIncidentRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
   const [filter, setFilter] = useState<'todos' | 'abierto' | 'resuelto'>('abierto')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [selectedIncident, setSelectedIncident] = useState<RideIncident | null>(null)
+  const [selectedIncident, setSelectedIncident] = useState<AdminIncidentRow | null>(null)
   const [resolution, setResolution] = useState('')
   const [atFault, setAtFault] = useState<'cliente' | 'conductor' | 'accidente'>('accidente')
   // Montos explícitos en $ que el admin decide (sin porcentajes ambiguos)
@@ -125,26 +146,30 @@ export function AdminIncidents() {
   const [penalizeAmount, setPenalizeAmount] = useState(0)
   const [compensateDriverAmount, setCompensateDriverAmount] = useState(0)
   const [cancelRide, setCancelRide] = useState(true)
-  const { user } = useAuth()
+  // Foto de evidencia: la URL firmada se pide SOLO al hacer clic (ahorra egress)
+  const [photo, setPhoto] = useState<{ src: string; title?: string } | null>(null)
+  const [photoLoading, setPhotoLoading] = useState<string | null>(null)
 
-  const selectedRide = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
-  const fare = selectedRide?.final_fare_usd ?? 0
-  const commission = selectedRide?.commission_usd ?? 0
-  const paymentMethod = selectedRide?.payment_method?.toLowerCase() ?? ''
+  // La fila ya trae los datos del viaje: no hace falta un mapa aparte de rides
+  const selectedRide = selectedIncident
+  const fare = selectedIncident?.final_fare_usd ?? 0
+  const commission = selectedIncident?.commission_usd ?? 0
+  const paymentMethod = selectedIncident?.payment_method?.toLowerCase() ?? ''
   // Incidente automático de cancelación (viaje ya aceptado / en curso)
   const isCancellationIncident = selectedIncident?.incident_type === 'cancelacion_cliente'
-  const cancellationFee = selectedRide?.cancellation_fee_usd ?? 0
-  const alreadyCompensated = selectedRide?.driver_compensation_usd ?? 0
+  const cancellationFee = selectedIncident?.cancellation_fee_usd ?? 0
+  const alreadyCompensated = selectedIncident?.driver_compensation_usd ?? 0
   const suggestedCompensation = selectedIncident?.suggested_compensation_usd ?? 0
   // Negativo = hay que revertir lo ya pagado al conductor
   const compensationDelta = compensateDriverAmount - alreadyCompensated
 
   // Al abrir el modal, pre-cargar montos sugeridos según el culpable
-  const openIncident = (incident: RideIncident) => {
+  const openIncident = (incident: AdminIncidentRow) => {
     setSelectedIncident(incident)
-    const ride = ridesMap[incident.ride_id]
-    const f = ride?.final_fare_usd ?? 0
-    const c = ride?.commission_usd ?? 0
+    // La fila ya trae el viaje completo (una sola llamada a la base)
+    const ride = incident
+    const f = ride.final_fare_usd ?? 0
+    const c = ride.commission_usd ?? 0
 
     if (incident.incident_type === 'cancelacion_cliente') {
       // El culpable se deduce de quién canceló; el cargo ya está registrado
@@ -168,7 +193,7 @@ export function AdminIncidents() {
   // Al cambiar el culpable, actualizar montos sugeridos
   const handleAtFaultChange = (fault: 'cliente' | 'conductor' | 'accidente') => {
     setAtFault(fault)
-    const ride = selectedIncident ? ridesMap[selectedIncident.ride_id] : null
+    const ride = selectedIncident
     const f = ride?.final_fare_usd ?? 0
     const c = ride?.commission_usd ?? 0
 
@@ -198,54 +223,48 @@ export function AdminIncidents() {
     }
   }
 
-  useEffect(() => {
-    loadIncidents()
-  }, [filter])
-
-  const loadIncidents = async () => {
+  // 💰 COSTO: una sola RPC trae incidente + viaje + contactos (antes 3 requests)
+  const loadIncidents = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.rpc('get_ride_incidents', {
-      p_status: filter === 'todos' ? null : filter
+    const { data, error: loadError } = await supabase.rpc('get_admin_incidents', {
+      p_status: filter === 'todos' ? null : filter,
+      p_limit: PAGE_SIZE,
+      p_offset: page * PAGE_SIZE
     })
 
-    if (!error && data) {
-      const incs = data as RideIncident[]
-      setIncidents(incs)
-
-      // Cargar viajes asociados
-      const rideIds = [...new Set(incs.map(i => i.ride_id))]
-      if (rideIds.length > 0) {
-        const { data: ridesData } = await supabase
-          .from('rides')
-          .select('*')
-          .in('id', rideIds)
-
-        if (ridesData) {
-          const map: Record<string, Ride> = {}
-          ridesData.forEach((r: Ride) => { map[r.id] = r })
-          setRidesMap(map)
-
-          // Contactos de las personas involucradas (cliente y conductor)
-          const userIds = [...new Set(
-            (ridesData as Ride[])
-              .flatMap((r) => [r.client_id, r.driver_id])
-              .filter((id): id is string => !!id)
-          )]
-          if (userIds.length > 0) {
-            const { data: profilesData } = await supabase
-              .from('profiles')
-              .select('id, full_name, phone')
-              .in('id', userIds)
-            if (profilesData) {
-              const pmap: Record<string, ContactProfile> = {}
-              ;(profilesData as ContactProfile[]).forEach((p) => { pmap[p.id] = p })
-              setProfilesMap(pmap)
-            }
-          }
-        }
-      }
+    if (loadError) {
+      setError(loadError.message)
+      setIncidents([])
+      setTotal(0)
+    } else {
+      const payload = (data ?? { total: 0, items: [] }) as AdminIncidentsPage
+      setIncidents(payload.items ?? [])
+      setTotal(payload.total ?? 0)
     }
+
     setLoading(false)
+  }, [filter, page])
+
+  useEffect(() => {
+    loadIncidents()
+  }, [loadIncidents])
+
+  // Cambiar de filtro vuelve a la página 1 (React agrupa ambos estados → 1 request)
+  const changeFilter = (next: typeof filter) => {
+    setPage(0)
+    setFilter(next)
+  }
+
+  // Foto de evidencia: bucket privado `payments` → URL firmada SOLO al abrirla
+  const openPhoto = async (path: string) => {
+    setPhotoLoading(path)
+    const url = await resolveProofUrl(path, 'payments')
+    setPhotoLoading(null)
+    if (url) {
+      setPhoto({ src: url, title: 'Foto del incidente' })
+    } else {
+      setError('No se pudo abrir la foto del incidente (archivo no disponible)')
+    }
   }
 
   const handleResolve = async (incidentId: string) => {
@@ -281,7 +300,9 @@ export function AdminIncidents() {
     }
   }
 
-  const incidentList = filter === 'todos' ? incidents : incidents.filter(i => i.status === filter)
+  // El servidor ya filtró y paginó: no se repite el trabajo en el cliente
+  const incidentList = incidents
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
@@ -309,7 +330,7 @@ export function AdminIncidents() {
           {(['abierto', 'resuelto', 'todos'] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => changeFilter(f)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 filter === f
                   ? 'bg-primary-600 text-white'
@@ -332,8 +353,10 @@ export function AdminIncidents() {
         ) : (
           <div className="space-y-4">
             {incidentList.map((incident) => {
-              const ride = ridesMap[incident.ride_id]
+              // La fila ya trae el viaje y los contactos: no hay consultas extra
+              const ride = incident
               const status = statusLabels[incident.status]
+              const people = buildIncidentPeople(incident)
               const photos = parsePhotoUrls((incident as any).photo_urls)
               const resolutionDetails = parseResolutionDetails((incident as any).resolution_details)
 
@@ -362,71 +385,68 @@ export function AdminIncidents() {
                     <span className={status.className}>{status.label}</span>
                   </div>
 
+                  {/* Involucrados + WhatsApp con mensaje listo, en un toque */}
+                  <IncidentContacts
+                    people={people}
+                    message={incidentWhatsAppMessage(incident)}
+                    compact
+                    className="mt-3 rounded-xl border border-surface-200 bg-surface-50/60 p-2"
+                  />
+
                   {incident.description && (
                     <p className="text-sm text-surface-600 mt-3 bg-surface-50 rounded-lg p-3">
                       {incident.description}
                     </p>
                   )}
 
-                  {ride && (
-                    <div className="mt-3 space-y-1.5">
-                      <div className="flex items-center gap-2 text-sm text-surface-600">
-                        <MapPin className="w-4 h-4 text-accent-600 flex-shrink-0" />
-                        <span className="truncate">{ride.origin_address || 'Origen'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-surface-600">
-                        <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
-                        <span className="truncate">{ride.destination_address || 'Destino'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-surface-600">
-                        <DollarSign className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                        <span className="font-medium">{ride.final_fare_usd.toFixed(2)}$</span>
-                        <span className="text-surface-400">•</span>
-                        <span>{ride.payment_method}</span>
-                        <span className="text-surface-400">•</span>
-                        <span className={`badge ${
-                          ride.status === 'incidente' ? 'badge-danger' :
-                          ride.status === 'cancelada' ? 'badge-danger' :
-                          ride.status === 'en_ruta' ? 'badge-primary' :
-                          ride.status === 'aceptada' ? 'badge-info' : 'badge-success'
-                        }`}>
-                          {ride.status.toUpperCase()}
-                        </span>
-                      </div>
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm text-surface-600">
+                      <MapPin className="w-4 h-4 text-accent-600 flex-shrink-0" />
+                      <span className="truncate">{ride.origin_address || 'Origen'}</span>
                     </div>
-                  )}
-
-                  {ride && (
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <PersonContact
-                        label="Cliente"
-                        name={profilesMap[ride.client_id]?.full_name}
-                        phone={profilesMap[ride.client_id]?.phone}
-                        note={incident.reported_by === ride.client_id ? 'Reportó este incidente' : undefined}
-                      />
-                      {ride.driver_id && (
-                        <PersonContact
-                          label="Conductor"
-                          name={profilesMap[ride.driver_id]?.full_name}
-                          phone={profilesMap[ride.driver_id]?.phone}
-                          note={incident.reported_by === ride.driver_id ? 'Reportó este incidente' : undefined}
-                        />
+                    <div className="flex items-center gap-2 text-sm text-surface-600">
+                      <MapPin className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                      <span className="truncate">{ride.destination_address || 'Destino'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-surface-600 flex-wrap">
+                      <DollarSign className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span className="font-medium">{ride.final_fare_usd.toFixed(2)}$</span>
+                      <span className="text-surface-400">•</span>
+                      <span>{ride.payment_method}</span>
+                      {ride.tracking_code && (
+                        <>
+                          <span className="text-surface-400">•</span>
+                          <span className="font-mono text-xs text-surface-500">{ride.tracking_code}</span>
+                        </>
                       )}
+                      <span className="text-surface-400">•</span>
+                      <span className={`badge ${
+                        ride.ride_status === 'incidente' ? 'badge-danger' :
+                        ride.ride_status === 'cancelada' ? 'badge-danger' :
+                        ride.ride_status === 'en_ruta' ? 'badge-primary' :
+                        ride.ride_status === 'aceptada' ? 'badge-info' : 'badge-success'
+                      }`}>
+                        {ride.ride_status.toUpperCase()}
+                      </span>
                     </div>
-                  )}
+                  </div>
 
                   {photos.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">
-                      {photos.map((url, idx) => (
-                        <a
+                      {photos.map((path, idx) => (
+                        <button
                           key={idx}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-16 h-16 rounded-lg bg-surface-100 flex items-center justify-center text-xs text-surface-500 hover:border-primary-300 border-2 border-transparent"
+                          type="button"
+                          onClick={() => openPhoto(path)}
+                          disabled={photoLoading === path}
+                          className="w-16 h-16 rounded-lg bg-surface-100 flex flex-col items-center justify-center gap-0.5 text-[10px] text-surface-500 hover:border-primary-300 border-2 border-transparent disabled:opacity-60"
+                          title="Ver foto del incidente"
                         >
-                          📷 Foto
-                        </a>
+                          {photoLoading === path
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Camera className="w-4 h-4" />}
+                          Foto {idx + 1}
+                        </button>
                       ))}
                     </div>
                   )}
@@ -473,6 +493,31 @@ export function AdminIncidents() {
             })}
           </div>
         )}
+
+        {/* Paginación en el servidor: 20 incidentes por página */}
+        {!loading && total > PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-3 mt-6">
+            <button
+              type="button"
+              className="btn-outline text-xs px-3 py-1.5"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              <ChevronLeft className="w-4 h-4" /> Anterior
+            </button>
+            <span className="text-xs text-surface-500 text-center">
+              Página {page + 1} de {totalPages} · {total} incidente{total !== 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              className="btn-outline text-xs px-3 py-1.5"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal de resolución */}
@@ -487,6 +532,7 @@ export function AdminIncidents() {
                 <h2 className="text-lg font-bold text-surface-800">Resolver incidente</h2>
                 <p className="text-xs text-surface-500">
                   {incidentTypeLabels[selectedIncident.incident_type]}
+                  {selectedIncident.tracking_code ? ` · Viaje ${selectedIncident.tracking_code}` : ''}
                 </p>
               </div>
             </div>
@@ -497,24 +543,12 @@ export function AdminIncidents() {
               </div>
             )}
 
-            {selectedRide && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                <PersonContact
-                  label="Cliente"
-                  name={profilesMap[selectedRide.client_id]?.full_name}
-                  phone={profilesMap[selectedRide.client_id]?.phone}
-                  note={selectedIncident.reported_by === selectedRide.client_id ? 'Reportó este incidente' : undefined}
-                />
-                {selectedRide.driver_id && (
-                  <PersonContact
-                    label="Conductor"
-                    name={profilesMap[selectedRide.driver_id]?.full_name}
-                    phone={profilesMap[selectedRide.driver_id]?.phone}
-                    note={selectedIncident.reported_by === selectedRide.driver_id ? 'Reportó este incidente' : undefined}
-                  />
-                )}
-              </div>
-            )}
+            {/* Involucrados primero: resolver el caso = contactarlos */}
+            <IncidentContacts
+              people={buildIncidentPeople(selectedIncident)}
+              message={incidentWhatsAppMessage(selectedIncident)}
+              className="rounded-xl border border-primary-100 bg-primary-50/40 p-3 mb-4"
+            />
 
             <div className="space-y-4 mb-4">
               <div>
@@ -749,6 +783,13 @@ export function AdminIncidents() {
           </div>
         </div>
       )}
+
+      {/* Visor de la foto de evidencia (URL firmada pedida al abrir) */}
+      <ImageLightbox
+        src={photo?.src}
+        title={photo?.title}
+        onClose={() => setPhoto(null)}
+      />
     </div>
   )
 }
