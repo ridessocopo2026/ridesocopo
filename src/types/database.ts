@@ -288,6 +288,8 @@ export interface RideIncident {
   status: IncidentStatus
   resolution?: string
   resolution_details?: any
+  /** Sugerencia informativa (no pagada). El monto final lo decide el admin. */
+  suggested_compensation_usd?: number
   resolved_by?: string
   resolved_at?: string
   created_at: string

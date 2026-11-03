@@ -1,11 +1,68 @@
 import { useState, useEffect } from 'react'
-import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign } from 'lucide-react'
+import { ShieldAlert, CheckCircle, Loader2, MapPin, DollarSign, Phone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
+import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
+import { whatsappNumber } from '@/lib/format'
 import type { RideIncident, Ride, IncidentType, IncidentStatus } from '@/types/database'
+
+interface ContactProfile {
+  id: string
+  full_name: string | null
+  phone: string | null
+}
+
+/** Persona involucrada en el incidente, con botones para llamar y WhatsApp. */
+function PersonContact({
+  label,
+  name,
+  phone,
+  note
+}: {
+  label: string
+  name?: string | null
+  phone?: string | null
+  note?: string
+}) {
+  const wa = whatsappNumber(phone)
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-surface-200 bg-white p-3">
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-surface-400">{label}</p>
+        <p className="text-sm font-semibold text-surface-800 truncate">{name || 'No disponible'}</p>
+        {phone
+          ? <p className="text-xs text-surface-500">{phone}</p>
+          : <p className="text-xs text-surface-400">Sin teléfono registrado</p>}
+        {note && <p className="text-[10px] text-primary-600 mt-0.5">{note}</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {phone && (
+          <a
+            href={`tel:${phone}`}
+            className="w-8 h-8 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center"
+            aria-label={`Llamar a ${label.toLowerCase()}`}
+          >
+            <Phone className="w-4 h-4" />
+          </a>
+        )}
+        {wa && (
+          <a
+            href={`https://wa.me/${wa}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center"
+            aria-label={`WhatsApp a ${label.toLowerCase()}`}
+          >
+            <WhatsAppIcon className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const incidentTypeLabels: Record<IncidentType, string> = {
   accidente: '🚨 Accidente',
@@ -55,6 +112,7 @@ const parseResolutionDetails = (details: any): any => {
 export function AdminIncidents() {
   const [incidents, setIncidents] = useState<(RideIncident & { ride?: Ride })[]>([])
   const [ridesMap, setRidesMap] = useState<Record<string, Ride>>({})
+  const [profilesMap, setProfilesMap] = useState<Record<string, ContactProfile>>({})
   const [filter, setFilter] = useState<'todos' | 'abierto' | 'resuelto'>('abierto')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -77,6 +135,9 @@ export function AdminIncidents() {
   const isCancellationIncident = selectedIncident?.incident_type === 'cancelacion_cliente'
   const cancellationFee = selectedRide?.cancellation_fee_usd ?? 0
   const alreadyCompensated = selectedRide?.driver_compensation_usd ?? 0
+  const suggestedCompensation = selectedIncident?.suggested_compensation_usd ?? 0
+  // Negativo = hay que revertir lo ya pagado al conductor
+  const compensationDelta = compensateDriverAmount - alreadyCompensated
 
   // Al abrir el modal, pre-cargar montos sugeridos según el culpable
   const openIncident = (incident: RideIncident) => {
@@ -91,7 +152,8 @@ export function AdminIncidents() {
       setAtFault(byDriver ? 'conductor' : 'cliente')
       setRefundClientAmount(0)
       setPenalizeAmount(byDriver ? 0 : (ride?.cancellation_fee_usd ?? 0))
-      setCompensateDriverAmount(ride?.driver_compensation_usd ?? 0)
+      // La compensación NO se paga automáticamente: arranca en 0 y el admin decide.
+      setCompensateDriverAmount(0)
       setCancelRide(true)
       return
     }
@@ -113,7 +175,7 @@ export function AdminIncidents() {
     if (selectedIncident?.incident_type === 'cancelacion_cliente') {
       setRefundClientAmount(0)
       setPenalizeAmount(fault === 'cliente' ? (ride?.cancellation_fee_usd ?? 0) : 0)
-      setCompensateDriverAmount(ride?.driver_compensation_usd ?? 0)
+      // No tocar la compensación: es decisión explícita del admin.
       return
     }
 
@@ -162,6 +224,24 @@ export function AdminIncidents() {
           const map: Record<string, Ride> = {}
           ridesData.forEach((r: Ride) => { map[r.id] = r })
           setRidesMap(map)
+
+          // Contactos de las personas involucradas (cliente y conductor)
+          const userIds = [...new Set(
+            (ridesData as Ride[])
+              .flatMap((r) => [r.client_id, r.driver_id])
+              .filter((id): id is string => !!id)
+          )]
+          if (userIds.length > 0) {
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('id, full_name, phone')
+              .in('id', userIds)
+            if (profilesData) {
+              const pmap: Record<string, ContactProfile> = {}
+              ;(profilesData as ContactProfile[]).forEach((p) => { pmap[p.id] = p })
+              setProfilesMap(pmap)
+            }
+          }
         }
       }
     }
@@ -316,6 +396,25 @@ export function AdminIncidents() {
                     </div>
                   )}
 
+                  {ride && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <PersonContact
+                        label="Cliente"
+                        name={profilesMap[ride.client_id]?.full_name}
+                        phone={profilesMap[ride.client_id]?.phone}
+                        note={incident.reported_by === ride.client_id ? 'Reportó este incidente' : undefined}
+                      />
+                      {ride.driver_id && (
+                        <PersonContact
+                          label="Conductor"
+                          name={profilesMap[ride.driver_id]?.full_name}
+                          phone={profilesMap[ride.driver_id]?.phone}
+                          note={incident.reported_by === ride.driver_id ? 'Reportó este incidente' : undefined}
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {photos.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">
                       {photos.map((url, idx) => (
@@ -349,6 +448,9 @@ export function AdminIncidents() {
                           )}
                           {resolutionDetails.compensate_driver !== undefined && Number(resolutionDetails.compensate_driver) > 0 && (
                             <p>Compensación al conductor: <span className="font-medium">{Number(resolutionDetails.compensate_driver).toFixed(2)}$</span></p>
+                          )}
+                          {Number(resolutionDetails.compensation_reversed) > 0 && (
+                            <p className="text-red-600">Reversión al conductor: <span className="font-medium">-{Number(resolutionDetails.compensation_reversed).toFixed(2)}$</span></p>
                           )}
                           {resolutionDetails.ride_cancelled !== undefined && (
                             <p>Viaje cancelado: <span className="font-medium">{resolutionDetails.ride_cancelled ? 'Sí' : 'No'}</span></p>
@@ -392,6 +494,25 @@ export function AdminIncidents() {
             {selectedIncident.description && (
               <div className="bg-surface-50 rounded-xl p-3 mb-4">
                 <p className="text-sm text-surface-600">{selectedIncident.description}</p>
+              </div>
+            )}
+
+            {selectedRide && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                <PersonContact
+                  label="Cliente"
+                  name={profilesMap[selectedRide.client_id]?.full_name}
+                  phone={profilesMap[selectedRide.client_id]?.phone}
+                  note={selectedIncident.reported_by === selectedRide.client_id ? 'Reportó este incidente' : undefined}
+                />
+                {selectedRide.driver_id && (
+                  <PersonContact
+                    label="Conductor"
+                    name={profilesMap[selectedRide.driver_id]?.full_name}
+                    phone={profilesMap[selectedRide.driver_id]?.phone}
+                    note={selectedIncident.reported_by === selectedRide.driver_id ? 'Reportó este incidente' : undefined}
+                  />
+                )}
               </div>
             )}
 
@@ -456,10 +577,16 @@ export function AdminIncidents() {
                         <span className="text-blue-600 font-medium">→ Compensación al conductor</span>
                         <span className="font-bold text-blue-600">{compensateDriverAmount.toFixed(2)}$</span>
                       </div>
+                      {compensationDelta < 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-red-600 font-medium">→ Reversión al conductor</span>
+                          <span className="font-bold text-red-600">-{Math.abs(compensationDelta).toFixed(2)}$</span>
+                        </div>
+                      )}
                       <p className="text-[10px] text-surface-400 mt-2">
                         {alreadyCompensated > 0
-                          ? `Ya se acreditaron ${alreadyCompensated.toFixed(2)}$ al conductor; si aumentas el monto solo se paga la diferencia.`
-                          : 'La compensación se acredita al conductor al resolver.'}
+                          ? `Ya pagado: ${alreadyCompensated.toFixed(2)}$. Si bajas el monto se revierte la diferencia.`
+                          : 'Solo se paga lo que decidas aquí; no hay compensación automática.'}
                       </p>
                     </>
                   ) : (
@@ -548,7 +675,7 @@ export function AdminIncidents() {
 
                 <div>
                   <label className="label">
-                    {isCancellationIncident ? 'Compensación al conductor (total, $)' : 'Compensación al conductor ($)'}
+                    {isCancellationIncident ? 'Compensación al conductor (la decides tú, $)' : 'Compensación al conductor ($)'}
                   </label>
                   <input
                     type="number"
@@ -558,11 +685,32 @@ export function AdminIncidents() {
                     value={compensateDriverAmount}
                     onChange={(e) => setCompensateDriverAmount(Math.max(0, Number(e.target.value)))}
                   />
-                  <p className="text-xs text-surface-400 mt-1">
-                    {isCancellationIncident && alreadyCompensated > 0
-                      ? `Ya acreditada: ${alreadyCompensated.toFixed(2)}$. Solo se paga la diferencia.`
-                      : 'Se suma a la billetera del conductor'}
-                  </p>
+                  {isCancellationIncident ? (
+                    <div className="mt-1 space-y-1">
+                      <p className="text-xs text-surface-400">
+                        {alreadyCompensated > 0
+                          ? `Ya pagado: ${alreadyCompensated.toFixed(2)}$.`
+                          : 'No se ha pagado nada todavía.'}
+                        {' '}Sugerencia: {suggestedCompensation.toFixed(2)}$.
+                      </p>
+                      {suggestedCompensation > 0 && compensateDriverAmount !== suggestedCompensation && (
+                        <button
+                          type="button"
+                          onClick={() => setCompensateDriverAmount(suggestedCompensation)}
+                          className="text-xs font-medium text-primary-600 hover:underline"
+                        >
+                          Aplicar sugerencia ({suggestedCompensation.toFixed(2)}$)
+                        </button>
+                      )}
+                      {compensationDelta < 0 && (
+                        <p className="text-xs font-medium text-red-600">
+                          Se descontarán {Math.abs(compensationDelta).toFixed(2)}$ de la billetera del conductor (reversión).
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-surface-400 mt-1">Se suma a la billetera del conductor</p>
+                  )}
                 </div>
               </div>
 
