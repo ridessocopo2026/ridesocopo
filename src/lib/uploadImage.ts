@@ -63,9 +63,11 @@ export async function uploadImageToStorage(
   bucket: string,
   path: string,
   file: File,
-  preset: ImagePreset
+  preset: ImagePreset,
+  options: { prepared?: boolean; originalSize?: number } = {}
 ): Promise<{ path: string; size: number; originalSize: number }> {
-  const optimizada = await prepareImage(file, preset)
+  // Si la imagen ya fue comprimida antes (validada al elegirla) no se repite el trabajo
+  const optimizada = options.prepared ? file : await prepareImage(file, preset)
   const destino = withRealExtension(path, optimizada.type)
 
   const { data, error } = await supabase.storage.from(bucket).upload(destino, optimizada, {
@@ -78,7 +80,7 @@ export async function uploadImageToStorage(
 
   if (error) throw error
 
-  return { path: data.path, size: optimizada.size, originalSize: file.size }
+  return { path: data.path, size: optimizada.size, originalSize: options.originalSize ?? file.size }
 }
 
 /**

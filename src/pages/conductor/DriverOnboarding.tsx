@@ -1,13 +1,44 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Upload, User, Car, FileText, Shield } from 'lucide-react'
+import { Loader2, Upload, User, Car, FileText, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { uploadImageToStorage, type ImagePreset } from '@/lib/uploadImage'
+import { uploadImageToStorage, prepareImage, type ImagePreset } from '@/lib/uploadImage'
+import { formatKb } from '@/lib/imageCompress'
 import { useAuth } from '@/contexts/AuthContext';
 import { useDriverProfileState } from '@/hooks/useDriverProfileState'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { VehicleCategory, VehicleCategoryType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
+
+/** Fotos del registro y el preset de compresión que le corresponde */
+type PhotoKey = 'profile' | 'cedula' | 'license' | 'vehicle'
+
+const PHOTO_PRESETS: Record<PhotoKey, ImagePreset> = {
+  profile: 'avatar',
+  cedula: 'document',
+  license: 'document',
+  vehicle: 'vehicle'
+}
+
+const PHOTO_LABELS: Record<PhotoKey, string> = {
+  profile: 'perfil',
+  cedula: 'cédula',
+  license: 'licencia',
+  vehicle: 'vehículo'
+}
+
+interface PhotoStatus {
+  state: 'idle' | 'preparing' | 'ready' | 'error'
+  size?: number
+  message?: string
+}
+
+const EMPTY_PHOTO_STATUS: Record<PhotoKey, PhotoStatus> = {
+  profile: { state: 'idle' },
+  cedula: { state: 'idle' },
+  license: { state: 'idle' },
+  vehicle: { state: 'idle' }
+}
 
 const ONBOARD_DEFAULT_CATS: VehicleCategory[] = [
   { id: 'o-moto_basica', name: 'moto_basica', display_name: 'Moto Básica', base_fare_usd: 1, max_passengers: 1, icon: '🛵', is_active: true, created_at: '' },
@@ -52,6 +83,79 @@ export function DriverOnboarding() {
   const [hasLicensePhoto, setHasLicensePhoto] = useState(false)
   const [hasProfilePhoto, setHasProfilePhoto] = useState(false)
   const [hasVehiclePhoto, setHasVehiclePhoto] = useState(false)
+
+  // Fotos ya comprimidas al elegirlas: evita que el envío falle sin decir cuál es
+  // y no repite el trabajo de compresión al enviar.
+  const [preparedPhotos, setPreparedPhotos] = useState<Record<PhotoKey, File | null>>({
+    profile: null,
+    cedula: null,
+    license: null,
+    vehicle: null
+  })
+  const [photoStatus, setPhotoStatus] = useState<Record<PhotoKey, PhotoStatus>>(EMPTY_PHOTO_STATUS)
+
+  const rawPhoto = (key: PhotoKey): File | null =>
+    key === 'profile'
+      ? profilePhoto
+      : key === 'cedula'
+        ? cedulaPhoto
+        : key === 'license'
+          ? licensePhoto
+          : vehiclePhoto
+
+  const existingPhoto = (key: PhotoKey): boolean =>
+    key === 'profile'
+      ? hasProfilePhoto
+      : key === 'cedula'
+        ? hasCedulaPhoto
+        : key === 'license'
+          ? hasLicensePhoto
+          : hasVehiclePhoto
+
+  const setRawPhoto = (key: PhotoKey, file: File | null) => {
+    if (key === 'profile') setProfilePhoto(file)
+    else if (key === 'cedula') setCedulaPhoto(file)
+    else if (key === 'license') setLicensePhoto(file)
+    else setVehiclePhoto(file)
+  }
+
+  /**
+   * Al elegir la foto se comprime y se valida EN EL MOMENTO.
+   * Así el conductor sabe exactamente cuál foto falla (y por qué)
+   * antes de enviar, y el envío reutiliza el archivo ya comprimido.
+   */
+  const handlePhotoSelected = async (key: PhotoKey, file: File | null) => {
+    setRawPhoto(key, file)
+    setPreparedPhotos((prev) => ({ ...prev, [key]: null }))
+
+    if (!file) {
+      setPhotoStatus((prev) => ({ ...prev, [key]: { state: 'idle' } }))
+      return
+    }
+
+    setPhotoStatus((prev) => ({ ...prev, [key]: { state: 'preparing' } }))
+
+    try {
+      const optimized = await prepareImage(file, PHOTO_PRESETS[key])
+      setPreparedPhotos((prev) => ({ ...prev, [key]: optimized }))
+      setPhotoStatus((prev) => ({ ...prev, [key]: { state: 'ready', size: optimized.size } }))
+    } catch (err: any) {
+      setPhotoStatus((prev) => ({
+        ...prev,
+        [key]: { state: 'error', message: err?.message || 'No se pudo leer la foto' }
+      }))
+    }
+  }
+
+  /** Devuelve el mensaje de error de la primera foto que no se pudo leer, o null */
+  const photoErrorFor = (keys: PhotoKey[]): string | null => {
+    const failed = keys.filter((k) => rawPhoto(k) && photoStatus[k].state === 'error')
+    if (failed.length === 0) return null
+    return (
+      `No pudimos leer la foto de ${failed.map((k) => PHOTO_LABELS[k]).join(' y ')}. ` +
+      `${photoStatus[failed[0]].message || 'Prueba con otra foto o tómala de nuevo con la cámara.'}`
+    )
+  }
 
   useEffect(() => {
     (async () => {
@@ -112,11 +216,22 @@ export function DriverOnboarding() {
   // Comprime y sube el archivo (la foto de una cédula pasa de ~600 KB
   // a ~200 KB, el vehículo de ~900 KB a ~120 KB) en vez de subir la
   // imagen original de 3-5 MB de la cámara.
-  const uploadFile = async (file: File, bucket: string, path: string): Promise<string> => {
+  const uploadFile = async (
+    file: File,
+    bucket: string,
+    path: string,
+    prepared: File | null = null
+  ): Promise<string> => {
     const preset: ImagePreset =
       bucket === 'documents' ? 'document' : bucket === 'avatars' ? 'avatar' : 'vehicle'
 
-    const { path: ruta } = await uploadImageToStorage(bucket, path, file, preset)
+    const { path: ruta } = await uploadImageToStorage(
+      bucket,
+      path,
+      prepared ?? file,
+      preset,
+      prepared ? { prepared: true, originalSize: file.size } : {}
+    )
 
     // Los buckets documents/avatars/vehicles son privados (o controlados por RLS).
     // Guardamos la ruta del storage; se resuelve con URL firmada al visualizar.
@@ -126,6 +241,22 @@ export function DriverOnboarding() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Si alguna foto elegida no se pudo procesar, decir CUÁL es (antes fallaba sin nombre)
+    const photosToCheck: PhotoKey[] = ['profile', 'cedula', 'license', 'vehicle']
+    const photoError = photoErrorFor(photosToCheck)
+    if (photoError) {
+      setError(photoError)
+      return
+    }
+
+    const preparingPhotos = photosToCheck.filter(
+      (k) => rawPhoto(k) && photoStatus[k].state === 'preparing'
+    )
+    if (preparingPhotos.length > 0) {
+      setError('Espera un momento: estamos procesando las fotos.')
+      return
+    }
 
     // Validación manual de archivos obligatorios
     // (si ya tenía la foto subida de antes, no hace falta volver a subirla)
@@ -149,19 +280,19 @@ export function DriverOnboarding() {
       const timestamp = Date.now()
 
       const profilePhotoUrl = profilePhoto
-        ? await uploadFile(profilePhoto, 'avatars', `${userId}/profile-${timestamp}.jpg`)
+        ? await uploadFile(profilePhoto, 'avatars', `${userId}/profile-${timestamp}.jpg`, preparedPhotos.profile)
         : null
 
       const cedulaPhotoUrl = cedulaPhoto
-        ? await uploadFile(cedulaPhoto, 'documents', `${userId}/cedula-${timestamp}.jpg`)
+        ? await uploadFile(cedulaPhoto, 'documents', `${userId}/cedula-${timestamp}.jpg`, preparedPhotos.cedula)
         : ''
 
       const licensePhotoUrl = licensePhoto
-        ? await uploadFile(licensePhoto, 'documents', `${userId}/license-${timestamp}.jpg`)
+        ? await uploadFile(licensePhoto, 'documents', `${userId}/license-${timestamp}.jpg`, preparedPhotos.license)
         : ''
 
       const vehiclePhotoUrl = vehiclePhoto
-        ? await uploadFile(vehiclePhoto, 'vehicles', `${userId}/vehicle-${timestamp}.jpg`)
+        ? await uploadFile(vehiclePhoto, 'vehicles', `${userId}/vehicle-${timestamp}.jpg`, preparedPhotos.vehicle)
         : ''
 
       // Llamar RPC para registrar onboarding
@@ -206,12 +337,22 @@ export function DriverOnboarding() {
       }
     }
     if (step === 2) {
+      const photoError = photoErrorFor(['profile', 'cedula', 'license'])
+      if (photoError) {
+        setError(photoError)
+        return
+      }
       if ((!cedulaPhoto && !hasCedulaPhoto) || (!licensePhoto && !hasLicensePhoto) || !licenseExpiry) {
         setError('Sube las fotos requeridas')
         return
       }
     }
     if (step === 3) {
+      const photoError = photoErrorFor(['vehicle'])
+      if (photoError) {
+        setError(photoError)
+        return
+      }
       if (!vehicleCategory || !vehicleBrand || !vehicleModel || !vehicleYear || !vehicleColor || !vehiclePlate) {
         setError('Completa todos los datos del vehículo')
         return
@@ -222,19 +363,20 @@ export function DriverOnboarding() {
 
   const prevStep = () => setStep(step - 1)
 
-  const FileInput = ({ label, file, setFile, existing = false }: {
+  const FileInput = ({ label, file, onSelect, status, existing = false }: {
     label: string
     file: File | null
-    setFile: (f: File | null) => void
+    onSelect: (f: File | null) => void
+    status: PhotoStatus
     existing?: boolean
   }) => (
     <div>
       <label className="label">{label}</label>
       <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-400 transition-colors">
         {file ? (
-          <div className="text-center">
+          <div className="text-center px-2">
             <FileText className="w-8 h-8 text-primary-600 mx-auto mb-1" />
-            <span className="text-xs text-surface-600">{file.name}</span>
+            <span className="text-xs text-surface-600 block truncate max-w-[220px]">{file.name}</span>
           </div>
         ) : existing ? (
           <div className="text-center">
@@ -252,9 +394,28 @@ export function DriverOnboarding() {
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onClick={(e) => { e.currentTarget.value = '' }}
+          onChange={(e) => onSelect(e.target.files?.[0] || null)}
         />
       </label>
+
+      {/* Estado de ESTA foto: se valida al elegirla, no al enviar */}
+      {status.state === 'preparing' && (
+        <p className="text-xs text-surface-500 mt-1 flex items-center gap-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Procesando foto…
+        </p>
+      )}
+      {status.state === 'ready' && (
+        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+          <CheckCircle className="w-3.5 h-3.5" /> Lista ({formatKb(status.size || 0)})
+        </p>
+      )}
+      {status.state === 'error' && (
+        <p className="text-xs text-red-600 mt-1 flex items-start gap-1">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{status.message}</span>
+        </p>
+      )}
     </div>
   )
 
@@ -365,9 +526,31 @@ export function DriverOnboarding() {
                 <h2 className="font-semibold text-surface-800">Documentos</h2>
               </div>
 
-              <FileInput label="Foto de perfil" file={profilePhoto} setFile={setProfilePhoto} existing={hasProfilePhoto} />
-              <FileInput label="Foto de la Cédula *" file={cedulaPhoto} setFile={setCedulaPhoto} existing={hasCedulaPhoto} />
-              <FileInput label="Foto de la Licencia *" file={licensePhoto} setFile={setLicensePhoto} existing={hasLicensePhoto} />
+              <FileInput
+                label="Foto de perfil"
+                file={profilePhoto}
+                onSelect={(f) => handlePhotoSelected('profile', f)}
+                status={photoStatus.profile}
+                existing={existingPhoto('profile')}
+              />
+              <FileInput
+                label="Foto de la Cédula *"
+                file={cedulaPhoto}
+                onSelect={(f) => handlePhotoSelected('cedula', f)}
+                status={photoStatus.cedula}
+                existing={existingPhoto('cedula')}
+              />
+              <FileInput
+                label="Foto de la Licencia *"
+                file={licensePhoto}
+                onSelect={(f) => handlePhotoSelected('license', f)}
+                status={photoStatus.license}
+                existing={existingPhoto('license')}
+              />
+              <p className="text-[11px] text-surface-400">
+                Si tu teléfono guarda las fotos en HEIC o la foto está en la nube, ábrela en
+                Galería y descárgala antes de elegirla. Cada foto muestra arriba si quedó lista.
+              </p>
             </div>
           )}
 
@@ -475,7 +658,13 @@ export function DriverOnboarding() {
                 <h2 className="font-semibold text-surface-800">Foto del Vehículo</h2>
               </div>
 
-              <FileInput label="Foto real del vehículo *" file={vehiclePhoto} setFile={setVehiclePhoto} existing={hasVehiclePhoto} />
+              <FileInput
+                label="Foto real del vehículo *"
+                file={vehiclePhoto}
+                onSelect={(f) => handlePhotoSelected('vehicle', f)}
+                status={photoStatus.vehicle}
+                existing={existingPhoto('vehicle')}
+              />
 
               <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
                 <p className="text-sm text-amber-800">

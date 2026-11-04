@@ -40,6 +40,72 @@ export function formatKb(bytes: number): string {
   return `${(kb / 1024).toFixed(1)} MB`
 }
 
+const IMAGE_LOAD_TIMEOUT_MS = 20000
+
+/**
+ * Lee los primeros bytes y deduce el formato REAL del archivo
+ * (no confía en file.type, que en Android suele venir mal o vacío).
+ */
+async function detectFormat(file: File): Promise<string> {
+  try {
+    const head = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+    if (head.length === 0) return 'archivo vacío'
+
+    const hex = (i: number) => head[i].toString(16).padStart(2, '0')
+    const ascii = (from: number, to: number) =>
+      String.fromCharCode(...Array.from(head.slice(from, to))).toLowerCase()
+
+    if (hex(0) === 'ff' && hex(1) === 'd8' && hex(2) === 'ff') return 'JPEG'
+    if (hex(0) === '89' && hex(1) === '50' && hex(2) === '4e' && hex(3) === '47') return 'PNG'
+    if (ascii(0, 4) === 'riff' && ascii(8, 12) === 'webp') return 'WebP'
+
+    if (head.length >= 12 && ascii(4, 8) === 'ftyp') {
+      const brand = ascii(8, 12)
+      if (brand.startsWith('avi')) return 'AVIF'
+      if (['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'].includes(brand)) {
+        return 'HEIC/HEIF'
+      }
+      return 'ISO-BMFF'
+    }
+
+    if (hex(0) === '25' && hex(1) === '50' && hex(2) === '44' && hex(3) === '46') return 'PDF'
+    return 'formato desconocido'
+  } catch {
+    return 'desconocido'
+  }
+}
+
+/** Carga un <img> con timeout (evita quedarse colgado con fotos enormes). */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const el = new Image()
+    let settled = false
+    let timer: number | undefined
+
+    const finish = (act: () => void) => {
+      if (settled) return
+      settled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+      act()
+    }
+
+    timer = window.setTimeout(() => finish(() => reject(new Error('timeout'))), IMAGE_LOAD_TIMEOUT_MS)
+    el.onload = () => finish(() => resolve(el))
+    el.onerror = () => finish(() => reject(new Error('decode')))
+    el.src = src
+  })
+}
+
+/** Lee el archivo como data URL (evita bloqueos de blob: y fallos de archivos "en la nube"). */
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('read'))
+    reader.readAsDataURL(file)
+  })
+}
+
 async function decodeImage(file: File): Promise<DecodedImage> {
   // 1) Vía rápida: createImageBitmap respeta la orientación EXIF
   if (typeof createImageBitmap === 'function') {
@@ -52,29 +118,57 @@ async function decodeImage(file: File): Promise<DecodedImage> {
         cleanup: () => bitmap.close()
       }
     } catch {
-      // Navegador antiguo o formato no soportado (ej. HEIC): probamos con <img>
+      // Navegador antiguo, formato no soportado o falta de memoria: seguimos
+    }
+
+    // 2) Igual pero reduciendo al decodificar (fotos enormes con poca RAM)
+    try {
+      const bitmap = await createImageBitmap(file, { resizeWidth: 2048, resizeQuality: 'high' })
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        cleanup: () => bitmap.close()
+      }
+    } catch {
+      // Seguimos con <img>
     }
   }
 
-  // 2) Fallback: <img> (los navegadores modernos ya aplican el EXIF)
+  // 3) Fallback: <img> con blob URL (los navegadores modernos ya aplican el EXIF)
   const objectUrl = URL.createObjectURL(file)
   try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image()
-      el.onload = () => resolve(el)
-      el.onerror = () => reject(new Error('No pudimos leer esta imagen. Prueba con otra foto (JPG o PNG).'))
-      el.src = objectUrl
-    })
+    const img = await loadImage(objectUrl)
     return {
       source: img,
       width: img.naturalWidth,
       height: img.naturalHeight,
       cleanup: () => URL.revokeObjectURL(objectUrl)
     }
-  } catch (err) {
+  } catch {
     URL.revokeObjectURL(objectUrl)
-    throw err
   }
+
+  // 4) Último recurso: <img> con data URL (esquiva restricciones de blob:)
+  try {
+    const dataUrl = await readAsDataUrl(file)
+    const img = await loadImage(dataUrl)
+    return {
+      source: img,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      cleanup: () => { /* el data URL no reserva memoria */ }
+    }
+  } catch {
+    // Sin más opciones: damos el diagnóstico real del archivo
+  }
+
+  const format = await detectFormat(file)
+  const size = formatKb(file.size)
+  throw new Error(
+    `No pudimos abrir esta imagen (${format} · ${size}). ` +
+    'Prueba con otra foto o tómala de nuevo con la cámara.'
+  )
 }
 
 function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
