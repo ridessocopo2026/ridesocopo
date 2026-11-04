@@ -54,6 +54,7 @@ const actionLabels: Record<string, string> = {
   RIDE_STARTED: 'Viaje iniciado',
   CONFIRM_RIDE_COMPLETION: 'Viaje completado',
   CANCEL_RIDE: 'Viaje cancelado',
+  DELETE_DUPLICATE_DRIVER_ACCOUNT: 'Cuenta duplicada eliminada',
   APPROVE_CANCELLATION_CHARGE: 'Cargo por cancelación cobrado',
   WAIVE_CANCELLATION_CHARGE: 'Cargo por cancelación eximido',
   FIX_CANCELLATION_COMPENSATION: 'Corrección de compensación',
