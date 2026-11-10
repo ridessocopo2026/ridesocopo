@@ -195,15 +195,23 @@ export function ActiveRide() {
   // Guia dentro del mapa: sigue al conductor hacia el pasajero o al destino
   const [seguir, setSeguir] = useState(false)
   const stopFollowing = useCallback(() => setSeguir(false), [])
+  // Gate: el inicio del viaje solo se confirma despues de guiarse al pasajero
+  const [guiaIniciada, setGuiaIniciada] = useState(false)
+  const marcarGuiaIniciada = useCallback(() => {
+    setGuiaIniciada(true)
+    // Se recuerda por viaje: si el conductor recarga la app no tiene que repetirlo
+    if (rideId) sessionStorage.setItem('guia-recogida-' + rideId, '1')
+  }, [rideId])
 
   // Al iniciar el viaje se re-encuadra al destino (y se apaga el seguimiento del pasajero)
   useEffect(() => {
     if (ride?.status === 'en_ruta') setFitKey((k) => k + 1)
   }, [ride?.status])
 
-  // Al cambiar de viaje se apaga el seguimiento
+  // Al cambiar de viaje se apaga el seguimiento y se restaura el gate de confirmacion
   useEffect(() => {
     setSeguir(false)
+    setGuiaIniciada(rideId ? sessionStorage.getItem('guia-recogida-' + rideId) === '1' : false)
   }, [rideId])
 
 
@@ -383,6 +391,11 @@ export function ActiveRide() {
   }
 
   const handleConfirmStart = async () => {
+    // No se puede iniciar el viaje sin guiarse antes hasta el pasajero
+    if (ride?.status === 'aceptada' && !puedeConfirmarInicio) {
+      setError('Primero toca «Ir a recoger al pasajero» para que el mapa te guíe hasta el punto de recogida.')
+      return
+    }
     setError('')
     setLoading(true)
 
@@ -550,6 +563,12 @@ export function ActiveRide() {
   const clientConfirmed = ride.client_start_confirmed
   const bothConfirmed = driverConfirmed && clientConfirmed
 
+  // El inicio del viaje solo se confirma despues de pulsar "Ir a recoger al pasajero"
+  // (o si el conductor ya esta dentro del radio de recogida, por si venia sin GPS).
+  const CERCA_RECOGIDA_M = 150
+  const llegadaCerca = distanciaGuia != null && distanciaGuia <= CERCA_RECOGIDA_M
+  const puedeConfirmarInicio = guiaIniciada || llegadaCerca || driverConfirmed
+
   const statusLabels = {
     buscando: 'Buscando conductor...',
     aceptada: 'Dirígete al cliente',
@@ -641,9 +660,13 @@ export function ActiveRide() {
               const next = !seguir
               setSeguir(next)
               if (next) setFitKey((k) => k + 1)
+              // Con solo pulsar "Ir a recoger" ya se habilita confirmar el inicio
+              if (ride.status === 'aceptada') marcarGuiaIniciada()
             }}
             aria-pressed={seguir}
-            className="btn-primary w-full flex items-center justify-between gap-3"
+            className={`btn-primary w-full flex items-center justify-between gap-3${
+              ride.status === 'aceptada' && !guiaIniciada ? ' ring-2 ring-amber-400 ring-offset-2' : ''
+            }`}
           >
             <span className="flex items-center gap-2 font-semibold">
               <Navigation className="w-5 h-5" />
@@ -793,9 +816,20 @@ export function ActiveRide() {
             </div>
 
             {!driverConfirmed ? (
-              <button onClick={handleConfirmStart} className="btn-success w-full" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Ya recogí al pasajero</>}
-              </button>
+              <>
+                <button
+                  onClick={handleConfirmStart}
+                  className="btn-success w-full"
+                  disabled={loading || !puedeConfirmarInicio}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Ya recogí al pasajero</>}
+                </button>
+                {!puedeConfirmarInicio && (
+                  <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
+                    Primero toca <strong>«Ir a recoger al pasajero»</strong> para que el mapa te guíe hasta el punto de recogida.
+                  </p>
+                )}
+              </>
             ) : (
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
                 <p className="text-sm text-emerald-700">

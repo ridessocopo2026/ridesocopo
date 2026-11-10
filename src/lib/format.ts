@@ -24,20 +24,23 @@ export function fmtAbs(n: number | null | undefined): string {
   return `${v.toFixed(2).replace('.', ',')}$`
 }
 
-/** Fecha de hoy en Venezuela (UTC-4) como YYYY-MM-DD */
+/** Desfase de Venezuela respecto a UTC en minutos (UTC-4). */
+const VE_OFFSET_MIN = 240
+
+/** Fecha de hoy en Venezuela (UTC-4) como YYYY-MM-DD.
+ * Se resta SOLO el desfase fijo de Venezuela: así el resultado no depende de
+ * la zona horaria del dispositivo. Antes se restaba también
+ * getTimezoneOffset(), y con el equipo en Venezuela eso corría 4 h la fecha:
+ * entre las 00:00 y las 04:00 el "hoy" era AYER, por lo que los viajes recién
+ * hechos quedaban fuera del rango y no aparecían en los listados (viajes,
+ * métricas, transacciones). */
 export function todayVE(): string {
-  const d = new Date()
-  // Convertir a hora de Venezuela (UTC-4)
-  const ve = new Date(d.getTime() - (d.getTimezoneOffset() + 240) * 60000)
-  return ve.toISOString().split('T')[0]
+  return new Date(Date.now() - VE_OFFSET_MIN * 60000).toISOString().slice(0, 10)
 }
 
 /** Fecha de hace N días en Venezuela como YYYY-MM-DD */
 export function daysAgoVE(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  const ve = new Date(d.getTime() - (d.getTimezoneOffset() + 240) * 60000)
-  return ve.toISOString().split('T')[0]
+  return new Date(Date.now() - VE_OFFSET_MIN * 60000 - days * 86400000).toISOString().slice(0, 10)
 }
 
 /** Timestamp de inicio del día en Venezuela (UTC-4): YYYY-MM-DDT00:00:00-04:00 */
