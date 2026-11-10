@@ -432,6 +432,11 @@ export default function App() {
               <AdminIncidents />
             </RoleRoute>
           } />
+          <Route path="/encargado/viajes" element={
+            <RoleRoute role="encargado">
+              <AdminRides />
+            </RoleRoute>
+          } />
           <Route path="/encargado/conductores" element={
             <RoleRoute role="encargado">
               <AdminDrivers />

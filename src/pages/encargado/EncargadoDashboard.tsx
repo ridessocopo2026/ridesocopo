@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell, Activity, DollarSign, Landmark } from 'lucide-react'
+import { Car, ClipboardCheck, ShieldAlert, Users, UserCheck, Receipt, MapPin, LogOut, Ticket, BarChart3, HandCoins, TrendingUp, AlertTriangle, ChevronRight, Image, Bell, Activity, DollarSign, Landmark } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmt } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { NotificationBell } from '@/components/ui/NotificationBell'
 import type { CouponStats, TreasuryOverview } from '@/types/database'
 
 const modules = [
@@ -13,6 +14,7 @@ const modules = [
   { to: '/encargado/liquidaciones', icon: <HandCoins className="w-6 h-6" />, title: 'Liquidaciones', desc: 'Pagar y cobrar a conductores' },
   { to: '/encargado/comprobantes', icon: <ClipboardCheck className="w-6 h-6" />, title: 'Comprobantes', desc: 'Verificar pagos y recargas' },
   { to: '/encargado/incidentes', icon: <ShieldAlert className="w-6 h-6" />, title: 'Incidentes', desc: 'Atender incidentes de viajes' },
+  { to: '/encargado/viajes', icon: <Car className="w-6 h-6" />, title: 'Viajes', desc: 'Buscar por tracking y ver detalle' },
   { to: '/encargado/conductores', icon: <Users className="w-6 h-6" />, title: 'Conductores', desc: 'Aprobar y gestionar' },
   { to: '/encargado/usuarios', icon: <UserCheck className="w-6 h-6" />, title: 'Usuarios', desc: 'Pasajeros y conductores' },
   { to: '/encargado/transacciones', icon: <Receipt className="w-6 h-6" />, title: 'Transacciones', desc: 'Movimientos de dinero' },
@@ -114,9 +116,12 @@ export function EncargadoDashboard() {
               </p>
             </div>
           </div>
-          <button onClick={handleSignOut} className="p-2 text-white/80 hover:text-white transition-colors">
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell className="p-2 text-white/80 hover:text-white transition-colors" />
+            <button onClick={handleSignOut} className="p-2 text-white/80 hover:text-white transition-colors">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
