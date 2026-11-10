@@ -43,6 +43,17 @@ const clientIcon = L.divIcon({
   iconAnchor: [16, 32]
 })
 
+// Marcador grande del pasajero mientras se va a recogerlo
+const pickupIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div style="display:flex;flex-direction:column;align-items:center">
+    <div style="background:#0284c7;color:#fff;font:700 10px/1 Inter,sans-serif;padding:4px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">RECOGER</div>
+    <div style="width:16px;height:16px;background:#0284c7;border:3px solid #fff;border-radius:999px;margin-top:-3px;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>
+  </div>`,
+  iconSize: [76, 40],
+  iconAnchor: [38, 40]
+})
+
 const destIcon = L.divIcon({
   className: 'custom-div-icon',
   html: `<div class="w-8 h-8 bg-red-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
@@ -67,8 +78,12 @@ const incidentTypes: { value: IncidentType; label: string; emoji: string }[] = [
 function FitBounds({ points, fitKey }: { points: [number, number][]; fitKey: number }) {
   const map = useMap()
   useEffect(() => {
-    if (fitKey <= 0 || points.length < 2) return
+    if (fitKey <= 0 || points.length === 0) return
     try {
+      if (points.length === 1) {
+        map.setView(points[0], 16)
+        return
+      }
       map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 })
     } catch {
       // puntos inválidos: se ignora
@@ -85,6 +100,50 @@ function MapResize({ trigger }: { trigger: boolean }) {
     const t = window.setTimeout(() => map.invalidateSize(), 250)
     return () => window.clearTimeout(t)
   }, [trigger, map])
+  return null
+}
+
+/**
+ * Modo "siguiendo": centra el mapa en el conductor mientras avanza.
+ * Solo mueve la vista si avanzo >= 15 m (evita re-centrados innecesarios)
+ * y se detiene solo si el conductor arrastra el mapa con el dedo.
+ */
+function FollowDriver({
+  position,
+  active,
+  onStop
+}: {
+  position: [number, number] | null
+  active: boolean
+  onStop: () => void
+}) {
+  const map = useMap()
+  const lastRef = useRef<[number, number] | null>(null)
+
+  useEffect(() => {
+    if (!active || !position) return
+    const last = lastRef.current
+    if (last && distanceMeters(last, position) < 15) return
+    lastRef.current = position
+    try {
+      map.panTo(position, { animate: true, duration: 0.6 })
+    } catch {
+      // coordenadas invalidas: se ignora
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, position?.[0], position?.[1], map])
+
+  useEffect(() => {
+    if (!active) return
+    const stop = () => onStop()
+    map.on('dragstart', stop)
+    return () => { map.off('dragstart', stop) }
+  }, [active, map, onStop])
+
+  useEffect(() => {
+    if (!active) lastRef.current = null
+  }, [active])
+
   return null
 }
 
@@ -133,6 +192,19 @@ export function ActiveRide() {
   const [mapExpanded, setMapExpanded] = useState(false)
   // Fuerza un recalculo manual de la ruta (boton recargar)
   const [routeNonce, setRouteNonce] = useState(0)
+  // Guia dentro del mapa: sigue al conductor hacia el pasajero o al destino
+  const [seguir, setSeguir] = useState(false)
+  const stopFollowing = useCallback(() => setSeguir(false), [])
+
+  // Al iniciar el viaje se re-encuadra al destino (y se apaga el seguimiento del pasajero)
+  useEffect(() => {
+    if (ride?.status === 'en_ruta') setFitKey((k) => k + 1)
+  }, [ride?.status])
+
+  // Al cambiar de viaje se apaga el seguimiento
+  useEffect(() => {
+    setSeguir(false)
+  }, [rideId])
 
 
 
@@ -456,6 +528,24 @@ export function ActiveRide() {
     ? [ride.driver_location_lat, ride.driver_location_lng]
     : null)
 
+  // Punto al que toca ir AHORA: el pasajero (aceptada) o el destino (en ruta)
+  const guiaTarget: [number, number] = ride.status === 'aceptada' ? origin : destination
+  const distanciaGuia = driverPos ? distanceMeters(driverPos, guiaTarget) : null
+  const distanciaTexto =
+    distanciaGuia == null
+      ? 'sin GPS'
+      : distanciaGuia < 1000
+        ? `a ${Math.round(distanciaGuia)} m`
+        : `a ${(distanciaGuia / 1000).toFixed(1)} km`
+
+  // Encuadre por fase: recogida = conductor + pasajero; en ruta = conductor + destino
+  const fitPoints: [number, number][] =
+    ride.status === 'aceptada'
+      ? (driverPos ? [origin, driverPos] : [origin])
+      : ride.status === 'en_ruta'
+        ? (driverPos ? [destination, driverPos] : [destination])
+        : (driverPos ? [origin, destination, driverPos] : [origin, destination])
+
   const driverConfirmed = ride.driver_start_confirmed
   const clientConfirmed = ride.client_start_confirmed
   const bothConfirmed = driverConfirmed && clientConfirmed
@@ -542,6 +632,35 @@ export function ActiveRide() {
         </div>
       )}
 
+      {/* Guia al punto que toca ahora: recoger al pasajero o ir al destino */}
+      {(ride.status === 'aceptada' || ride.status === 'en_ruta') && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !seguir
+              setSeguir(next)
+              if (next) setFitKey((k) => k + 1)
+            }}
+            aria-pressed={seguir}
+            className="btn-primary w-full flex items-center justify-between gap-3"
+          >
+            <span className="flex items-center gap-2 font-semibold">
+              <Navigation className="w-5 h-5" />
+              {ride.status === 'aceptada' ? 'Ir a recoger al pasajero' : 'Ir al destino'}
+            </span>
+            <span className="rounded-full bg-white/20 px-2 py-1 text-xs font-semibold">
+              {seguir ? 'Siguiendo…' : distanciaTexto}
+            </span>
+          </button>
+          <p className="mt-1.5 text-xs text-surface-500">
+            {ride.status === 'aceptada'
+              ? `Recoger a: ${ride.origin_barrio_name || ride.origin_address || 'el pasajero'}${clientName ? ` · ${clientName}` : ''}`
+              : `Destino: ${ride.destination_barrio_name || ride.destination_address || 'el destino'}`}
+          </p>
+        </div>
+      )}
+
       {/* Mapa */}
       <div className={mapExpanded ? 'fixed inset-0 z-[2000] bg-white' : 'h-[45vh] relative'}>
         <MapContainer
@@ -553,7 +672,8 @@ export function ActiveRide() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
-          <FitBounds points={driverPos ? [origin, destination, driverPos] : [origin, destination]} fitKey={fitKey} />
+          <FitBounds points={fitPoints} fitKey={fitKey} />
+          <FollowDriver position={driverPos} active={seguir} onStop={stopFollowing} />
           <MapResize trigger={mapExpanded} />
           {/* Ruta por carretera (OSRM). Si falla, referencia recta punteada */}
           {route && route.length >= 2 ? (
@@ -565,17 +685,23 @@ export function ActiveRide() {
                 dashArray: ride.status === 'en_ruta' && !ride.destination_is_exact ? '8 8' : undefined
               }}
             />
-          ) : (
+          ) : driverPos ? (
             <Polyline
-              positions={[origin, destination]}
+              positions={[driverPos, guiaTarget]}
               pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '8, 8' }}
             />
-          )}
+          ) : null}
           {!ride.destination_is_exact && (
             <Circle
               center={destination}
               radius={SECTOR_REFERENCE_RADIUS_M}
-              pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.08, dashArray: '6 6', weight: 2 }}
+              pathOptions={{
+                color: ride.status === 'aceptada' ? '#9ca3af' : '#ef4444',
+                fillColor: ride.status === 'aceptada' ? '#9ca3af' : '#ef4444',
+                fillOpacity: ride.status === 'aceptada' ? 0.04 : 0.08,
+                dashArray: '6 6',
+                weight: 2
+              }}
             />
           )}
           {/* Vehículo del conductor */}
@@ -584,11 +710,11 @@ export function ActiveRide() {
               <Popup>Tu vehículo</Popup>
             </Marker>
           )}
-          {/* Ubicación del cliente */}
-          <Marker position={origin} icon={clientIcon}>
-            <Popup>{clientName || 'Cliente'}</Popup>
+          {/* Ubicacion del pasajero (destacada mientras se va a recogerlo) */}
+          <Marker position={origin} icon={ride.status === 'aceptada' ? pickupIcon : clientIcon}>
+            <Popup>Recoger a: {clientName || 'Cliente'}</Popup>
           </Marker>
-          <Marker position={destination} icon={destIcon}>
+          <Marker position={destination} icon={destIcon} opacity={ride.status === 'aceptada' ? 0.5 : 1}>
             <Popup>
               Destino: {ride.destination_barrio_name || (ride.destination_is_exact ? 'punto exacto' : 'sector')}
               {!ride.destination_is_exact ? ' (referencia)' : ''}
@@ -640,7 +766,7 @@ export function ActiveRide() {
               Confirmación de inicio
             </h2>
             <p className="text-sm text-surface-600 mb-4">
-              Cuando recojas al cliente, **ambos** deben confirmar que el viaje inicia.
+              Cuando el pasajero esté arriba, ambos deben confirmar para iniciar el viaje.
             </p>
 
             <div className="space-y-2 mb-4">
@@ -668,7 +794,7 @@ export function ActiveRide() {
 
             {!driverConfirmed ? (
               <button onClick={handleConfirmStart} className="btn-success w-full" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Confirmar que recogí al cliente</>}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Ya recogí al pasajero</>}
               </button>
             ) : (
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
