@@ -155,7 +155,6 @@ export function ClientHome() {
   const [sheetBarrioId, setSheetBarrioId] = useState('')
   const [sheetAddress, setSheetAddress] = useState('')
   const [destSearch, setDestSearch] = useState('')
-  const [destTab, setDestTab] = useState<'todos' | 'barrio' | 'urbanizacion' | 'sector'>('todos')
   // Carga de sectores del panel de destino (para no mostrar una lista vacía sin explicación)
   const [loadingBarrios, setLoadingBarrios] = useState(false)
   const [barriosError, setBarriosError] = useState('')
@@ -724,6 +723,24 @@ export function ClientHome() {
     setDestAddress(address)
   }
 
+  /**
+   * Aplica un lugar guardado dentro de la hoja de destino: rellena sector,
+   * direccion y pin, y lleva al boton Confirmar (no pide el viaje de golpe).
+   */
+  const applyFavoriteToSheet = async (fav: FavoritePlace) => {
+    setSheetAddress(fav.address || fav.name)
+    setSheetPin({ lat: Number(fav.lat), lng: Number(fav.lng) })
+    try {
+      const { data, error } = await supabase.rpc('get_nearest_barrio', { p_lat: fav.lat, p_lng: fav.lng })
+      if (!error && data?.found) setSheetBarrioId(data.id)
+    } catch {
+      // Si falla, el usuario puede elegir el sector a mano
+    }
+    setTimeout(() => {
+      document.getElementById('confirm-destino-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+  }
+
   const handleSelectFavorite = async (fav: FavoritePlace) => {
     setDestAddress(fav.address || fav.name)
     try {
@@ -1089,12 +1106,10 @@ export function ClientHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCityId, activeRide])
 
-  // Sectores del panel de destino: filtro por texto + tipo (barrio/urbanización/sector)
-  const barriosFiltrados = barrios.filter((b) => {
-    const coincideTexto = b.name.toLowerCase().includes(destSearch.trim().toLowerCase())
-    const coincideTipo = destTab === 'todos' || b.tipo === destTab
-    return coincideTexto && coincideTipo
-  })
+  // Sectores del panel de destino: solo filtro por texto
+  const barriosFiltrados = barrios.filter((b) =>
+    b.name.toLowerCase().includes(destSearch.trim().toLowerCase())
+  )
 
   const sheetBarrio = barrios.find((b) => b.id === sheetBarrioId)
 
@@ -1687,27 +1702,43 @@ export function ClientHome() {
                   onChange={(e) => setDestSearch(e.target.value)}
                 />
 
-                {/* Filtro por tipo de sector */}
-                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-                  {([
-                    { key: 'todos', label: 'Todos' },
-                    { key: 'barrio', label: '🏘️ Barrios' },
-                    { key: 'urbanizacion', label: '🏢 Urbanizaciones' },
-                    { key: 'sector', label: '📍 Sectores' }
-                  ] as const).map((t) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setDestTab(t.key)}
-                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                        destTab === t.key
-                          ? 'border-primary-600 bg-primary-50 text-primary-700'
-                          : 'border-surface-200 bg-white text-surface-500 hover:border-surface-300'
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Lugares guardados: acceso rapido a los destinos de siempre */}
+                {!destSearch.trim() && favorites.length > 0 && (
+                  <div className="mb-3">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-surface-500">
+                      Lugares guardados
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {favorites.map((fav) => (
+                        <button
+                          key={fav.id}
+                          onClick={() => applyFavoriteToSheet(fav)}
+                          className="flex items-start gap-2 rounded-xl border-2 border-surface-200 bg-white p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50"
+                          aria-label={`Usar ${fav.name} como destino`}
+                        >
+                          <Star className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-surface-800">{fav.name}</span>
+                            {fav.address && (
+                              <span className="mt-0.5 block truncate text-xs text-surface-500">{fav.address}</span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!destSearch.trim() && favorites.length === 0 && (
+                  <p className="mb-3 rounded-xl border border-dashed border-surface-200 bg-surface-50 px-3 py-2 text-xs text-surface-500">
+                    Aún no tienes lugares guardados. Al terminar un viaje podrás guardar el destino
+                    (Casa, Trabajo…) y aparecerá aquí.
+                  </p>
+                )}
+
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-surface-500">
+                  Todos los sectores
+                </p>
 
                 {/* Lista de lugares filtrados: con estados claros (cargando, error, vacío) */}
                 <div className="space-y-2 mb-4 max-h-[32vh] overflow-y-auto">

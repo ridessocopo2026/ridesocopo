@@ -2,17 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, Circle, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Map, Navigation, Star, Loader2, XCircle, Save, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
+import { Map, Navigation, Loader2, XCircle, CheckCircle, AlertCircle, ShieldAlert, Upload, AlertTriangle, MessageCircle, Car, ZoomIn, Maximize2, Minimize2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { whatsappNumber } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
-import { RatingCard } from '@/components/ui/RatingCard'
 import { RatingStars } from '@/components/ui/RatingStars'
 import { NotificationBanner } from '@/components/ui/NotificationBanner'
 import { useRideRealtime, fetchRideById, useRideIncident } from '@/lib/rideRealtime'
 import { TripDetailInfo } from '@/components/ride/TripDetailInfo'
+import { PostRideActions } from '@/components/ride/PostRideActions'
 import { ImageLightbox } from '@/components/ui/ImageLightbox'
 import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
@@ -131,6 +131,8 @@ export function ClientActiveRide() {
   const [loading, setLoading] = useState(false)
   const [showSaveFavorite, setShowSaveFavorite] = useState(false)
   const [favoriteName, setFavoriteName] = useState('')
+  // Se muestra la confirmacion verde al guardar el destino (sin salir de la pantalla)
+  const [favoriteSaved, setFavoriteSaved] = useState(false)
   const [cancellationEstimate, setCancellationEstimate] = useState<CancellationEstimate | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showIncidentModal, setShowIncidentModal] = useState(false)
@@ -515,15 +517,19 @@ export function ClientActiveRide() {
     if (error) throw error
   }
 
-  const handleSaveFavorite = async () => {
-    if (!ride || !favoriteName) return
+  // Guarda el destino como lugar favorito. `name` permite los chips (Casa/Trabajo).
+  // No navega: asi el cliente puede calificar justo despues.
+  const handleSaveFavorite = async (name?: string) => {
+    if (!ride) return
+    const value = (name ?? favoriteName).trim()
+    if (!value) return
 
     setError('')
     setLoading(true)
 
     try {
       const { error } = await supabase.rpc('save_favorite_place', {
-        p_name: favoriteName,
+        p_name: value,
         p_address: ride.destination_address,
         p_lat: ride.destination_lat,
         p_lng: ride.destination_lng
@@ -531,8 +537,8 @@ export function ClientActiveRide() {
 
       if (error) throw error
 
-      setShowSaveFavorite(false)
-      navigate('/cliente')
+      setFavoriteName(value)
+      setFavoriteSaved(true)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -731,6 +737,24 @@ export function ClientActiveRide() {
 
       {/* Detalles */}
       <div className="max-w-md mx-auto px-4 py-6 space-y-4">
+        {/* Acciones post-viaje primero: guardar destino y calificar (lo mas util) */}
+        {ride.status === 'completada' && (
+          <PostRideActions
+            ride={ride}
+            incident={incident}
+            needsCompletionConfirm={needsCompletionConfirm}
+            loading={loading}
+            favoriteSaved={favoriteSaved}
+            showSaveFavorite={showSaveFavorite}
+            favoriteName={favoriteName}
+            ratingRef={ratingRef}
+            onConfirmCompletion={handleConfirmCompletion}
+            onRateDriver={handleRateDriver}
+            onReportProblem={() => { setIncidentType('viaje_no_realizado'); setShowIncidentModal(true) }}
+            onFavoriteNameChange={setFavoriteName}
+            onSaveFavorite={handleSaveFavorite}
+          />
+        )}
         {/* Aviso mientras se busca conductor */}
         {ride.status === 'buscando' && minutosEspera >= 3 && (
           <div className="card border-2 border-amber-100 bg-amber-50">
@@ -991,105 +1015,6 @@ export function ClientActiveRide() {
           </div>
         </div>
 
-        {/* Acciones post-viaje: calificar, reportar problema y guardar destino */}
-        {ride.status === 'completada' && (
-          <div ref={ratingRef} className="space-y-4">
-            {/* Confirmación: el conductor marcó el viaje como completado */}
-            {needsCompletionConfirm && (
-              <div className="card border-2 border-primary-100 bg-primary-50">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-5 h-5 text-primary-600" />
-                  <h3 className="font-semibold text-surface-800">El conductor completó el viaje</h3>
-                </div>
-                <p className="text-sm text-surface-600 mb-4">
-                  ¿Confirmas que el viaje se realizó correctamente?
-                </p>
-                <div className="space-y-2">
-                  <button onClick={handleConfirmCompletion} className="btn-success w-full" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Confirmar viaje</>}
-                  </button>
-                  <button
-                    onClick={() => { setIncidentType('viaje_no_realizado'); setShowIncidentModal(true) }}
-                    className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300">
-                    <ShieldAlert className="w-4 h-4" /> Reportar incidente
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Calificar al conductor al completar (tras confirmar o si completó el cliente) */}
-            {!needsCompletionConfirm && (
-              <>
-            <RatingCard
-              title="Califica a tu conductor"
-              subtitle="Tu opinión ayuda a mejorar el servicio"
-              onSubmit={handleRateDriver}
-              alreadyRated={ride.rating}
-              alreadyReviewed={ride.review}
-            />
-
-            {/* Disputa de viaje completado: en revisión */}
-            {ride.incident_id && incident &&
-              (incident.status === 'abierto' || incident.status === 'en_revision') && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-amber-700">Disputa en revisión</h3>
-                  <p className="text-sm text-amber-600 mt-1">
-                    Reportaste un problema con este viaje. La plataforma lo está revisando
-                    y se te notificará la resolución.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Disputa de viaje completado: reportar problema */}
-            {!ride.incident_id && (
-              <button
-                onClick={() => {
-                  setIncidentType('viaje_no_realizado')
-                  setShowIncidentModal(true)
-                }}
-                className="btn-outline w-full text-red-600 border-red-200 hover:border-red-300"
-              >
-                <AlertCircle className="w-4 h-4" />
-                Reportar un problema con el viaje
-              </button>
-            )}
-
-            {/* Guardar favorito al completar */}
-            {showSaveFavorite && (
-              <div className="card bg-primary-50 border-primary-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Star className="w-5 h-5 text-amber-400" />
-                  <h3 className="font-semibold text-surface-800">Guardar destino</h3>
-                </div>
-                <p className="text-sm text-surface-600 mb-3">
-                  ¿Quieres guardar este destino en tus lugares favoritos?
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="input flex-1"
-                    placeholder="Ej: Casa, Trabajo, Taller"
-                    value={favoriteName}
-                    onChange={(e) => setFavoriteName(e.target.value)}
-                  />
-                  <button
-                    onClick={handleSaveFavorite}
-                    className="btn-primary"
-                    disabled={loading || !favoriteName}
-                  >
-                    <Save className="w-4 h-4" />
-                    Guardar
-                  </button>
-                </div>
-              </div>
-            )}
-              </>
-            )}
-          </div>
-        )}
 
         {/* Información total del viaje (estado, cancelación, incidentes/resoluciones).
             Desglose de la tarifa visible para el cliente, sin la comision de la app */}
