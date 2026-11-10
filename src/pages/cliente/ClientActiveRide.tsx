@@ -1092,8 +1092,8 @@ export function ClientActiveRide() {
         )}
 
         {/* Información total del viaje (estado, cancelación, incidentes/resoluciones).
-            Desglose de la tarifa oculto para el cliente (showFareBreakdown={false}) */}
-        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} showFareBreakdown={false} />
+            Desglose de la tarifa visible para el cliente, sin la comision de la app */}
+        <TripDetailInfo ride={ride} incident={incident} currentUserId={user?.id} showCommission={false} />
 
       </div>
 

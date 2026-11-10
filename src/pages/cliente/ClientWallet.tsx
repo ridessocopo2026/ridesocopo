@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Copy, Check, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt } from '@/lib/format'
+import { fmt, fmtBs, usdToBs } from '@/lib/format'
+import { getExchangeRate, peekExchangeRate } from '@/lib/exchangeRate'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -34,14 +35,23 @@ export function ClientWallet() {
   const [rechargeMethods, setRechargeMethods] = useState<RechargeMethod[]>([])
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [copiedField, setCopiedField] = useState('')
+  // Tasa Bs/USD (cache 10 min) para mostrar el monto exacto a transferir
+  const [exchangeRate, setExchangeRate] = useState(() => peekExchangeRate())
   const { user } = useAuth()
   const navigate = useNavigate()
+
+  // Tasa Bs/USD con cache (1 sola peticion compartida con otras pantallas)
+  const loadExchangeRate = async () => {
+    const rate = await getExchangeRate()
+    if (rate > 0) setExchangeRate(rate)
+  }
 
   useEffect(() => {
     loadWallet()
     loadTransactions()
     loadPendingCharges()
     loadRechargeMethods()
+    loadExchangeRate()
   }, [])
 
   const loadRechargeMethods = async () => {
@@ -55,6 +65,11 @@ export function ClientWallet() {
   }
 
   const selectedMethod = rechargeMethods.find((m) => m.id === selectedMethodId) || rechargeMethods[0] || null
+
+  const amountUsd = Number(amount) || 0
+  const amountBs = usdToBs(amountUsd, exchangeRate)
+  // Solo los metodos con comprobante (Pago Movil/Zelle) se pagan en bolivares
+  const showBsAmount = !!selectedMethod?.proof_required && amountUsd > 0 && exchangeRate > 0
 
   const handleCopyField = (value: string) => {
     navigator.clipboard?.writeText(value).catch(() => {})
@@ -142,7 +157,10 @@ export function ClientWallet() {
         p_amount_usd: parseFloat(amount),
         p_proof_url: publicUrl,
         p_reference: reference || null,
-        p_payment_method: selectedMethod?.name || null
+        p_payment_method: selectedMethod?.name || null,
+        // Monto en Bs y tasa usada (para que el admin verifique el comprobante)
+        p_amount_bs: showBsAmount ? amountBs : null,
+        p_exchange_rate: showBsAmount ? exchangeRate : null
       })
 
       if (rpcError) throw rpcError
@@ -330,6 +348,34 @@ export function ClientWallet() {
                 required
               />
             </div>
+
+            {/* Monto exacto a transferir en bolivares (Pago Movil / Zelle) */}
+            {showBsAmount && (
+              <div className="rounded-xl border-2 border-primary-100 bg-primary-50/60 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-surface-500">
+                  Monto exacto a transferir
+                </p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <span className="text-2xl font-bold text-primary-700" aria-live="polite">
+                    {fmtBs(amountBs)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyField(fmtBs(amountBs))}
+                    className="flex items-center gap-1 rounded-lg bg-white border border-primary-200 px-2.5 py-1.5 text-xs font-semibold text-primary-700"
+                    aria-label="Copiar monto en bolivares"
+                  >
+                    {copiedField === fmtBs(amountBs)
+                      ? <Check className="w-4 h-4 text-emerald-600" />
+                      : <Copy className="w-4 h-4" />}
+                    {copiedField === fmtBs(amountBs) ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+                <p className="text-xs text-surface-500 mt-1">
+                  Tasa: {fmtBs(exchangeRate)} por 1,00$ · por {fmt(amountUsd)}
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="label">Referencia (opcional)</label>

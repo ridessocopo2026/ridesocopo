@@ -526,6 +526,11 @@ export interface FareCalculation {
   destination_zone_id: string
   destination_barrio_id?: string | null
   destination_barrio_name?: string | null
+  /** Nombre del sector de origen (para el desglose del pago) */
+  origin_barrio_id?: string | null
+  origin_barrio_name?: string | null
+  origin_zone_name?: string | null
+  destination_zone_name?: string | null
   coupon_id?: string | null
   coupon_code?: string | null
   coupon_reason?: string | null

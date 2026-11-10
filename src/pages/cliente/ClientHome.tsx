@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle, UserPlus } from 'lucide-react'
+import { Navigation, Star, Bike, Car, Truck, Loader2, MapPin, Search, CheckCircle, ChevronDown, Copy, Upload, Check, LogIn, X, XCircle, AlertTriangle, UserPlus, Users } from 'lucide-react'
 import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
 import { supabase } from '@/lib/supabase'
 import { getActiveCities } from '@/lib/cities'
-import { fmt } from '@/lib/format'
+import { fmt, fmtBs, usdToBs } from '@/lib/format'
+import { getExchangeRate, peekExchangeRate } from '@/lib/exchangeRate'
+import { PriceBreakdown } from '@/components/ride/PriceBreakdown'
 import { uploadImageToStorage } from '@/lib/uploadImage'
 import { type CashBills, canSubmitCash } from '@/lib/cash'
 import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
@@ -130,7 +132,7 @@ export function ClientHome() {
   const [couponCode, setCouponCode] = useState('')
   const [hasActiveCoupons, setHasActiveCoupons] = useState(false)
   const [couponFeedback, setCouponFeedback] = useState<{ ok: boolean; message: string } | null>(null)
-  const [exchangeRate, setExchangeRate] = useState(0)
+  const [exchangeRate, setExchangeRate] = useState(() => peekExchangeRate())
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('')
   const [methodFields, setMethodFields] = useState<Record<string, PaymentMethodField[]>>({})
@@ -373,11 +375,10 @@ export function ClientHome() {
     setHasActiveCoupons(!!(data && data.length > 0))
   }
 
+  // Tasa con cache compartido (10 min): evita pedirla en cada pantalla
   const loadExchangeRate = async () => {
-    const { data } = await supabase.rpc('get_active_exchange_rate')
-    if (data && Number(data) > 0) {
-      setExchangeRate(Number(data))
-    }
+    const rate = await getExchangeRate()
+    if (rate > 0) setExchangeRate(rate)
   }
 
   const loadCategories = async (zoneId?: string | null) => {
@@ -1515,6 +1516,7 @@ export function ClientHome() {
               const originExtra = getOriginExtraForCategory(cat.name)
               const destExtra = getExtraForCategory(barrios.find((b) => b.id === destBarrioId), cat.name)
               const sectorExtra = originExtra + destExtra
+              const estimated = cat.base_fare_usd + sectorExtra
               return (
                 <button
                   key={cat.id}
@@ -1538,32 +1540,62 @@ export function ClientHome() {
                   <div className={`mx-auto mb-2 ${selectedCategory === cat.name && !noDisponible ? 'text-primary-600' : 'text-surface-400'}`}>
                     {cat.icon ? <span className="text-3xl leading-none">{cat.icon}</span> : (categoryIcons[cat.name as keyof typeof categoryIcons] || <Car className="w-8 h-8 mx-auto" />)}
                   </div>
-                  <span className={`block text-sm font-medium ${selectedCategory === cat.name && !noDisponible ? 'text-primary-700' : 'text-surface-600'}`}>
+                  <span className={`block text-[13px] font-semibold leading-tight ${selectedCategory === cat.name && !noDisponible ? 'text-primary-700' : 'text-surface-600'}`}>
                     {cat.display_name}
                   </span>
-                  <span className="block text-xs font-semibold text-primary-600 mt-1">
-                    {cat.base_fare_usd.toFixed(2)}$
+                  <span className="block text-base font-bold text-primary-600 mt-0.5">
+                    {fmt(estimated)}
                   </span>
-                  <span className="block text-[10px] text-surface-400 mt-0.5">
-                    Hasta {cat.max_passengers} pasajero{cat.max_passengers === 1 ? '' : 's'}
+                  <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-medium text-surface-600">
+                    <Users className="w-3 h-3" />
+                    {cat.max_passengers} pasajero{cat.max_passengers === 1 ? '' : 's'}
                   </span>
                   {noDisponible && (
-                    <span className="block text-[10px] font-semibold text-amber-600 mt-0.5">
-                      No disponible ahora
+                    <span className="mt-1 inline-block rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                      No disponible
                     </span>
                   )}
                   {!noDisponible && sectorExtra > 0 && (
                     <span
-                      className="block text-[10px] text-accent-600 mt-0.5"
+                      className="mt-1 inline-block rounded-full bg-accent-50 border border-accent-200 px-1.5 py-0.5 text-[10px] font-semibold text-accent-700"
                       title="Incluye recargos del sector de origen y de destino"
                     >
-                      + {sectorExtra.toFixed(2)}$ extra por sector
+                      +{fmt(sectorExtra)} sector
                     </span>
                   )}
                 </button>
               )
             })}
           </div>
+
+          {/* Resumen del vehiculo elegido: lectura grande del extra del sector */}
+          {(() => {
+            const cat = categories.find((c) => c.name === selectedCategory)
+            if (!cat) return null
+            const originExtra = getOriginExtraForCategory(cat.name)
+            const destBarrio = barrios.find((b) => b.id === destBarrioId)
+            const destExtra = getExtraForCategory(destBarrio, cat.name)
+            const estimated = cat.base_fare_usd + originExtra + destExtra
+            return (
+              <div className="mt-3 flex items-center gap-2.5 rounded-xl border-2 border-primary-100 bg-primary-50/70 px-3 py-2.5">
+                <span className="text-2xl leading-none">{cat.icon || '🚗'}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-surface-800">
+                    {cat.display_name} · hasta {cat.max_passengers} pasajero{cat.max_passengers === 1 ? '' : 's'}
+                  </p>
+                  <p className="text-[11px] text-surface-600 mt-0.5">
+                    Base {fmt(cat.base_fare_usd)}
+                    {originExtra > 0 && ` + ${fmt(originExtra)} sector origen`}
+                    {destExtra > 0 && ` + ${fmt(destExtra)} ${destBarrio?.name || 'destino'}`}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[10px] uppercase tracking-wide text-surface-500">Estimado</p>
+                  <p className="text-base font-bold text-primary-700">{fmt(estimated)}</p>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {hasActiveCoupons && (
@@ -1888,15 +1920,19 @@ export function ClientHome() {
             <h2 className="text-xl font-bold text-surface-800 mb-4">Detalle del viaje</h2>
 
             <div className="space-y-3 mb-6">
-              {/* Solo el total: el desglose de la tarifa ya no se muestra al cliente */}
-              <div className="flex justify-between items-baseline">
-                <span className="font-semibold text-surface-800">Total</span>
-                <div className="text-right">
-                  {fare.coupon_id && fare.discount > 0 && (
-                    <span className="block text-xs text-surface-400 line-through">{fare.total_fare.toFixed(2)}$</span>
-                  )}
-                  <span className="text-2xl font-bold text-primary-600">{fare.final_fare.toFixed(2)}$</span>
-                </div>
+              {/* Desglose real: base + recargos por sector (ej. Bumbum) + cupon */}
+              <div className="rounded-xl bg-surface-50 p-3">
+                <PriceBreakdown
+                  baseFare={fare.base_fare}
+                  originSurcharge={fare.origin_surcharge}
+                  originLabel={fare.origin_barrio_name}
+                  destinationSurcharge={fare.destination_surcharge}
+                  destinationLabel={fare.destination_barrio_name}
+                  discount={fare.discount}
+                  couponCode={fare.coupon_code}
+                  total={fare.final_fare}
+                  totalLabel="Total a pagar"
+                />
               </div>
 
               {/* Estado del cupón: aplicado o el motivo por el que no aplica */}
@@ -1921,11 +1957,15 @@ export function ClientHome() {
               {/* Total en bolívares si Pago Móvil está seleccionado */}
               {selectedPaymentMethod?.toLowerCase().includes('pago') && exchangeRate > 0 && (
                 <div className="bg-surface-50 rounded-xl p-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-surface-500">Total en Bs.</span>
-                    <span className="font-bold text-surface-800">{(fare.final_fare * exchangeRate).toFixed(2)} Bs.</span>
+                  <div className="flex justify-between items-baseline gap-3">
+                    <span className="text-sm text-surface-500">Total en bolívares</span>
+                    <span className="text-lg font-bold text-surface-800">
+                      {fmtBs(usdToBs(fare.final_fare, exchangeRate))}
+                    </span>
                   </div>
-                  <p className="text-[10px] text-surface-400 mt-1">Tasa: {exchangeRate.toFixed(2)} Bs. por 1.00$</p>
+                  <p className="text-xs text-surface-500 mt-1">
+                    Tasa: {fmtBs(exchangeRate)} por 1,00$
+                  </p>
                 </div>
               )}
 

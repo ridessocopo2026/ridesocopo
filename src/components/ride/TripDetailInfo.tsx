@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react'
 import { XCircle, ShieldAlert, CalendarDays, Receipt } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { describeCash, parseCashBills } from '@/lib/cash'
+import { PriceBreakdown } from '@/components/ride/PriceBreakdown'
 import type { Ride, RideIncident, IncidentType, IncidentStatus } from '@/types/database'
 
 interface TripDetailInfoProps {
   ride: Ride
   incident?: RideIncident | null
   currentUserId?: string
-  /** El desglose de la tarifa (base, recargos, comisión) se oculta para el cliente */
+  /** Muestra el desglose (base + recargos del sector + cupón) */
   showFareBreakdown?: boolean
+  /** La comisión de la app solo se muestra a admin/conductor */
+  showCommission?: boolean
 }
 
 const incidentTypeLabels: Record<IncidentType, string> = {
@@ -70,7 +73,7 @@ const fmtDate = (iso?: string): string | null => {
   })
 }
 
-export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdown = true }: TripDetailInfoProps) {
+export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdown = true, showCommission = true }: TripDetailInfoProps) {
   const details = parseResolutionDetails(incident?.resolution_details)
   // Efectivo con billetes (migración 110): cuánto entrega y cuánto vuelto llevar
   const cashPayment = parseCashBills(ride.cash_bills)
@@ -319,45 +322,25 @@ export function TripDetailInfo({ ride, incident, currentUserId, showFareBreakdow
       )}
 
 
-      {/* Desglose de la tarifa (solo visible si showFareBreakdown; el cliente ya no lo ve) */}
+      {/* Desglose de la tarifa (base + recargos del sector + cupón) */}
       {showFareBreakdown && (
       <div className="card">
         <div className="flex items-center gap-2 mb-3">
           <Receipt className="w-5 h-5 text-primary-600" />
           <h2 className="font-semibold text-surface-800">Desglose de la tarifa</h2>
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-surface-500">Tarifa base</span>
-            <span className="text-surface-700">{fmt(ride.base_fare_usd)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-surface-500">Recargo por origen</span>
-            <span className="text-surface-700">{fmt(ride.origin_surcharge_usd)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-surface-500">Recargo por destino</span>
-            <span className="text-surface-700">{fmt(ride.destination_surcharge_usd)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-surface-500">Total estimado</span>
-            <span className="text-surface-700">{fmt(ride.total_fare_usd)}</span>
-          </div>
-          {Number(ride.discount_usd) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-surface-500">Cupón aplicado{couponCode ? ` (${couponCode})` : ''}</span>
-              <span className="font-medium text-emerald-700">-{fmt(ride.discount_usd)}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-surface-500">Comisión de la app</span>
-            <span className="text-surface-700">{fmt(ride.commission_usd)}</span>
-          </div>
-          <div className="flex justify-between pt-2 border-t border-surface-100">
-            <span className="font-semibold text-surface-800">Tarifa final</span>
-            <span className="font-bold text-primary-600">{fmt(ride.final_fare_usd)}</span>
-          </div>
-        </div>
+        <PriceBreakdown
+          baseFare={Number(ride.base_fare_usd)}
+          originSurcharge={Number(ride.origin_surcharge_usd)}
+          originLabel={ride.origin_barrio_name}
+          destinationSurcharge={Number(ride.destination_surcharge_usd)}
+          destinationLabel={ride.destination_barrio_name}
+          discount={Number(ride.discount_usd)}
+          couponCode={couponCode}
+          commission={showCommission ? Number(ride.commission_usd) : undefined}
+          total={Number(ride.final_fare_usd)}
+          totalLabel="Tarifa final"
+        />
       </div>
       )}
     </>

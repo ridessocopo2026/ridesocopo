@@ -88,3 +88,19 @@ export function whatsappLink(
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
 }
 
+
+/** Formato de bolívares con separador de miles venezolano: 1.234,56 Bs */
+const BS_FORMAT = new Intl.NumberFormat('es-VE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+/** Formatea un monto en bolívares: 10.000,00 Bs */
+export function fmtBs(n: number | null | undefined): string {
+  return `${BS_FORMAT.format(Number(n || 0))} Bs`
+}
+
+/** Convierte dolares a bolivares con la tasa indicada (redondeo a 2 decimales) */
+export function usdToBs(usd: number | null | undefined, rate: number | null | undefined): number {
+  return Math.round(Number(usd || 0) * Number(rate || 0) * 100) / 100
+}
