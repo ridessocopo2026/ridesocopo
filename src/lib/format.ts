@@ -53,6 +53,81 @@ export function fechaFinVE(dateStr: string): string {
   return `${dateStr}T23:59:59-04:00`
 }
 
+/** Zona horaria de referencia para mostrar fechas en la UI. */
+const VE_TZ = 'America/Caracas'
+
+// Instancias Intl reutilizadas: construirlas es caro y se usan una vez por fila
+// en listas, así que se crean una sola vez a nivel de módulo.
+const FMT_FECHA_HORA_CORTA = new Intl.DateTimeFormat('es-VE', {
+  timeZone: VE_TZ,
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true
+})
+
+const FMT_FECHA_HORA = new Intl.DateTimeFormat('es-VE', {
+  timeZone: VE_TZ,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true
+})
+
+const FMT_HORA = new Intl.DateTimeFormat('es-VE', {
+  timeZone: VE_TZ,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true
+})
+
+/** Devuelve un Date válido o null (acepta ISO string, timestamp o Date). */
+function toValidDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null
+  const d = typeof value === 'string' ? new Date(value) : value
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Fecha y hora cortas en hora de Venezuela: "10/11, 02:37 a. m." */
+export function fmtFechaHoraCortaVE(value: string | Date | null | undefined): string {
+  const d = toValidDate(value)
+  return d ? FMT_FECHA_HORA_CORTA.format(d) : '—'
+}
+
+/** Fecha y hora completas en hora de Venezuela: "10/11/2026, 02:37 a. m." */
+export function fmtFechaHoraVE(value: string | Date | null | undefined): string {
+  const d = toValidDate(value)
+  return d ? FMT_FECHA_HORA.format(d) : '—'
+}
+
+/** Solo la hora en Venezuela: "02:37 a. m." */
+export function fmtHoraVE(value: string | Date | null | undefined): string {
+  const d = toValidDate(value)
+  return d ? FMT_HORA.format(d) : '—'
+}
+
+/** Duración legible entre dos instantes: "16 min", "1 h 05 min".
+ *  Devuelve null si falta algún dato, es inválido o el orden no tiene sentido. */
+export function fmtDuracion(
+  inicio: string | Date | null | undefined,
+  fin: string | Date | null | undefined
+): string | null {
+  const a = toValidDate(inicio)
+  const b = toValidDate(fin)
+  if (!a || !b) return null
+  const ms = b.getTime() - a.getTime()
+  if (ms <= 0) return null
+  const min = Math.round(ms / 60000)
+  if (min < 1) return 'menos de 1 min'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')} min`
+}
+
 /** Normaliza un teléfono venezolano a dígitos internacionales para WhatsApp (wa.me).
  *  Acepta: 0412-1234567, +58 412 1234567, 4121234567, 58412...
  *  Devuelve solo dígitos (sin '+'): '584121234567' o null si no es válido. */

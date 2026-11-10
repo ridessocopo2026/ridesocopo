@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy } from 'lucide-react'
+import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmt, todayVE, daysAgoVE, fechaInicioVE, fechaFinVE } from '@/lib/format'
+import {
+  fmt,
+  todayVE,
+  daysAgoVE,
+  fechaInicioVE,
+  fechaFinVE,
+  fmtDuracion,
+  fmtFechaHoraCortaVE,
+  fmtFechaHoraVE,
+  fmtHoraVE
+} from '@/lib/format'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
@@ -32,8 +42,15 @@ interface RidesResponse {
   items: RideItem[]
 }
 
+/** Datos del viaje que devuelve get_ride_full_detail y que se muestran aquí. */
+interface FullRideDetail {
+  created_at: string | null
+  started_at: string | null
+  completed_at: string | null
+}
+
 interface FullDetail {
-  ride: any
+  ride: FullRideDetail | null
   transacciones: any[]
   incidente: any
 }
@@ -193,6 +210,7 @@ export function AdminRides() {
               const st = statusBadge[r.status] || { label: r.status, cls: 'badge-info' }
               const isExpanded = expandedId === r.ride_id
               const detail = details[r.ride_id]
+              const duracion = detail ? fmtDuracion(detail.ride?.started_at, detail.ride?.completed_at) : null
 
               return (
                 <div key={r.ride_id} className="card">
@@ -222,8 +240,9 @@ export function AdminRides() {
                           <MapPin className="w-3 h-3 inline mr-1" />
                           {r.origin_barrio_name || r.origin_address} → {r.destination_barrio_name || r.destination_address}
                         </p>
-                        <p className="text-[10px] text-surface-400">
-                          {new Date(r.fecha).toLocaleDateString('es-VE')} • {r.cliente || '—'} → {r.conductor || '—'}
+                        <p className="text-[11px] text-surface-500">
+                          <Clock className="w-3 h-3 inline mr-1 -mt-0.5" />
+                          {fmtFechaHoraCortaVE(r.fecha)} • {r.cliente || '—'} → {r.conductor || '—'}
                         </p>
                       </div>
                     </div>
@@ -287,6 +306,33 @@ export function AdminRides() {
                             )}
                           </div>
 
+                          {/* Tiempos del viaje (siempre en hora de Venezuela) */}
+                          <div>
+                            <p className="text-xs font-semibold text-surface-500 flex items-center gap-1 mb-2">
+                              <Clock className="w-3 h-3" /> Tiempos del viaje
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="bg-surface-50 rounded-lg p-2">
+                                <p className="text-[10px] text-surface-400">Solicitado</p>
+                                <p className="font-semibold text-surface-700">{fmtFechaHoraVE(detail.ride?.created_at)}</p>
+                              </div>
+                              <div className="bg-surface-50 rounded-lg p-2">
+                                <p className="text-[10px] text-surface-400">Inicio del viaje</p>
+                                <p className="font-semibold text-surface-700">{fmtFechaHoraVE(detail.ride?.started_at)}</p>
+                              </div>
+                              <div className="bg-surface-50 rounded-lg p-2">
+                                <p className="text-[10px] text-surface-400">Finalizado</p>
+                                <p className="font-semibold text-surface-700">{fmtFechaHoraVE(detail.ride?.completed_at)}</p>
+                              </div>
+                              {duracion && (
+                                <div className="bg-surface-50 rounded-lg p-2">
+                                  <p className="text-[10px] text-surface-400">Duración</p>
+                                  <p className="font-semibold text-surface-700">{duracion}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
                           {/* Transacciones */}
                           {detail.transacciones && detail.transacciones.length > 0 && (
                             <div>
@@ -300,6 +346,7 @@ export function AdminRides() {
                                       <span className={`w-2 h-2 rounded-full ${Number(t.monto) >= 0 ? 'bg-emerald-500' : 'bg-red-500'} flex-shrink-0`} />
                                       <span className="truncate">{t.descripcion || t.tipo}</span>
                                       <span className="text-[10px] text-surface-400">({t.usuario})</span>
+                                      <span className="text-[10px] text-surface-400 flex-shrink-0">{fmtHoraVE(t.fecha)}</span>
                                     </div>
                                     <span className={`font-semibold flex-shrink-0 ${Number(t.monto) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                       {Number(t.monto) >= 0 ? '+' : ''}{fmt(t.monto)}
