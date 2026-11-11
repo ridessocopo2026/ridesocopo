@@ -37,6 +37,8 @@ export function Onboarding() {
 
     if (!error && data) {
       setZones(data as Zone[])
+      // Si solo hay una ciudad activa, se preselecciona (menos fricción)
+      if (data.length === 1) setSelectedZone(data[0].id)
     }
   }
 

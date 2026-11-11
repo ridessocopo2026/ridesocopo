@@ -18,7 +18,7 @@ export function AdminNotifications() {
   const [body, setBody] = useState('')
   const [target, setTarget] = useState('todos')
   const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState<{ count: number; push: number; target: string } | null>(null)
+  const [sent, setSent] = useState<{ count: number; push: number; devices: number; target: string } | null>(null)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [error, setError] = useState('')
@@ -60,7 +60,12 @@ export function AdminNotifications() {
       if (error) throw error
 
       if (data?.success) {
-        setSent({ count: data.sent || 0, push: data.push || 0, target: data.target || target })
+        setSent({
+          count: data.sent || 0,
+          push: data.push || 0,
+          devices: data.devices || 0,
+          target: data.target || target
+        })
         setTitle('')
         setBody('')
       } else {
@@ -134,8 +139,8 @@ export function AdminNotifications() {
               </p>
               <p className={sent.push > 0 ? 'text-xs mt-0.5 text-emerald-600' : 'text-xs mt-0.5 text-amber-700'}>
                 {sent.push > 0
-                  ? 'Push enviado a ' + sent.push + ' dispositivo(s) con notificaciones activas.'
-                  : 'Nadie tiene el push activo todavía: por ahora solo la verán dentro de la app.'}
+                  ? 'Push enviado a ' + sent.push + ' usuario(s) · ' + sent.devices + ' dispositivo(s).'
+                  : 'Nadie de este grupo tiene el push activo: por ahora solo la verán dentro de la app.'}
               </p>
             </div>
           </div>

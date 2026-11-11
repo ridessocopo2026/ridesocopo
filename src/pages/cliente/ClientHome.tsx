@@ -7,6 +7,7 @@ import { AppLogo } from '@/components/ui/AppLogo'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { SupportButton } from '@/components/ui/SupportButton'
 import { PushNotificationCard } from '@/components/ui/PushNotificationCard'
+import { CityRequiredModal } from '@/components/ui/CityRequiredModal'
 import { supabase } from '@/lib/supabase'
 import { getActiveCities } from '@/lib/cities'
 import { fmt, fmtBs, usdToBs } from '@/lib/format'
@@ -1270,6 +1271,9 @@ export function ClientHome() {
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
+      {/* Si el perfil no tiene ciudad, se le pide antes de usar la app */}
+      <CityRequiredModal />
+
       <div className="bg-primary-600 border-b border-primary-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
