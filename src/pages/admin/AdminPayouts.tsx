@@ -20,6 +20,7 @@ export function AdminPayouts() {
   const [driverNames, setDriverNames] = useState<Record<string, string>>({})
   const [drivers, setDrivers] = useState<DriverWithWallet[]>([])
   const [error, setError] = useState('')
+  const [okMsg, setOkMsg] = useState('')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showPayDriver, setShowPayDriver] = useState(false)
@@ -168,6 +169,54 @@ export function AdminPayouts() {
     }
   }
 
+  // El admin liquida el pago sin esperar la confirmacion del conductor
+  const handleSettle = async (payoutId: string) => {
+    const confirmed = window.confirm(
+      'Marcar este pago como recibido?\n\nSe descontara del saldo del conductor y el ya no tendra que confirmarlo.'
+    )
+    if (!confirmed) return
+
+    setError('')
+    setOkMsg('')
+    setActionLoading(payoutId)
+    try {
+      const { data, error } = await supabase.rpc('admin_settle_payout', {
+        p_payout_id: payoutId,
+        p_note: null
+      })
+      if (error) throw error
+      setOkMsg('Pago liquidado. Saldo del conductor: ' + Number(data?.new_balance ?? 0).toFixed(2) + '$')
+      loadAll()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Anular un pago duplicado o erroneo
+  const handleCancelPayout = async (payoutId: string) => {
+    const reason = window.prompt('Motivo para anular este pago (ej. duplicado):', 'duplicado')
+    if (reason === null) return
+
+    setError('')
+    setOkMsg('')
+    setActionLoading(payoutId)
+    try {
+      const { error } = await supabase.rpc('admin_cancel_payout', {
+        p_payout_id: payoutId,
+        p_reason: reason || null
+      })
+      if (error) throw error
+      setOkMsg('Pago anulado correctamente')
+      loadAll()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const handlePayDriver = async () => {
     if (!selectedDriver) {
       setError('Selecciona un conductor')
@@ -252,6 +301,9 @@ export function AdminPayouts() {
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+        {okMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{okMsg}</div>
+        )}
 
         {/* Formulario: pagar a conductor */}
         {showPayDriver && (
@@ -306,7 +358,7 @@ export function AdminPayouts() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Crear pago para conductor</>}
             </button>
             <p className="text-xs text-surface-400">
-              El conductor deberá confirmar que recibió el dinero (doble confirmación).
+              El conductor deberá confirmar que recibió el dinero. Si no confirma, puedes marcarlo como recibido tú mismo en la lista.
             </p>
           </div>
         )}
@@ -421,10 +473,30 @@ export function AdminPayouts() {
                 )}
 
                 {p.status === 'aprobado' && p.type === 'platform_pay_driver' && (
-                  <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                    <p className="text-xs text-emerald-700">
-                      ✅ Aprobado — esperando que el conductor confirme que recibió el dinero.
-                    </p>
+                  <div className="mt-2 space-y-2">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <p className="text-xs text-emerald-700">
+                        ✅ Aprobado — el conductor aún no confirma. Si ya le pagaste, márcalo como recibido tú mismo.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSettle(p.id)}
+                        className="btn-success flex-1"
+                        disabled={actionLoading === p.id}
+                      >
+                        {actionLoading === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                          <><Check className="w-4 h-4" /> Marcar como recibido</>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleCancelPayout(p.id)}
+                        className="btn-danger flex-1"
+                        disabled={actionLoading === p.id}
+                      >
+                        <X className="w-4 h-4" /> Anular
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

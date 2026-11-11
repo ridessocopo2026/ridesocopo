@@ -686,6 +686,11 @@ export function EstadoCuentas() {
                           Pendiente por aprobar: {fmt(d.pending_payout_usd)}
                         </span>
                       )}
+                      {Number(d.pending_confirm_usd || 0) > 0 && (
+                        <span className="text-blue-600 font-medium">
+                          Por confirmar del conductor: {fmt(d.pending_confirm_usd)}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex gap-2 pt-1">

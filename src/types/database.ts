@@ -607,6 +607,8 @@ export interface DriverAccount {
   debt_limit_usd: number
   excede_limite: boolean
   pending_payout_usd: number
+  /** Pagos ya aprobados que esperan confirmacion del conductor */
+  pending_confirm_usd?: number
   last_movement_at?: string | null
 }
 
