@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bell, Send, Users, Loader2, CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
+import { Bell, Send, Users, Loader2, CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getActiveCities } from '@/lib/cities'
@@ -18,7 +18,9 @@ export function AdminNotifications() {
   const [body, setBody] = useState('')
   const [target, setTarget] = useState('todos')
   const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState<{ count: number; target: string } | null>(null)
+  const [sent, setSent] = useState<{ count: number; push: number; target: string } | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [error, setError] = useState('')
   const [cities, setCities] = useState<{ id: string; name: string }[]>([])
   const [zoneId, setZoneId] = useState('')
@@ -58,7 +60,7 @@ export function AdminNotifications() {
       if (error) throw error
 
       if (data?.success) {
-        setSent({ count: data.sent || 0, target: data.target || target })
+        setSent({ count: data.sent || 0, push: data.push || 0, target: data.target || target })
         setTitle('')
         setBody('')
       } else {
@@ -68,6 +70,26 @@ export function AdminNotifications() {
       setError(err.message || 'Error al enviar la notificación')
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleTestPush = async () => {
+    setError('')
+    setTestResult(null)
+    setTesting(true)
+    try {
+      const { data, error } = await supabase.rpc('admin_test_push')
+      if (error) throw error
+      const subs = Number(data?.subscriptions || 0)
+      setTestResult(
+        subs > 0
+          ? { ok: true, msg: `Prueba enviada: notificación enviada a ${subs} dispositivo(s) de tu cuenta.` }
+          : { ok: false, msg: 'Esta cuenta no tiene push activo. Activa las notificaciones desde este mismo dispositivo y vuelve a intentar.' }
+      )
+    } catch (err: any) {
+      setTestResult({ ok: false, msg: err.message || 'No se pudo enviar la prueba' })
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -108,7 +130,12 @@ export function AdminNotifications() {
             <div>
               <p className="text-sm font-semibold text-emerald-700">Notificación enviada</p>
               <p className="text-xs text-emerald-600 mt-0.5">
-                Se envió a {sent.count} {sent.count === 1 ? 'usuario' : 'usuarios'} ({sent.target})
+                Creada para {sent.count} {sent.count === 1 ? 'usuario' : 'usuarios'} ({sent.target})
+              </p>
+              <p className={sent.push > 0 ? 'text-xs mt-0.5 text-emerald-600' : 'text-xs mt-0.5 text-amber-700'}>
+                {sent.push > 0
+                  ? 'Push enviado a ' + sent.push + ' dispositivo(s) con notificaciones activas.'
+                  : 'Nadie tiene el push activo todavía: por ahora solo la verán dentro de la app.'}
               </p>
             </div>
           </div>
@@ -189,8 +216,31 @@ export function AdminNotifications() {
             Enviar notificación
           </button>
 
+          <button
+            type="button"
+            onClick={handleTestPush}
+            disabled={testing}
+            className="btn-outline w-full text-xs py-2"
+          >
+            {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+            Enviarme una prueba de push
+          </button>
+
+          {testResult && (
+            <div
+              className={
+                testResult.ok
+                  ? 'rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 flex items-start gap-2'
+                  : 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2'
+              }
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{testResult.msg}</span>
+            </div>
+          )}
+
           <p className="text-[11px] text-surface-400 text-center">
-            Se enviará como notificación push a los móviles y quedará visible dentro de la app.
+            Queda visible dentro de la app para todos. El push llega solo a los dispositivos con notificaciones activadas.
           </p>
         </div>
 
