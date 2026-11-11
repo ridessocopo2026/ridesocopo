@@ -18,6 +18,7 @@ import type { Ride, Vehicle, CancellationEstimate, IncidentType } from '@/types/
 import { AppLogo } from '@/components/ui/AppLogo'
 import { resolvePhotoUrl } from '@/lib/photos'
 import { fetchRoute, distanceMeters } from '@/lib/routing'
+import { getCurrentPositionOnce } from '@/lib/geolocation'
 
 const SECTOR_REFERENCE_RADIUS_M = 350
 /** Si el vehículo se movió menos de esto, no se pide de nuevo la ruta */
@@ -133,6 +134,9 @@ export function ClientActiveRide() {
   const [favoriteName, setFavoriteName] = useState('')
   // Se muestra la confirmacion verde al guardar el destino (sin salir de la pantalla)
   const [favoriteSaved, setFavoriteSaved] = useState(false)
+  // Precision del GPS con la que se guardo el lugar y aviso si fallo la lectura
+  const [favoriteAccuracy, setFavoriteAccuracy] = useState<number | null>(null)
+  const [favoriteWarning, setFavoriteWarning] = useState('')
   const [cancellationEstimate, setCancellationEstimate] = useState<CancellationEstimate | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showIncidentModal, setShowIncidentModal] = useState(false)
@@ -517,26 +521,47 @@ export function ClientActiveRide() {
     if (error) throw error
   }
 
-  // Guarda el destino como lugar favorito. `name` permite los chips (Casa/Trabajo).
-  // No navega: asi el cliente puede calificar justo despues.
+  // Guarda el destino como lugar favorito usando la ubicacion ACTUAL del cliente
+  // (el punto exacto donde se bajo), no el centroide del sector del viaje.
+  // No navega: puede calificar justo despues.
   const handleSaveFavorite = async (name?: string) => {
     if (!ride) return
     const value = (name ?? favoriteName).trim()
     if (!value) return
 
     setError('')
+    setFavoriteWarning('')
     setLoading(true)
 
     try {
-      const { error } = await supabase.rpc('save_favorite_place', {
+      // Una sola lectura de GPS: el punto guardado es donde esta AHORA
+      let lat = Number(ride.destination_lat)
+      let lng = Number(ride.destination_lng)
+      let accuracy: number | null = null
+
+      try {
+        const fix = await getCurrentPositionOnce()
+        lat = fix.lat
+        lng = fix.lng
+        accuracy = fix.accuracy
+      } catch (geoErr: any) {
+        setFavoriteWarning(
+          (geoErr?.message || 'No pudimos leer tu ubicación') +
+          '. Se guardó el punto del viaje como referencia.'
+        )
+      }
+
+      const { error } = await supabase.rpc('save_ride_place', {
+        p_ride_id: ride.id,
         p_name: value,
-        p_address: ride.destination_address,
-        p_lat: ride.destination_lat,
-        p_lng: ride.destination_lng
+        p_lat: lat,
+        p_lng: lng,
+        p_accuracy_m: accuracy
       })
 
       if (error) throw error
 
+      setFavoriteAccuracy(accuracy)
       setFavoriteName(value)
       setFavoriteSaved(true)
     } catch (err: any) {
@@ -747,6 +772,8 @@ export function ClientActiveRide() {
             favoriteSaved={favoriteSaved}
             showSaveFavorite={showSaveFavorite}
             favoriteName={favoriteName}
+            favoriteAccuracy={favoriteAccuracy}
+            favoriteWarning={favoriteWarning}
             ratingRef={ratingRef}
             onConfirmCompletion={handleConfirmCompletion}
             onRateDriver={handleRateDriver}

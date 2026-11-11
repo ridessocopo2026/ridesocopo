@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import { Star, Save, CheckCircle, ShieldAlert, AlertCircle, Home, Briefcase, Loader2 } from 'lucide-react'
+import { Star, Save, CheckCircle, ShieldAlert, AlertCircle, Home, Briefcase, Loader2, MapPin } from 'lucide-react'
 import { RatingCard } from '@/components/ui/RatingCard'
 import type { Ride, RideIncident } from '@/types/database'
 
@@ -12,6 +12,10 @@ interface PostRideActionsProps {
   favoriteSaved: boolean
   showSaveFavorite: boolean
   favoriteName: string
+  /** Precisión GPS obtenida al guardar (metros), si se pudo leer */
+  favoriteAccuracy?: number | null
+  /** Aviso cuando el GPS falló y se usó el punto del viaje */
+  favoriteWarning?: string
   ratingRef?: RefObject<HTMLDivElement>
   onConfirmCompletion: () => void
   onRateDriver: (rating: number, review: string) => Promise<void>
@@ -43,6 +47,8 @@ export function PostRideActions({
   favoriteSaved,
   showSaveFavorite,
   favoriteName,
+  favoriteAccuracy,
+  favoriteWarning,
   ratingRef,
   onConfirmCompletion,
   onRateDriver,
@@ -94,6 +100,9 @@ export function PostRideActions({
               {favoriteSaved ? (
                 <p className="flex items-center gap-1 text-sm font-medium text-emerald-700" aria-live="polite">
                   <CheckCircle className="w-4 h-4" /> Guardado en tus lugares
+                  {typeof favoriteAccuracy === 'number' && favoriteAccuracy > 0
+                    ? ` · precisión ±${favoriteAccuracy} m`
+                    : ''}
                 </p>
               ) : (
                 <>
@@ -102,6 +111,13 @@ export function PostRideActions({
                   </p>
                   {ride.destination_address && (
                     <p className="mt-0.5 truncate text-xs text-surface-500">{ride.destination_address}</p>
+                  )}
+                  <p className="mt-1.5 flex items-start gap-1 text-[11px] text-amber-800">
+                    <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                    Se guardará tu ubicación actual (donde estás ahora), no el punto del sector.
+                  </p>
+                  {favoriteWarning && (
+                    <p className="mt-1 text-[11px] text-red-600">{favoriteWarning}</p>
                   )}
 
                   <div className="mt-3 flex flex-wrap gap-2">

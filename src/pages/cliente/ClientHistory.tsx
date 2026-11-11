@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { History, Star, ChevronRight } from 'lucide-react'
+import { History, Star, ChevronRight, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -9,6 +9,7 @@ import { HexUnderline } from '@/components/ui/HexUnderline'
 import { Pagination } from '@/components/ui/Pagination'
 import type { Ride } from '@/types/database'
 import { AppLogo } from '@/components/ui/AppLogo'
+import { ExactLocationModal } from '@/components/ride/ExactLocationModal'
 
 const PAGE_SIZE = 10
 
@@ -17,6 +18,8 @@ export function ClientHistory() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+  // Viaje al que se le va a fijar el punto exacto con el GPS actual
+  const [exactRide, setExactRide] = useState<Ride | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -40,7 +43,7 @@ export function ClientHistory() {
     // Cargar página actual
     const { data, error } = await supabase
       .from('rides')
-      .select('id, category, tracking_code, status, origin_address, destination_address, created_at, rating, final_fare_usd')
+      .select('id, category, tracking_code, status, origin_address, destination_address, destination_barrio_name, destination_is_exact, completed_at, created_at, rating, final_fare_usd')
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
@@ -135,6 +138,19 @@ export function ClientHistory() {
                       <ChevronRight className="w-4 h-4 text-surface-300" />
                     </div>
                   </div>
+
+                  {ride.status === 'completada' && !ride.destination_is_exact && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExactRide(ride)
+                      }}
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary-300 py-2 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50"
+                    >
+                      <MapPin className="h-4 w-4" /> Fijar ubicación exacta
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -147,6 +163,16 @@ export function ClientHistory() {
               onPageChange={setPage}
             />
           </>
+        )}
+
+        {exactRide && (
+          <ExactLocationModal
+            ride={exactRide}
+            onClose={() => setExactRide(null)}
+            onSaved={(id) =>
+              setRides((prev) => prev.map((r) => (r.id === id ? { ...r, destination_is_exact: true } : r)))
+            }
+          />
         )}
       </div>
     </div>
