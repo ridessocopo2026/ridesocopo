@@ -45,6 +45,8 @@ const typeIcons: Record<string, React.ReactNode> = {
   admin_broadcast: <Bell className="w-4 h-4" />,
   admin_new_ride: <Bell className="w-4 h-4" />,
   ride_unattended: <Info className="w-4 h-4" />,
+  ride_start_reminder: <Info className="w-4 h-4" />,
+  ride_stale_alert: <Info className="w-4 h-4" />,
 }
 
 const typeColors: Record<string, string> = {
@@ -85,6 +87,8 @@ const typeColors: Record<string, string> = {
   admin_broadcast: 'bg-primary-100 text-primary-600',
   admin_new_ride: 'bg-primary-100 text-primary-600',
   ride_unattended: 'bg-amber-100 text-amber-600',
+  ride_start_reminder: 'bg-amber-100 text-amber-600',
+  ride_stale_alert: 'bg-red-100 text-red-500',
 }
 
 const driverNotificationFocus: Record<string, string> = {

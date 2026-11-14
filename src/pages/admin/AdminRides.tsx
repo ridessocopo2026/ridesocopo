@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy, Clock } from 'lucide-react'
+import { Car, Search, Loader2, ChevronDown, ChevronUp, MapPin, DollarSign, Receipt, ShieldAlert, Copy, Clock, Flag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   fmt,
@@ -77,6 +77,9 @@ export function AdminRides() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, FullDetail>>({})
   const [detailLoading, setDetailLoading] = useState<string | null>(null)
+  // Viaje que se esta finalizando a mano desde el detalle
+  const [closingId, setClosingId] = useState<string | null>(null)
+  const [okMsg, setOkMsg] = useState('')
 
   useEffect(() => {
     loadRides()
@@ -102,6 +105,39 @@ export function AdminRides() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Finalizar un viaje trabado (aceptada/en_ruta) y liquidar las ganancias
+  const handleCloseRide = async (r: RideItem) => {
+    const note = window.prompt(
+      'Finalizar el viaje ' + (r.tracking_code || '') + '?\n\nEscribe una nota (queda en auditoria):',
+      'Finalizado por la plataforma'
+    )
+    if (note === null) return
+
+    setError('')
+    setOkMsg('')
+    setClosingId(r.ride_id)
+    try {
+      const { data, error } = await supabase.rpc('admin_close_ride', {
+        p_ride_id: r.ride_id,
+        p_note: note || null
+      })
+      if (error) throw error
+      setExpandedId(null)
+      setDetails((prev) => {
+        const copy = { ...prev }
+        delete copy[r.ride_id]
+        return copy
+      })
+      await loadRides()
+      const liquidado = data?.settlement?.cash_received_usd ?? data?.settlement?.app_credit_usd ?? 0
+      setOkMsg('Viaje finalizado. Liquidacion: ' + Number(liquidado).toFixed(2) + '$')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setClosingId(null)
     }
   }
 
@@ -159,6 +195,9 @@ export function AdminRides() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+        {okMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{okMsg}</div>
+        )}
 
         {/* Búsqueda */}
         <div className="card p-4">
@@ -332,6 +371,25 @@ export function AdminRides() {
                               )}
                             </div>
                           </div>
+
+                          {/* Cierre manual de un viaje trabado */}
+                          {(r.status === 'aceptada' || r.status === 'en_ruta') && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
+                              <p className="mb-2 text-[11px] text-amber-800">
+                                Este viaje sigue en curso. Si ya terminó, ciérralo tú: se liquidan las ganancias del conductor.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => handleCloseRide(r)}
+                                disabled={closingId === r.ride_id}
+                                className="btn-success w-full py-2 text-xs"
+                              >
+                                {closingId === r.ride_id
+                                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                                  : <><Flag className="h-3.5 w-3.5" /> Finalizar viaje</>}
+                              </button>
+                            </div>
+                          )}
 
                           {/* Transacciones */}
                           {detail.transacciones && detail.transacciones.length > 0 && (

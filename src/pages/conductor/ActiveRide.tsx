@@ -910,10 +910,17 @@ export function ActiveRide() {
 
         {/* Acciones */}
         <div className="space-y-3">
-          {ride.status === 'en_ruta' && (
-            <button onClick={handleCompleteRide} className="btn-success w-full" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Completar viaje'}
-            </button>
+          {(ride.status === 'en_ruta' || (ride.status === 'aceptada' && ride.driver_start_confirmed)) && (
+            <div className="space-y-1">
+              <button onClick={handleCompleteRide} className="btn-success w-full" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Completar viaje'}
+              </button>
+              {ride.status === 'aceptada' && !ride.client_start_confirmed && (
+                <p className="text-[11px] text-surface-500 text-center">
+                  El cliente aún no confirma el inicio. Si ya lo recogiste, puedes completar el viaje igual.
+                </p>
+              )}
+            </div>
           )}
 
           {(ride.status === 'aceptada' || ride.status === 'en_ruta') && (
