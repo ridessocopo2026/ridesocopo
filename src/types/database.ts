@@ -612,6 +612,44 @@ export interface DriverAccount {
   last_movement_at?: string | null
 }
 
+/** Saldo individual de un pasajero (Estado de cuentas) */
+export interface CustomerAccount {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  zone_id: string | null
+  zone_name: string | null
+  account_status: string
+  balance_usd: number
+  last_movement_at: string | null
+}
+
+export interface CustomerAccountsResponse {
+  total: number
+  totales: {
+    suma_saldo: number
+    con_saldo: number
+    con_deuda: number
+  }
+  items: CustomerAccount[]
+}
+
+/** Movimiento manual de caja/tesoreria */
+export interface TreasuryMovement {
+  id: string
+  zone_id: string | null
+  zone_name: string | null
+  kind: 'efectivo' | 'externo'
+  direction: 'in' | 'out'
+  amount_usd: number
+  category: string
+  description: string | null
+  reference: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
 export interface DriverAccountsResponse {
   total: number
   totales: {

@@ -14,7 +14,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/ui/Pagination'
-import type { TreasuryOverview, DriverAccount, DriverAccountsResponse } from '@/types/database'
+import type { TreasuryOverview, DriverAccount, DriverAccountsResponse, CustomerAccountsResponse, TreasuryMovement } from '@/types/database'
 
 type Filtro = 'deben' | 'debo' | 'todos'
 type ModalTipo = 'cobrar' | 'pagar'
@@ -91,6 +91,27 @@ export function EstadoCuentas() {
   const [fundAmount, setFundAmount] = useState('')
   const [fundError, setFundError] = useState('')
   const [savingFund, setSavingFund] = useState(false)
+
+  // Pestana: conductores | pasajeros
+  const [tab, setTab] = useState<'conductores' | 'pasajeros'>('conductores')
+
+  // Saldos individuales de pasajeros
+  const [customerAccounts, setCustomerAccounts] = useState<CustomerAccountsResponse | null>(null)
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [customerFilter, setCustomerFilter] = useState<'con_saldo' | 'con_deuda' | 'todos'>('con_saldo')
+  const [customerSearch, setCustomerSearch] = useState('')
+
+  // Movimiento manual de caja (ingreso/egreso)
+  const [showTreasury, setShowTreasury] = useState(false)
+  const [movements, setMovements] = useState<TreasuryMovement[]>([])
+  const [treasuryKind, setTreasuryKind] = useState<'efectivo' | 'externo'>('efectivo')
+  const [treasuryDirection, setTreasuryDirection] = useState<'in' | 'out'>('out')
+  const [treasuryAmount, setTreasuryAmount] = useState('')
+  const [treasuryCategory, setTreasuryCategory] = useState('')
+  const [treasuryDesc, setTreasuryDesc] = useState('')
+  const [treasuryRef, setTreasuryRef] = useState('')
+  const [treasuryError, setTreasuryError] = useState('')
+  const [savingTreasury, setSavingTreasury] = useState(false)
 
   const zoneParam = isEncargado ? null : (zoneId || null)
 
@@ -169,6 +190,76 @@ export function EstadoCuentas() {
 
   const reload = async () => {
     await Promise.all([loadOverview(), loadAccounts()])
+  }
+
+  // Pasajeros: saldo individual (con filtro y busqueda)
+  const loadCustomers = useCallback(async () => {
+    setLoadingCustomers(true)
+    const { data, error: rpcError } = await supabase.rpc('get_customer_accounts', {
+      p_zone_id: zoneParam,
+      p_filtro: customerFilter,
+      p_search: customerSearch.trim() || null,
+      p_limit: 50,
+      p_offset: 0
+    })
+    if (rpcError) setError(rpcError.message)
+    else setCustomerAccounts(data as CustomerAccountsResponse)
+    setLoadingCustomers(false)
+  }, [zoneParam, customerFilter, customerSearch])
+
+  const loadMovements = useCallback(async () => {
+    const { data } = await supabase.rpc('get_treasury_movements', {
+      p_zone_id: zoneParam,
+      p_limit: 8,
+      p_offset: 0
+    })
+    if (data) {
+      const res = data as { items: TreasuryMovement[] }
+      setMovements(res.items || [])
+    }
+  }, [zoneParam])
+
+  useEffect(() => { if (tab === 'pasajeros') loadCustomers() }, [tab, loadCustomers])
+  useEffect(() => { if (showTreasury) loadMovements() }, [showTreasury, loadMovements])
+
+  // Registrar un movimiento manual de caja (ingreso o egreso)
+  const saveTreasury = async () => {
+    setTreasuryError('')
+    const amount = Number(treasuryAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTreasuryError('Escribe un monto mayor a 0')
+      return
+    }
+    if (!treasuryCategory.trim()) {
+      setTreasuryError('Elige o escribe una categoria')
+      return
+    }
+
+    setSavingTreasury(true)
+    try {
+      const { error: rpcError } = await supabase.rpc('admin_treasury_movement', {
+        p_kind: treasuryKind,
+        p_direction: treasuryDirection,
+        p_amount_usd: amount,
+        p_category: treasuryCategory.trim(),
+        p_description: treasuryDesc.trim() || null,
+        p_reference: treasuryRef.trim() || null,
+        p_zone_id: zoneParam
+      })
+      if (rpcError) throw rpcError
+
+      setShowTreasury(false)
+      setTreasuryAmount('')
+      setTreasuryCategory('')
+      setTreasuryDesc('')
+      setTreasuryRef('')
+      setOkMsg(treasuryDirection === 'in' ? 'Ingreso de caja registrado' : 'Egreso de caja registrado')
+      await loadOverview()
+    } catch (err: any) {
+      setTreasuryError(err.message)
+    } finally {
+      setSavingTreasury(false)
+    }
   }
 
   const fundZoneId = isEncargado ? (user?.zone_id || null) : (zoneId || null)
@@ -486,6 +577,20 @@ export function EstadoCuentas() {
               </button>
             </div>
 
+            {/* Movimientos manuales de caja */}
+            <div className="card p-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-surface-500">Movimientos de caja</p>
+                <p className="text-[11px] text-surface-400">Inyecciones, retiros y gastos (servidor, publicidad...)</p>
+              </div>
+              <button
+                onClick={() => setShowTreasury(true)}
+                className="btn-outline text-xs px-3 py-1.5"
+              >
+                <ArrowUpCircle className="w-3.5 h-3.5" /> Registrar
+              </button>
+            </div>
+
             {/* Conciliación */}
             <div className="card p-4 space-y-2">
               <p className="text-xs font-semibold text-surface-600 flex items-center gap-1">
@@ -522,8 +627,9 @@ export function EstadoCuentas() {
                 <Landmark className="w-3.5 h-3.5" /> Cómo se calcula
               </p>
               <ul className="mt-1 space-y-0.5 text-[11px] text-surface-500 list-disc pl-4">
-                <li>Efectivo en caja = fondo inicial + recargas en efectivo + cobros en efectivo − pagos en efectivo.</li>
-                <li>En banco = recargas digitales + viajes Pago Móvil aprobados + cobros digitales − pagos digitales.</li>
+                <li>Efectivo en caja = fondo inicial + recargas en efectivo + cobros en efectivo − pagos en efectivo ± movimientos manuales de caja.</li>
+                <li>En banco = recargas digitales + viajes Pago Móvil aprobados + cobros digitales − pagos digitales ± movimientos manuales de banco.</li>
+                <li>Los movimientos manuales (servidor, publicidad, retiros, inyecciones) se registran en "Movimientos de caja" y quedan en auditoría.</li>
                 <li>Sin clasificar = solo movimientos externos sin método (recargas y liquidaciones). Las comisiones internas no cuentan.</li>
                 <li>Efectivo por cobrar = saldo negativo de las billeteras de conductores (comisiones en efectivo).</li>
                 <li>
@@ -547,6 +653,108 @@ export function EstadoCuentas() {
           </>
         )}
 
+        {/* Pestanas: conductores / pasajeros */}
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-100 p-1">
+          <button
+            onClick={() => setTab('conductores')}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${tab === 'conductores' ? 'bg-white text-primary-700 shadow-soft' : 'text-surface-500'}`}
+          >
+            Conductores
+          </button>
+          <button
+            onClick={() => setTab('pasajeros')}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${tab === 'pasajeros' ? 'bg-white text-primary-700 shadow-soft' : 'text-surface-500'}`}
+          >
+            Pasajeros
+          </button>
+        </div>
+
+        {tab === 'pasajeros' && (
+          <div className="space-y-3">
+            <div className="card p-4 space-y-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+                  <input
+                    className="input pl-10"
+                    placeholder="Nombre, correo o telefono"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') loadCustomers() }}
+                  />
+                </div>
+                <button onClick={loadCustomers} className="btn-primary" disabled={loadingCustomers}>
+                  {loadingCustomers ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buscar'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface-100 p-1">
+                {([['con_saldo', 'Con saldo'], ['con_deuda', 'Con deuda'], ['todos', 'Todos']] as const).map(([f, label]) => (
+                  <button
+                    key={f}
+                    onClick={() => setCustomerFilter(f)}
+                    className={`rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${customerFilter === f ? 'bg-white text-primary-700 shadow-soft' : 'text-surface-500'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {customerAccounts && (
+                <p className="text-xs text-surface-500">
+                  {customerAccounts.total} pasajeros · saldo total {fmt(customerAccounts.totales.suma_saldo)}
+                </p>
+              )}
+            </div>
+
+            {loadingCustomers ? (
+              <SkeletonList count={3} />
+            ) : !customerAccounts || customerAccounts.items.length === 0 ? (
+              <EmptyState
+                icon={<Wallet className="w-8 h-8" />}
+                title="Sin pasajeros"
+                description="No hay pasajeros con saldo para este filtro"
+              />
+            ) : (
+              <div className="space-y-2">
+                {customerAccounts.items.map((c) => {
+                  const wa = whatsappNumber(c.phone)
+                  return (
+                    <div key={c.id} className="card flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-surface-800 truncate">{c.full_name || 'Sin nombre'}</p>
+                        <p className="text-xs text-surface-500 truncate">{c.email || 'Sin correo'}</p>
+                        <p className="text-[10px] text-surface-400">
+                          {c.zone_name || 'Sin ciudad'}
+                          {c.last_movement_at ? ` · Ult. mov. ${new Date(c.last_movement_at).toLocaleDateString('es-VE')}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`font-bold ${c.balance_usd > 0 ? 'text-emerald-600' : c.balance_usd < 0 ? 'text-red-600' : 'text-surface-400'}`}>
+                          {fmt(c.balance_usd)}
+                        </span>
+                        {wa && (
+                          <a
+                            href={`https://wa.me/${wa}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg text-primary-600 hover:bg-primary-50"
+                            aria-label="WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'conductores' && (
+        <>
         {/* Filtros de la lista */}
         <div className="card p-4 space-y-3">
           <div className="grid grid-cols-3 gap-1 bg-surface-100 rounded-lg p-1">
@@ -729,7 +937,132 @@ export function EstadoCuentas() {
             />
           </>
         )}
+        </>
+        )}
       </div>
+
+      {/* Modal movimiento de caja */}
+      {showTreasury && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[92vh] overflow-y-auto space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-surface-800">Movimiento de caja</h2>
+                <p className="text-xs text-surface-500">{cityLabel}</p>
+              </div>
+              <button onClick={() => setShowTreasury(false)} className="text-surface-400 hover:text-surface-600" aria-label="Cerrar">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-surface-500">
+              Registra dinero que entra o sale por fuera de los viajes: pago del servidor, retiro de efectivo,
+              publicidad o una inyección de capital. Queda en auditoría.
+            </p>
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-100 p-1">
+              <button
+                type="button"
+                onClick={() => setTreasuryDirection('in')}
+                className={`rounded-md px-2 py-1.5 text-xs font-semibold ${treasuryDirection === 'in' ? 'bg-white text-emerald-700 shadow-soft' : 'text-surface-500'}`}
+              >
+                Ingreso
+              </button>
+              <button
+                type="button"
+                onClick={() => setTreasuryDirection('out')}
+                className={`rounded-md px-2 py-1.5 text-xs font-semibold ${treasuryDirection === 'out' ? 'bg-white text-red-600 shadow-soft' : 'text-surface-500'}`}
+              >
+                Egreso
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-100 p-1">
+              <button
+                type="button"
+                onClick={() => setTreasuryKind('efectivo')}
+                className={`rounded-md px-2 py-1.5 text-xs font-semibold ${treasuryKind === 'efectivo' ? 'bg-white text-primary-700 shadow-soft' : 'text-surface-500'}`}
+              >
+                Efectivo (caja)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTreasuryKind('externo')}
+                className={`rounded-md px-2 py-1.5 text-xs font-semibold ${treasuryKind === 'externo' ? 'bg-white text-primary-700 shadow-soft' : 'text-surface-500'}`}
+              >
+                Banco / Pago Móvil
+              </button>
+            </div>
+
+            <div>
+              <label className="label">Monto (USD)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                className="input"
+                value={treasuryAmount}
+                onChange={(e) => setTreasuryAmount(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="label">Categoría</label>
+              <select className="input" value={treasuryCategory} onChange={(e) => setTreasuryCategory(e.target.value)}>
+                <option value="">Selecciona...</option>
+                <option value="servidor">Servidor / hosting</option>
+                <option value="publicidad">Publicidad</option>
+                <option value="sueldos">Sueldos / comisiones</option>
+                <option value="retiro">Retiro de efectivo</option>
+                <option value="inyeccion">Inyección de capital</option>
+                <option value="ajuste">Ajuste de caja</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="label">Nota (opcional)</label>
+              <input className="input" value={treasuryDesc} onChange={(e) => setTreasuryDesc(e.target.value)} placeholder="Ej: pago mensual del servidor" />
+            </div>
+
+            <div>
+              <label className="label">Referencia / comprobante (opcional)</label>
+              <input className="input" value={treasuryRef} onChange={(e) => setTreasuryRef(e.target.value)} placeholder="Ej: factura 1234" />
+            </div>
+
+            {treasuryError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{treasuryError}</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setShowTreasury(false)} className="btn-outline flex-1" disabled={savingTreasury}>Cancelar</button>
+              <button onClick={saveTreasury} className="btn-primary flex-1" disabled={savingTreasury}>
+                {savingTreasury ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Registrar'}
+              </button>
+            </div>
+
+            {movements.length > 0 && (
+              <div className="pt-2 border-t border-surface-100">
+                <p className="text-xs font-semibold text-surface-600 mb-1">Últimos movimientos</p>
+                <div className="space-y-1">
+                  {movements.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between gap-2 text-[11px] bg-surface-50 rounded px-2 py-1">
+                      <span className="truncate text-surface-600">
+                        {m.category} · {m.kind === 'efectivo' ? 'Caja' : 'Banco'}
+                        {m.description ? ` · ${m.description}` : ''}
+                      </span>
+                      <span className={`font-semibold flex-shrink-0 ${m.direction === 'in' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {m.direction === 'in' ? '+' : '−'}{fmt(m.amount_usd)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal fondo de caja */}
       {showFund && (
