@@ -213,8 +213,11 @@ export function AdminIncidents() {
       // El culpable se deduce de quién canceló; el cargo ya está registrado
       const byDriver = !!(ride && ride.cancelled_by && ride.cancelled_by === ride.driver_id)
       const charge = incident.charge_pending_usd ?? 0
+      // Fee que el sistema retuvo al cliente (billetera/pago movil):
+      // se devuelve si el culpable no es el cliente.
+      const retained = Math.max(0, Number(incident.cancellation_fee_usd ?? 0))
       setAtFault(byDriver ? 'conductor' : 'cliente')
-      setRefundClientAmount(0)
+      setRefundClientAmount(byDriver ? retained : 0)
       // Solo hay algo que cobrar al cliente si existe un cargo pendiente (efectivo).
       setPenalizeAmount(!byDriver && charge > 0 ? charge : 0)
       // La compensación NO se paga automáticamente: arranca en 0 y el admin decide.
@@ -239,7 +242,9 @@ export function AdminIncidents() {
 
     if (selectedIncident?.incident_type === 'cancelacion_cliente') {
       const charge = selectedIncident.charge_pending_usd ?? 0
-      setRefundClientAmount(0)
+      // Si el culpable no es el cliente, se devuelve el fee ya retenido
+      const retained = Math.max(0, Number(selectedIncident.cancellation_fee_usd ?? 0))
+      setRefundClientAmount(fault === 'cliente' ? 0 : retained)
       setPenalizeAmount(fault === 'cliente' && charge > 0 ? charge : 0)
       // No tocar la compensación: es decisión explícita del admin.
       return
@@ -650,7 +655,9 @@ export function AdminIncidents() {
               )}
               {isCancellationIncident && !isCashIncident && (
                 <p className="text-[11px] text-surface-500 pt-1 border-t border-surface-200">
-                  El fee ya quedó retenido del dinero cobrado: no se le cobra un cargo extra al cliente.
+                  {cancellationFee > 0
+                    ? `El sistema retuvo ${fmt(cancellationFee)} de fee. Si el culpable no es el cliente, se le devuelve (se precarga en el reembolso).`
+                    : 'El fee ya quedó retenido del dinero cobrado: no se le cobra un cargo extra al cliente.'}
                 </p>
               )}
             </div>
