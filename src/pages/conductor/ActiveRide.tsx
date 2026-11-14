@@ -195,23 +195,19 @@ export function ActiveRide() {
   // Guia dentro del mapa: sigue al conductor hacia el pasajero o al destino
   const [seguir, setSeguir] = useState(false)
   const stopFollowing = useCallback(() => setSeguir(false), [])
-  // Gate: el inicio del viaje solo se confirma despues de guiarse al pasajero
-  const [guiaIniciada, setGuiaIniciada] = useState(false)
-  const marcarGuiaIniciada = useCallback(() => {
-    setGuiaIniciada(true)
-    // Se recuerda por viaje: si el conductor recarga la app no tiene que repetirlo
-    if (rideId) sessionStorage.setItem('guia-recogida-' + rideId, '1')
-  }, [rideId])
+  // Seguimiento automatico: se activa UNA vez por viaje (al aceptar ya va a buscar
+  // al pasajero). Si el conductor arrastra el mapa se pausa, como en Google Maps,
+  // y se reanuda con el boton "Centrar en mi".
+  const autoFollowRideRef = useRef<string | null>(null)
 
-  // Al iniciar el viaje se re-encuadra al destino (y se apaga el seguimiento del pasajero)
+  // Al iniciar el viaje se re-encuadra al destino
   useEffect(() => {
     if (ride?.status === 'en_ruta') setFitKey((k) => k + 1)
   }, [ride?.status])
 
-  // Al cambiar de viaje se apaga el seguimiento y se restaura el gate de confirmacion
+  // Al cambiar de viaje se apaga el seguimiento (el siguiente viaje lo reactiva)
   useEffect(() => {
     setSeguir(false)
-    setGuiaIniciada(rideId ? sessionStorage.getItem('guia-recogida-' + rideId) === '1' : false)
   }, [rideId])
 
 
@@ -328,6 +324,15 @@ export function ActiveRide() {
     }
   }, [vehiclePos])
 
+  // Seguimiento automatico: una sola vez por viaje, en cuanto hay GPS.
+  useEffect(() => {
+    if (!rideId || !ride || !vehiclePos) return
+    if (ride.status !== 'aceptada' && ride.status !== 'en_ruta') return
+    if (autoFollowRideRef.current === rideId) return
+    autoFollowRideRef.current = rideId
+    setSeguir(true)
+  }, [rideId, ride?.status, vehiclePos])
+
   // 🗺️ Traza la ruta por carretera (OSRM) hacia el siguiente punto del viaje.
   // 💰 Costo: solo se pide si cambia el objetivo o el vehículo avanzó >= 150 m.
   // 🐞 Antes se marcaba `lastRouteRef` ANTES de recibir la ruta y el cleanup
@@ -391,11 +396,6 @@ export function ActiveRide() {
   }
 
   const handleConfirmStart = async () => {
-    // No se puede iniciar el viaje sin guiarse antes hasta el pasajero
-    if (ride?.status === 'aceptada' && !puedeConfirmarInicio) {
-      setError('Primero toca «Ir a recoger al pasajero» para que el mapa te guíe hasta el punto de recogida.')
-      return
-    }
     setError('')
     setLoading(true)
 
@@ -563,11 +563,6 @@ export function ActiveRide() {
   const clientConfirmed = ride.client_start_confirmed
   const bothConfirmed = driverConfirmed && clientConfirmed
 
-  // El inicio del viaje solo se confirma despues de pulsar "Ir a recoger al pasajero"
-  // (o si el conductor ya esta dentro del radio de recogida, por si venia sin GPS).
-  const CERCA_RECOGIDA_M = 150
-  const llegadaCerca = distanciaGuia != null && distanciaGuia <= CERCA_RECOGIDA_M
-  const puedeConfirmarInicio = guiaIniciada || llegadaCerca || driverConfirmed
 
   const statusLabels = {
     buscando: 'Buscando conductor...',
@@ -651,32 +646,19 @@ export function ActiveRide() {
         </div>
       )}
 
-      {/* Guia al punto que toca ahora: recoger al pasajero o ir al destino */}
+      {/* Fase del viaje + distancia (solo informativo, sin botones) */}
       {(ride.status === 'aceptada' || ride.status === 'en_ruta') && (
         <div className="max-w-md mx-auto px-4 mt-4">
-          <button
-            type="button"
-            onClick={() => {
-              const next = !seguir
-              setSeguir(next)
-              if (next) setFitKey((k) => k + 1)
-              // Con solo pulsar "Ir a recoger" ya se habilita confirmar el inicio
-              if (ride.status === 'aceptada') marcarGuiaIniciada()
-            }}
-            aria-pressed={seguir}
-            className={`btn-primary w-full flex items-center justify-between gap-3${
-              ride.status === 'aceptada' && !guiaIniciada ? ' ring-2 ring-amber-400 ring-offset-2' : ''
-            }`}
-          >
-            <span className="flex items-center gap-2 font-semibold">
-              <Navigation className="w-5 h-5" />
-              {ride.status === 'aceptada' ? 'Ir a recoger al pasajero' : 'Ir al destino'}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-surface-200 bg-white px-3 py-2 shadow-soft">
+            <span className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+              <Navigation className="h-4 w-4 text-primary-600" />
+              {ride.status === 'aceptada' ? 'Recogiendo al pasajero' : 'En ruta al destino'}
             </span>
-            <span className="rounded-full bg-white/20 px-2 py-1 text-xs font-semibold">
-              {seguir ? 'Siguiendo…' : distanciaTexto}
+            <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-semibold text-primary-700">
+              {distanciaTexto}
             </span>
-          </button>
-          <p className="mt-1.5 text-xs text-surface-500">
+          </div>
+          <p className="mt-1 text-[11px] text-surface-500">
             {ride.status === 'aceptada'
               ? `Recoger a: ${ride.origin_barrio_name || ride.origin_address || 'el pasajero'}${clientName ? ` · ${clientName}` : ''}`
               : `Destino: ${ride.destination_barrio_name || ride.destination_address || 'el destino'}`}
@@ -745,13 +727,18 @@ export function ActiveRide() {
           </Marker>
         </MapContainer>
 
-        {/* Centrar mapa */}
+        {/* Centrar en mi: re-encuadra y reactiva el seguimiento */}
         <button
           type="button"
-          onClick={() => setFitKey((k) => k + 1)}
-          className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-primary-600 hover:bg-primary-50"
-          aria-label="Centrar mapa"
-          title="Centrar en el viaje"
+          onClick={() => {
+            setSeguir(true)
+            setFitKey((k) => k + 1)
+          }}
+          className={`absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full shadow-card flex items-center justify-center transition-colors ${
+            seguir ? "bg-white text-primary-600 hover:bg-primary-50" : "bg-primary-600 text-white hover:bg-primary-700"
+          }`}
+          aria-label="Centrar en mí"
+          title={seguir ? "Seguimiento activo" : "Centrar en mí"}
         >
           <Navigation className="w-5 h-5" />
         </button>
@@ -816,20 +803,13 @@ export function ActiveRide() {
             </div>
 
             {!driverConfirmed ? (
-              <>
-                <button
-                  onClick={handleConfirmStart}
-                  className="btn-success w-full"
-                  disabled={loading || !puedeConfirmarInicio}
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Ya recogí al pasajero</>}
-                </button>
-                {!puedeConfirmarInicio && (
-                  <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
-                    Primero toca <strong>«Ir a recoger al pasajero»</strong> para que el mapa te guíe hasta el punto de recogida.
-                  </p>
-                )}
-              </>
+              <button
+                onClick={handleConfirmStart}
+                className="btn-success w-full"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Ya recogí al pasajero</>}
+              </button>
             ) : (
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
                 <p className="text-sm text-emerald-700">
