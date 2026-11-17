@@ -576,6 +576,28 @@ export function ClientHome() {
     setTimeout(() => referenciaRef.current?.focus(), 250)
   }
 
+  // Boton "Listo": cierra el teclado y sigue el flujo (destino o vehiculos)
+  const continuarConReferencia = () => {
+    if (originReference.trim().length < 4) {
+      setError('Escribe la referencia de tu dirección (ej: casa verde, portón negro, frente a la farmacia).')
+      setReferenciaResaltada(true)
+      enfocarReferencia()
+      setTimeout(() => setReferenciaResaltada(false), 2500)
+      return
+    }
+
+    setError('')
+    referenciaRef.current?.blur()
+
+    // Sin destino no se puede elegir vehiculo: se le lleva al destino
+    if (!destBarrioId || !destAddress) {
+      document.getElementById('ingresar-destino-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const guardarMemoriaReferencia = () => {
     if (!origin) return
     try {
@@ -1522,6 +1544,7 @@ export function ClientHome() {
             </button>
           ) : (
             <button
+              id="ingresar-destino-btn"
               onClick={() => { setSheetBarrioId(''); setSheetAddress(''); setSheetPin(null); setShowDestSheet(true) }}
               className="btn-primary w-full"
             >
@@ -1574,9 +1597,25 @@ export function ClientHome() {
                   refTouchedRef.current = true
                   setOriginReference(e.target.value)
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    continuarConReferencia()
+                  }
+                }}
                 maxLength={120}
                 autoComplete="off"
               />
+
+              {/* Cierra el teclado y sigue el flujo (vehiculos o destino) */}
+              <button
+                type="button"
+                onClick={continuarConReferencia}
+                className="btn-primary w-full justify-between"
+              >
+                <span>Listo</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
           )}
             </div>
