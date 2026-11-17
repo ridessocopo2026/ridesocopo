@@ -660,9 +660,14 @@ export function ActiveRide() {
           </div>
           <p className="mt-1 text-[11px] text-surface-500">
             {ride.status === 'aceptada'
-              ? `Recoger a: ${ride.origin_barrio_name || ride.origin_address || 'el pasajero'}${clientName ? ` · ${clientName}` : ''}`
+              ? `Recoger en: ${ride.origin_address || ride.origin_barrio_name || 'el pasajero'}`
               : `Destino: ${ride.destination_barrio_name || ride.destination_address || 'el destino'}`}
           </p>
+          {ride.status === 'aceptada' && (
+            <p className="mt-0.5 text-[11px] text-surface-400">
+              Sector: {ride.origin_barrio_name || 'no especificado'}{clientName ? ` · ${clientName}` : ''}
+            </p>
+          )}
         </div>
       )}
 
@@ -717,7 +722,10 @@ export function ActiveRide() {
           )}
           {/* Ubicacion del pasajero (destacada mientras se va a recogerlo) */}
           <Marker position={origin} icon={ride.status === 'aceptada' ? pickupIcon : clientIcon}>
-            <Popup>Recoger a: {clientName || 'Cliente'}</Popup>
+            <Popup>
+              Recoger a: {clientName || 'Cliente'}
+              {ride.origin_address ? <><br />{ride.origin_address}</> : null}
+            </Popup>
           </Marker>
           <Marker position={destination} icon={destIcon} opacity={ride.status === 'aceptada' ? 0.5 : 1}>
             <Popup>

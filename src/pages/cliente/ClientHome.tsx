@@ -19,7 +19,7 @@ import { useRideRealtime, fetchRideById } from '@/lib/rideRealtime'
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '@/lib/guestDraft'
 import { DestinationPinPicker } from '@/components/ride/DestinationPinPicker'
 import { CashPaymentPicker } from '@/components/ride/CashPaymentPicker'
-import { isPointInGeoJson, nearestBarrio } from '@/lib/geo'
+import { isPointInGeoJson, nearestBarrio, distanceMeters } from '@/lib/geo'
 import { useAuth } from '@/contexts/AuthContext'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import type { Banner, FavoritePlace, VehicleCategory, VehicleCategoryType, FareCalculation, Barrio, PaymentMethodConfig, PaymentMethodField, Ride } from '@/types/database'
@@ -100,6 +100,11 @@ export function ClientHome() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null)
   const [inCoverage, setInCoverage] = useState(false)
   const [originAddress, setOriginAddress] = useState('')
+  // Referencia escrita de recogida (obligatoria: sirve si falla el GPS/internet)
+  const [originReference, setOriginReference] = useState('')
+  const [referenciaResaltada, setReferenciaResaltada] = useState(false)
+  const referenciaRef = useRef<HTMLInputElement | null>(null)
+  const refTouchedRef = useRef(false)
   const [destBarrioId, setDestBarrioId] = useState('')
   const [destAddress, setDestAddress] = useState('')
   const [destPin, setDestPin] = useState<{ lat: number; lng: number } | null>(null)
@@ -560,6 +565,58 @@ export function ClientHome() {
     }
   }
 
+  // ── Referencia de recogida ──────────────────────────────────
+  // Obligatoria al pedir: es lo que tiene el conductor si falla el GPS.
+  // Se autocompleta SOLO si el pin está cerca de un lugar guardado (≤120 m)
+  // o de la última referencia usada en ese mismo punto (≤100 m).
+  const REF_MEMORIA_KEY = 'rider_origen_ref_v1'
+
+  const enfocarReferencia = () => {
+    referenciaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => referenciaRef.current?.focus(), 250)
+  }
+
+  const guardarMemoriaReferencia = () => {
+    if (!origin) return
+    try {
+      localStorage.setItem(REF_MEMORIA_KEY, JSON.stringify({
+        lat: origin.lat,
+        lng: origin.lng,
+        reference: originReference.trim()
+      }))
+    } catch { /* sin storage */ }
+  }
+
+  useEffect(() => {
+    if (!origin) return
+    if (refTouchedRef.current) return
+
+    const cercano = favorites.find((f) => {
+      if (!f.lat || !f.lng) return false
+      return distanceMeters(origin, { lat: Number(f.lat), lng: Number(f.lng) }) <= 120
+    })
+
+    if (cercano) {
+      setOriginReference(cercano.name)
+      return
+    }
+
+    try {
+      const raw = localStorage.getItem(REF_MEMORIA_KEY)
+      if (raw) {
+        const memoria = JSON.parse(raw) as { lat: number; lng: number; reference?: string }
+        if (memoria?.reference && distanceMeters(origin, { lat: memoria.lat, lng: memoria.lng }) <= 100) {
+          setOriginReference(memoria.reference)
+          return
+        }
+      }
+    } catch { /* sin storage */ }
+
+    // Está en otro sitio: no arrastramos la referencia anterior
+    setOriginReference('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, favorites])
+
   const loadPaymentMethods = async () => {
     const { data, error } = await supabase.rpc('get_active_payment_methods')
     if (!error && data) {
@@ -681,12 +738,11 @@ export function ClientHome() {
             setError('Tu ubicación está fuera del área de cobertura de la app. No puedes solicitar un viaje.')
           } else {
             setError('')
-            // Si ya eligió destino, scroll automático a vehículos
-            if (destBarrioId && destAddress) {
-              setTimeout(() => {
-                document.getElementById('vehicles-select')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }, 500)
-            }
+            // Siguiente paso lógico: la referencia de recogida (con foco)
+            setTimeout(() => {
+              referenciaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              referenciaRef.current?.focus()
+            }, 350)
           }
         }
       },
@@ -816,6 +872,11 @@ export function ClientHome() {
     setLoading(true)
 
     try {
+      // Al conductor le llega la referencia escrita + la dirección aproximada
+      const originAddressFinal = originAddress
+        ? `${originReference.trim()} — ${originAddress}`
+        : originReference.trim()
+
       const barrio = barrios.find((b) => b.id === destBarrioId)
       if (!barrio?.lat || !barrio?.lng) {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
@@ -889,6 +950,15 @@ export function ClientHome() {
     if (!origin || !destBarrioId || !selectedCategory || !selectedPaymentMethod) return
     if (!user) return // Ya se valida en handleCalculateFare
 
+    // Referencia obligatoria: es lo que guía al conductor si falla el GPS
+    if (originReference.trim().length < 4) {
+      setError('Escribe la referencia de tu dirección (ej: casa verde, portón negro, frente a la farmacia). Sirve para que el conductor te encuentre si falla el GPS.')
+      setReferenciaResaltada(true)
+      enfocarReferencia()
+      setTimeout(() => setReferenciaResaltada(false), 2500)
+      return
+    }
+
     // 🚫 Segunda barrera: si debe dinero no se crea el viaje (el servidor también lo bloquea)
     if (walletBalance !== null && walletBalance < 0) {
       setDebtAmount(Math.abs(walletBalance))
@@ -912,6 +982,11 @@ export function ClientHome() {
     setLoading(true)
 
     try {
+      // Al conductor le llega la referencia escrita + la dirección aproximada
+      const originAddressFinal = originAddress
+        ? `${originReference.trim()} — ${originAddress}`
+        : originReference.trim()
+
       const barrio = barrios.find((b) => b.id === destBarrioId)
       if (!barrio?.lat || !barrio?.lng) {
         throw new Error('El sitio seleccionado no tiene ubicación configurada')
@@ -946,7 +1021,7 @@ export function ClientHome() {
         const { data, error } = await supabase.rpc('request_ride_with_proof', {
           p_origin_lat: origin.lat,
           p_origin_lng: origin.lng,
-          p_origin_address: originAddress,
+          p_origin_address: originAddressFinal,
           p_dest_lat: destPoint.lat,
           p_dest_lng: destPoint.lng,
           p_dest_address: destAddress,
@@ -956,13 +1031,14 @@ export function ClientHome() {
           p_coupon_code: couponCode || null
         })
         if (error) throw error
-        navigate(`/cliente/viaje/${data}`)
+        guardarMemoriaReferencia()
+      navigate(`/cliente/viaje/${data}`)
       } else {
         // Método efectivo u otro sin comprobante
         const { data, error } = await supabase.rpc('request_ride', {
           p_origin_lat: origin.lat,
           p_origin_lng: origin.lng,
-          p_origin_address: originAddress,
+          p_origin_address: originAddressFinal,
           p_dest_lat: destPoint.lat,
           p_dest_lng: destPoint.lng,
           p_dest_address: destAddress,
@@ -973,7 +1049,8 @@ export function ClientHome() {
           p_cash_bills: selectedPaymentMethod === 'Efectivo' ? cashBills : null
         })
         if (error) throw error
-        navigate(`/cliente/viaje/${data}`)
+        guardarMemoriaReferencia()
+      navigate(`/cliente/viaje/${data}`)
       }
     } catch (err: any) {
       setError(err.message)
@@ -1479,6 +1556,27 @@ export function ClientHome() {
               inCoverage ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
             }`}>
               {inCoverage ? '✅ Dentro del área de cobertura' : '❌ Fuera del área de cobertura'}
+            </div>
+          )}
+
+          {/* Referencia obligatoria de recogida (guía al conductor si falla el GPS) */}
+          {origin && (
+            <div className="space-y-1.5">
+              <label className="label" htmlFor="origin-reference">Referencia de tu dirección *</label>
+              <input
+                id="origin-reference"
+                ref={referenciaRef}
+                type="text"
+                className={`input ${referenciaResaltada ? ' border-amber-400 ring-2 ring-amber-300' : ''}`}
+                placeholder="Ej: casa verde, portón negro, frente a la farmacia"
+                value={originReference}
+                onChange={(e) => {
+                  refTouchedRef.current = true
+                  setOriginReference(e.target.value)
+                }}
+                maxLength={120}
+                autoComplete="off"
+              />
             </div>
           )}
             </div>
